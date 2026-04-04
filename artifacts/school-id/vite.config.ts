@@ -79,6 +79,42 @@ export default defineConfig({
               },
             },
           },
+          {
+            urlPattern: /\/api\/students(\?.*)?$/,
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "api-students-cache",
+              expiration: {
+                maxEntries: 5,
+                maxAgeSeconds: 60 * 60,
+              },
+              networkTimeoutSeconds: 5,
+            },
+          },
+          {
+            urlPattern: /\/api\/activities(\?.*)?$/,
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "api-activities-cache",
+              expiration: {
+                maxEntries: 5,
+                maxAgeSeconds: 60 * 60,
+              },
+              networkTimeoutSeconds: 5,
+            },
+          },
+          {
+            urlPattern: /\/api\/dashboard(\?.*)?$/,
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "api-dashboard-cache",
+              expiration: {
+                maxEntries: 5,
+                maxAgeSeconds: 60 * 5,
+              },
+              networkTimeoutSeconds: 5,
+            },
+          },
         ],
       },
     }),

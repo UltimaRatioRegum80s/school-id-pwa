@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { BottomNav } from "@/components/BottomNav";
+import { IosInstallPrompt } from "@/components/IosInstallPrompt";
 import LoginPage from "@/pages/LoginPage";
 import ScanPage from "@/pages/ScanPage";
 import DashboardPage from "@/pages/DashboardPage";
@@ -43,6 +44,7 @@ function ProtectedApp() {
         <Route component={NotFound} />
       </Switch>
       <BottomNav />
+      <IosInstallPrompt />
     </div>
   );
 }

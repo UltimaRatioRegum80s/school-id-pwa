@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
+import { QrScanner } from "@/components/QrScanner";
 import { getScanTypeLabel, formatTime } from "@/lib/status";
 import {
   useProcessScan,
@@ -11,7 +12,6 @@ import {
 import type { ScanResult } from "@workspace/api-client-react";
 import { ScanType } from "@workspace/api-client-react";
 import {
-  QrCode,
   Camera,
   CheckCircle2,
   AlertTriangle,
@@ -36,8 +36,6 @@ const SCAN_TYPES = [
   { value: "club", label: "Club" },
 ];
 
-const DEMO_QR_CODES = ["SCID-STU1001", "SCID-STU1002", "SCID-STU1003"];
-
 export default function ScanPage() {
   const queryClient = useQueryClient();
   const [scanType, setScanType] = useState("gate_in");
@@ -46,11 +44,14 @@ export default function ScanPage() {
   const [result, setResult] = useState<ScanResult | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [behaviorMessage, setBehaviorMessage] = useState<string | null>(null);
+  const [cameraActive, setCameraActive] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
+    if (!cameraActive) {
+      inputRef.current?.focus();
+    }
+  }, [cameraActive]);
 
   const scanMutation = useProcessScan({
     mutation: {
@@ -85,6 +86,11 @@ export default function ScanPage() {
     });
   }
 
+  function handleQrScan(code: string) {
+    setCameraActive(false);
+    processScan(code);
+  }
+
   function handleManualSubmit(e: React.FormEvent) {
     e.preventDefault();
     processScan(manualInput);
@@ -95,7 +101,9 @@ export default function ScanPage() {
     setBehaviorMessage(null);
     setTimeout(() => {
       setResult(null);
-      inputRef.current?.focus();
+      if (!cameraActive) {
+        inputRef.current?.focus();
+      }
     }, 300);
   }
 
@@ -130,25 +138,38 @@ export default function ScanPage() {
       />
 
       <div className="max-w-lg mx-auto w-full px-4 py-4 space-y-4">
-        {/* Camera Placeholder */}
-        <div
-          className="bg-slate-900 rounded-2xl overflow-hidden relative"
-          style={{ aspectRatio: "4/3" }}
-          data-testid="panel-camera-placeholder"
-        >
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-            <Camera className="w-12 h-12 text-slate-500" />
-            <p className="text-slate-400 text-sm font-medium">Camera not available</p>
-            <p className="text-slate-500 text-xs text-center px-6">
-              Use the input below to scan or enter a Student ID
-            </p>
+        {/* Camera / QR Scanner */}
+        {cameraActive ? (
+          <div data-testid="panel-camera-placeholder">
+            <QrScanner
+              active={cameraActive}
+              onScan={handleQrScan}
+              onStop={() => setCameraActive(false)}
+            />
           </div>
-          {/* Corner guides */}
-          <div className="absolute top-6 left-6 w-8 h-8 border-t-2 border-l-2 border-white/30 rounded-tl" />
-          <div className="absolute top-6 right-6 w-8 h-8 border-t-2 border-r-2 border-white/30 rounded-tr" />
-          <div className="absolute bottom-6 left-6 w-8 h-8 border-b-2 border-l-2 border-white/30 rounded-bl" />
-          <div className="absolute bottom-6 right-6 w-8 h-8 border-b-2 border-r-2 border-white/30 rounded-br" />
-        </div>
+        ) : (
+          <div
+            className="bg-slate-900 rounded-2xl overflow-hidden relative cursor-pointer group"
+            style={{ aspectRatio: "4/3" }}
+            data-testid="panel-camera-placeholder"
+            onClick={() => setCameraActive(true)}
+          >
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+              <div className="w-16 h-16 rounded-full bg-white/10 group-hover:bg-white/20 transition-colors flex items-center justify-center">
+                <Camera className="w-8 h-8 text-white" />
+              </div>
+              <p className="text-white/80 text-sm font-semibold">Tap to scan QR code</p>
+              <p className="text-slate-400 text-xs text-center px-6">
+                Or use the input below to enter a Student ID manually
+              </p>
+            </div>
+            {/* Corner guides */}
+            <div className="absolute top-6 left-6 w-8 h-8 border-t-2 border-l-2 border-white/30 rounded-tl" />
+            <div className="absolute top-6 right-6 w-8 h-8 border-t-2 border-r-2 border-white/30 rounded-tr" />
+            <div className="absolute bottom-6 left-6 w-8 h-8 border-b-2 border-l-2 border-white/30 rounded-bl" />
+            <div className="absolute bottom-6 right-6 w-8 h-8 border-b-2 border-r-2 border-white/30 rounded-br" />
+          </div>
+        )}
 
         {/* Scan Type + Location row */}
         <div className="grid grid-cols-2 gap-3">
@@ -229,31 +250,6 @@ export default function ScanPage() {
           )}
         </div>
 
-        {/* Demo Simulate Scan */}
-        <div className="bg-muted/50 border border-border rounded-xl p-4">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
-              <QrCode className="w-4 h-4 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-foreground">Demo Mode</p>
-              <p className="text-xs text-muted-foreground">Simulate a scan with a sample student</p>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            {DEMO_QR_CODES.map((qr) => (
-              <button
-                key={qr}
-                onClick={() => processScan(qr)}
-                disabled={scanMutation.isPending}
-                className="flex-1 bg-card border border-border rounded-lg py-1.5 text-xs font-medium text-foreground hover:border-primary/50 transition-colors disabled:opacity-50"
-                data-testid={`button-demo-scan-${qr}`}
-              >
-                {qr.replace("SCID-", "")}
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
 
       {/* Bottom Sheet overlay */}
