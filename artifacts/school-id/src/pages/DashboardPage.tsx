@@ -30,7 +30,6 @@ const STATE_COLORS: Record<string, string> = {
 };
 
 const GRADES = ["8", "9", "10", "11", "12"];
-const CLASS_SUFFIXES = ["A", "B", "C"];
 
 type StudentCard = StudentWithState;
 
@@ -78,9 +77,9 @@ export default function DashboardPage() {
     };
   }, [queryClient, queryKey]);
 
-  const classOptions =
-    gradeFilter
-      ? CLASS_SUFFIXES.map((s) => `${gradeFilter}${s}`)
+  const classOptions: string[] =
+    gradeFilter && data?.availableClassesByGrade
+      ? (data.availableClassesByGrade as Record<string, string[]>)[gradeFilter] ?? []
       : [];
 
   function handleGradeChip(g: string) {

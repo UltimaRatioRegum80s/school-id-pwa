@@ -42,10 +42,23 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
   const [settingsRow] = await db.select().from(schoolSettingsTable).limit(1);
   const schoolStartTime = settingsRow?.startTime ?? "07:30";
 
-  let allStudents = await db.select().from(studentsTable).where(eq(studentsTable.isActive, 1));
-  if (grade) allStudents = allStudents.filter((s) => s.grade === grade);
-  if (className) allStudents = allStudents.filter((s) => s.className === className);
-  const students = allStudents;
+  const allActiveStudents = await db.select().from(studentsTable).where(eq(studentsTable.isActive, 1));
+
+  // Build availableClassesByGrade from all students (unfiltered)
+  const availableClassesByGrade: Record<string, string[]> = {};
+  for (const s of allActiveStudents) {
+    if (!availableClassesByGrade[s.grade]) availableClassesByGrade[s.grade] = [];
+    if (!availableClassesByGrade[s.grade].includes(s.className)) {
+      availableClassesByGrade[s.grade].push(s.className);
+    }
+  }
+  for (const g of Object.keys(availableClassesByGrade)) {
+    availableClassesByGrade[g].sort();
+  }
+
+  let students = allActiveStudents;
+  if (grade) students = students.filter((s) => s.grade === grade);
+  if (className) students = students.filter((s) => s.className === className);
 
   const todayEvents = await db
     .select()
@@ -115,29 +128,29 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
       .map((s) => formatStudentWithState(s.student, s.events)),
   };
 
-  const recentEventsRaw = await db
+  // Build student name lookup (filtered scope)
+  const studentNameMap: Record<number, string> = {};
+  for (const s of students) {
+    studentNameMap[s.id] = `${s.firstName} ${s.lastName}`;
+  }
+
+  // Fetch recent feed events, filtered to the active student scope
+  const filteredStudentIds = students.map((s) => s.id);
+  const allRecentEvents = await db
     .select()
     .from(scanEventsTable)
     .where(sql`${scanEventsTable.createdAt} >= ${todayStartDate}`)
     .orderBy(desc(scanEventsTable.createdAt))
-    .limit(20);
+    .limit(200);
 
-  const studentIds = [...new Set(recentEventsRaw.map((e) => e.studentId))];
-  const studentNames: Record<number, string> = {};
-  for (const s of students) {
-    studentNames[s.id] = `${s.firstName} ${s.lastName}`;
-  }
-  for (const id of studentIds) {
-    if (!studentNames[id]) {
-      const [s] = await db.select().from(studentsTable).where(eq(studentsTable.id, id));
-      if (s) studentNames[s.id] = `${s.firstName} ${s.lastName}`;
-    }
-  }
+  const filteredFeedEvents = (grade || className)
+    ? allRecentEvents.filter((e) => filteredStudentIds.includes(e.studentId))
+    : allRecentEvents;
 
-  const recentFeed = recentEventsRaw.map((e) => ({
+  const recentFeed = filteredFeedEvents.slice(0, 20).map((e) => ({
     id: e.id,
-    message: `${studentNames[e.studentId] ?? "Unknown"} ${formatScanType(e.scanType)}`,
-    studentName: studentNames[e.studentId] ?? "Unknown",
+    message: `${studentNameMap[e.studentId] ?? "Unknown"} ${formatScanType(e.scanType)}`,
+    studentName: studentNameMap[e.studentId] ?? "Unknown",
     scanType: e.scanType,
     createdAt: e.createdAt.toISOString(),
     studentId: e.studentId,
@@ -148,6 +161,7 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
     exceptions,
     statusDistribution,
     recentFeed,
+    availableClassesByGrade,
     lastUpdated: new Date().toISOString(),
   });
 });

@@ -22,6 +22,7 @@ export * from "./createUserBody";
 export * from "./dashboardExceptions";
 export * from "./dashboardKpis";
 export * from "./dashboardSummary";
+export * from "./dashboardSummaryAvailableClassesByGrade";
 export * from "./feedItem";
 export * from "./getDashboardFeedParams";
 export * from "./getDashboardSummaryParams";

@@ -479,6 +479,11 @@ export const GetDashboardSummaryResponse = zod.object({
     }),
   ),
   lastUpdated: zod.string(),
+  availableClassesByGrade: zod
+    .record(zod.string(), zod.array(zod.string()))
+    .describe(
+      "Mapping of grade to available class names for filter chip population",
+    ),
 });
 
 /**

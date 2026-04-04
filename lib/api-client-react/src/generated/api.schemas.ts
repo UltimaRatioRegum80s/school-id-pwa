@@ -155,6 +155,13 @@ export interface ScanResult {
   warnings: string[];
 }
 
+/**
+ * Mapping of grade to available class names for filter chip population
+ */
+export type DashboardSummaryAvailableClassesByGrade = {
+  [key: string]: string[];
+};
+
 export interface DashboardKpis {
   total: number;
   present: number;
@@ -194,6 +201,8 @@ export interface DashboardSummary {
   statusDistribution: StatusCount[];
   recentFeed: FeedItem[];
   lastUpdated: string;
+  /** Mapping of grade to available class names for filter chip population */
+  availableClassesByGrade: DashboardSummaryAvailableClassesByGrade;
 }
 
 export interface Activity {

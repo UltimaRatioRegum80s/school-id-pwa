@@ -7,6 +7,7 @@
  */
 import type { DashboardExceptions } from "./dashboardExceptions";
 import type { DashboardKpis } from "./dashboardKpis";
+import type { DashboardSummaryAvailableClassesByGrade } from "./dashboardSummaryAvailableClassesByGrade";
 import type { FeedItem } from "./feedItem";
 import type { StatusCount } from "./statusCount";
 
@@ -16,4 +17,6 @@ export interface DashboardSummary {
   statusDistribution: StatusCount[];
   recentFeed: FeedItem[];
   lastUpdated: string;
+  /** Mapping of grade to available class names for filter chip population */
+  availableClassesByGrade: DashboardSummaryAvailableClassesByGrade;
 }

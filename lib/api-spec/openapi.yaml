@@ -945,12 +945,20 @@ components:
             $ref: "#/components/schemas/FeedItem"
         lastUpdated:
           type: string
+        availableClassesByGrade:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          description: "Mapping of grade to available class names for filter chip population"
       required:
         - kpis
         - exceptions
         - statusDistribution
         - recentFeed
         - lastUpdated
+        - availableClassesByGrade
 
     DashboardKpis:
       type: object
