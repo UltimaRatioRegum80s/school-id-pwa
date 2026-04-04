@@ -71,11 +71,14 @@ Socket.IO on path `/api/socket.io` emits:
 - `dashboard_update` - Triggers dashboard refresh
 
 ## Frontend Pages (Bottom Tab Navigation)
-1. **Scan** (`/scan`) - QR/barcode scan interface, manual ID entry, recent scan result display
-2. **Dashboard** (`/dashboard`) - Live KPIs, status breakdown bar chart, exceptions (unaccounted, late), activity feed
-3. **Activities** (`/activities`) - Active/upcoming/completed activities, attendance tracking, create new activity
-4. **Students** (`/students`) - Student list with search/filter, student profile with today's timeline
-5. **Admin** (`/admin`) - School settings, staff account management
+1. **Scan** (`/scan`) - QR/barcode scan interface, manual ID entry, demo "Simulate Scan" buttons (SCID-STU1001/1002/1003), contextual post-scan action buttons (Check In, Check Out, Class, Event, Merit, Demerit), recent scan result display
+2. **Dashboard** (`/dashboard`) - Exceptions panel first (unaccounted/missing), Live KPIs grid, status breakdown, Socket.IO real-time updates
+3. **Activities** (`/activities`) - Type filter tabs (All/Class/Event/Assembly/Club/Detention), activity detail with attendance + Start Scanning shortcut, create/edit modal
+4. **Students** (`/students`) - Student list with search/filter by grade/class/state, student profile with today's timeline + behavior log
+5. **Admin** (`/admin`) - School settings, staff accounts, behavior categories CRUD, Add Student form, CSV import UI, Sign Out
+
+## API Client
+All frontend pages use generated React Query hooks from `@workspace/api-client-react` (generated via Orval from OpenAPI spec). No raw fetch calls. All interactive elements have `data-testid` attributes. Auth token injected via `setAuthTokenGetter` in `src/lib/api.ts`.
 
 ## Authentication
 - JWT-based with 24h expiration
