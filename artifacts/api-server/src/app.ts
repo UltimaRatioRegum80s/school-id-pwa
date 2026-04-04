@@ -25,7 +25,10 @@ app.use(
     },
   }),
 );
-app.use(cors());
+const allowedOrigins = process.env.REPLIT_DOMAINS
+  ? process.env.REPLIT_DOMAINS.split(",").map((d) => `https://${d.trim()}`)
+  : ["http://localhost:21283", "http://localhost:80"];
+app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
-import { LoginBody } from "@workspace/api-zod";
+import { LoginBody, CreateUserBody } from "@workspace/api-zod";
 import { signToken, requireAuth, requireAdmin } from "../lib/auth";
 import type { Request } from "express";
 import type { JwtPayload } from "../lib/auth";
@@ -88,11 +88,12 @@ router.get("/users", requireAdmin, async (_req, res): Promise<void> => {
 });
 
 router.post("/users", requireAdmin, async (req, res): Promise<void> => {
-  const { username, password, firstName, lastName, role } = req.body;
-  if (!username || !password || !firstName || !lastName || !role) {
-    res.status(400).json({ error: "Missing required fields" });
+  const parsed = CreateUserBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const { username, password, firstName, lastName, role } = parsed.data;
 
   const passwordHash = await bcrypt.hash(password, 10);
   const [user] = await db
