@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { io } from "socket.io-client";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { BASE_URL } from "@/lib/api";
@@ -79,17 +80,23 @@ export default function DashboardPage() {
     const token = localStorage.getItem("school-id-token");
     if (!token) return;
 
-    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const host = window.location.host;
-    try {
-      const socket = new WebSocket(`${wsProtocol}//${host}${BASE_URL.replace(window.location.origin, "")}/api/socket.io`);
-      socket.onmessage = () => {
-        queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      };
-      return () => socket.close();
-    } catch {
-      // Socket.IO WebSocket connection may fail in some envs - polling fallback handles it
-    }
+    const socket = io(window.location.origin, {
+      path: "/api/socket.io",
+      auth: { token },
+      transports: ["websocket", "polling"],
+    });
+
+    socket.on("dashboard_update", () => {
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    });
+
+    socket.on("state_changed", () => {
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    });
+
+    return () => {
+      socket.disconnect();
+    };
   }, [queryClient]);
 
   if (isLoading) {

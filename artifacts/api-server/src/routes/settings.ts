@@ -1,11 +1,12 @@
 import { Router, type IRouter } from "express";
+import { requireAuth } from "../lib/auth";
 import { eq } from "drizzle-orm";
 import { db, schoolSettingsTable } from "@workspace/db";
 import { UpdateSettingsBody } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
-router.get("/settings", async (_req, res): Promise<void> => {
+router.get("/settings", requireAuth, async (_req, res): Promise<void> => {
   let [settings] = await db.select().from(schoolSettingsTable).limit(1);
 
   if (!settings) {
@@ -32,7 +33,7 @@ router.get("/settings", async (_req, res): Promise<void> => {
   });
 });
 
-router.patch("/settings", async (req, res): Promise<void> => {
+router.patch("/settings", requireAuth, async (req, res): Promise<void> => {
   const parsed = UpdateSettingsBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });

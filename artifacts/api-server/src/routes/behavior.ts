@@ -1,11 +1,12 @@
 import { Router, type IRouter } from "express";
+import { requireAuth } from "../lib/auth";
 import { eq, desc } from "drizzle-orm";
 import { db, behaviorLogsTable, behaviorCategoriesTable } from "@workspace/db";
 import { CreateBehaviorLogBody, CreateBehaviorCategoryBody } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
-router.get("/behavior/categories", async (_req, res): Promise<void> => {
+router.get("/behavior/categories", requireAuth, async (_req, res): Promise<void> => {
   const categories = await db.select().from(behaviorCategoriesTable);
   res.json(
     categories.map((c) => ({
@@ -19,7 +20,7 @@ router.get("/behavior/categories", async (_req, res): Promise<void> => {
   );
 });
 
-router.post("/behavior/categories", async (req, res): Promise<void> => {
+router.post("/behavior/categories", requireAuth, async (req, res): Promise<void> => {
   const parsed = CreateBehaviorCategoryBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -41,7 +42,7 @@ router.post("/behavior/categories", async (req, res): Promise<void> => {
   });
 });
 
-router.get("/behavior/logs", async (req, res): Promise<void> => {
+router.get("/behavior/logs", requireAuth, async (req, res): Promise<void> => {
   const { studentId, type, limit } = req.query as Record<string, string | undefined>;
   const lim = limit ? parseInt(limit, 10) : 50;
 
@@ -93,7 +94,7 @@ router.get("/behavior/logs", async (req, res): Promise<void> => {
   );
 });
 
-router.post("/behavior/logs", async (req, res): Promise<void> => {
+router.post("/behavior/logs", requireAuth, async (req, res): Promise<void> => {
   const parsed = CreateBehaviorLogBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });

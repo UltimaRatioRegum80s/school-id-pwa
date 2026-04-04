@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { requireAuth } from "../lib/auth";
 import { eq, and, sql } from "drizzle-orm";
 import { db, activitiesTable, activityAttendanceTable, studentsTable, scanEventsTable } from "@workspace/db";
 import { CreateActivityBody, UpdateActivityBody } from "@workspace/api-zod";
@@ -27,7 +28,7 @@ function formatActivity(a: typeof activitiesTable.$inferSelect) {
   };
 }
 
-router.get("/activities", async (req, res): Promise<void> => {
+router.get("/activities", requireAuth, async (req, res): Promise<void> => {
   const { activityType, status, date } = req.query as Record<string, string | undefined>;
 
   let activities = await db.select().from(activitiesTable);
@@ -56,7 +57,7 @@ router.get("/activities", async (req, res): Promise<void> => {
   res.json(result);
 });
 
-router.post("/activities", async (req, res): Promise<void> => {
+router.post("/activities", requireAuth, async (req, res): Promise<void> => {
   const parsed = CreateActivityBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -76,7 +77,7 @@ router.post("/activities", async (req, res): Promise<void> => {
   res.status(201).json(formatActivity(activity));
 });
 
-router.get("/activities/:id", async (req, res): Promise<void> => {
+router.get("/activities/:id", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
   if (isNaN(id)) {
@@ -167,7 +168,7 @@ router.get("/activities/:id", async (req, res): Promise<void> => {
   });
 });
 
-router.patch("/activities/:id", async (req, res): Promise<void> => {
+router.patch("/activities/:id", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
   if (isNaN(id)) {
@@ -205,7 +206,7 @@ router.patch("/activities/:id", async (req, res): Promise<void> => {
   res.json(formatActivity(activity));
 });
 
-router.delete("/activities/:id", async (req, res): Promise<void> => {
+router.delete("/activities/:id", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
   if (isNaN(id)) {
@@ -226,7 +227,7 @@ router.delete("/activities/:id", async (req, res): Promise<void> => {
   res.sendStatus(204);
 });
 
-router.get("/activities/:id/attendance", async (req, res): Promise<void> => {
+router.get("/activities/:id/attendance", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
   if (isNaN(id)) {

@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import { LoginBody } from "@workspace/api-zod";
-import { signToken, requireAuth } from "../lib/auth";
+import { signToken, requireAuth, requireAdmin } from "../lib/auth";
 import type { Request } from "express";
 import type { JwtPayload } from "../lib/auth";
 
@@ -72,7 +72,7 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
   });
 });
 
-router.get("/users", async (_req, res): Promise<void> => {
+router.get("/users", requireAdmin, async (_req, res): Promise<void> => {
   const users = await db.select().from(usersTable);
   res.json(
     users.map((u) => ({
@@ -87,7 +87,7 @@ router.get("/users", async (_req, res): Promise<void> => {
   );
 });
 
-router.post("/users", async (req, res): Promise<void> => {
+router.post("/users", requireAdmin, async (req, res): Promise<void> => {
   const { username, password, firstName, lastName, role } = req.body;
   if (!username || !password || !firstName || !lastName || !role) {
     res.status(400).json({ error: "Missing required fields" });

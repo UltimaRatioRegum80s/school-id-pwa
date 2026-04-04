@@ -4,6 +4,7 @@ import { db, studentsTable, scanEventsTable } from "@workspace/db";
 import { ProcessScanBody } from "@workspace/api-zod";
 import { computeStudentState, generateWarnings, formatScanType } from "../lib/state-engine";
 import { broadcastStateChange, broadcastDashboardUpdate } from "../lib/socket";
+import { requireAuth } from "../lib/auth";
 
 const router: IRouter = Router();
 
@@ -13,7 +14,7 @@ function todayStart(): Date {
   return d;
 }
 
-router.post("/scan", async (req, res): Promise<void> => {
+router.post("/scan", requireAuth, async (req, res): Promise<void> => {
   const parsed = ProcessScanBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -104,7 +105,7 @@ router.post("/scan", async (req, res): Promise<void> => {
   });
 });
 
-router.get("/scan/events", async (req, res): Promise<void> => {
+router.get("/scan/events", requireAuth, async (req, res): Promise<void> => {
   const { studentId, date, limit } = req.query as Record<string, string | undefined>;
   const lim = limit ? parseInt(limit, 10) : 50;
 

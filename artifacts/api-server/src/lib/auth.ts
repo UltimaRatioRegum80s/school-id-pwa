@@ -1,7 +1,10 @@
 import jwt from "jsonwebtoken";
 import type { Request, Response, NextFunction } from "express";
 
-const JWT_SECRET = process.env.SESSION_SECRET ?? "school-id-secret-key";
+if (!process.env.SESSION_SECRET) {
+  throw new Error("SESSION_SECRET environment variable is required but was not set.");
+}
+const JWT_SECRET: string = process.env.SESSION_SECRET;
 
 export interface JwtPayload {
   userId: number;
@@ -37,4 +40,15 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
 
   (req as Request & { user: JwtPayload }).user = payload;
   next();
+}
+
+export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
+  requireAuth(req, res, () => {
+    const user = (req as Request & { user: JwtPayload }).user;
+    if (!user || user.role !== "admin") {
+      res.status(403).json({ error: "Admin access required" });
+      return;
+    }
+    next();
+  });
 }

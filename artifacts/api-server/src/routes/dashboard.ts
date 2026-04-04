@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { requireAuth } from "../lib/auth";
 import { eq, desc, sql } from "drizzle-orm";
 import { db, studentsTable, scanEventsTable, schoolSettingsTable } from "@workspace/db";
 import { computeStudentState, isLateArrival, formatScanType } from "../lib/state-engine";
@@ -34,7 +35,7 @@ function formatStudentWithState(
   };
 }
 
-router.get("/dashboard/summary", async (_req, res): Promise<void> => {
+router.get("/dashboard/summary", requireAuth, async (_req, res): Promise<void> => {
   const todayStartDate = todayStart();
 
   const [settingsRow] = await db.select().from(schoolSettingsTable).limit(1);
@@ -146,7 +147,7 @@ router.get("/dashboard/summary", async (_req, res): Promise<void> => {
   });
 });
 
-router.get("/dashboard/feed", async (req, res): Promise<void> => {
+router.get("/dashboard/feed", requireAuth, async (req, res): Promise<void> => {
   const lim = req.query.limit ? parseInt(req.query.limit as string, 10) : 30;
   const todayStartDate = todayStart();
 

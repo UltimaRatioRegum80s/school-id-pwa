@@ -46,7 +46,8 @@ export function computeStudentState(events: ScanEvent[]): {
       state = "at_event";
       break;
     default:
-      state = "on_campus";
+      // Unknown scan type after gate-in: student is on campus but location unclear
+      state = "unaccounted";
   }
 
   return { state, lastSeenAt, lastSeenLocation };

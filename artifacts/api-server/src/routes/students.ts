@@ -3,6 +3,7 @@ import { eq, ilike, and, or, sql, desc } from "drizzle-orm";
 import { db, studentsTable, scanEventsTable } from "@workspace/db";
 import { CreateStudentBody, UpdateStudentBody } from "@workspace/api-zod";
 import { computeStudentState } from "../lib/state-engine";
+import { requireAuth } from "../lib/auth";
 
 const router: IRouter = Router();
 
@@ -32,7 +33,7 @@ function todayStart(): Date {
   return d;
 }
 
-router.get("/students", async (req, res): Promise<void> => {
+router.get("/students", requireAuth, async (req, res): Promise<void> => {
   const { search, grade, className, status } = req.query as Record<string, string | undefined>;
 
   let conditions: ReturnType<typeof eq>[] = [];
@@ -82,7 +83,7 @@ router.get("/students", async (req, res): Promise<void> => {
   res.json(result);
 });
 
-router.post("/students", async (req, res): Promise<void> => {
+router.post("/students", requireAuth, async (req, res): Promise<void> => {
   const parsed = CreateStudentBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -100,7 +101,7 @@ router.post("/students", async (req, res): Promise<void> => {
   res.status(201).json(formatStudent(student));
 });
 
-router.get("/students/lookup/:qrCode", async (req, res): Promise<void> => {
+router.get("/students/lookup/:qrCode", requireAuth, async (req, res): Promise<void> => {
   const rawQr = Array.isArray(req.params.qrCode) ? req.params.qrCode[0] : req.params.qrCode;
 
   const [student] = await db
@@ -127,7 +128,7 @@ router.get("/students/lookup/:qrCode", async (req, res): Promise<void> => {
   res.json(formatStudent(student, todayEvents));
 });
 
-router.get("/students/:id", async (req, res): Promise<void> => {
+router.get("/students/:id", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
   if (isNaN(id)) {
@@ -203,7 +204,7 @@ router.get("/students/:id", async (req, res): Promise<void> => {
   });
 });
 
-router.patch("/students/:id", async (req, res): Promise<void> => {
+router.patch("/students/:id", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
   if (isNaN(id)) {
@@ -231,7 +232,7 @@ router.patch("/students/:id", async (req, res): Promise<void> => {
   res.json(formatStudent(student));
 });
 
-router.delete("/students/:id", async (req, res): Promise<void> => {
+router.delete("/students/:id", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
   if (isNaN(id)) {
