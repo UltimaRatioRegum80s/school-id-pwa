@@ -1,27 +1,105 @@
-# Workspace
+# School ID - School Operations PWA
 
 ## Overview
+A full school operations PWA (Progressive Web App) for staff with QR/barcode scanning, real-time student state tracking, live dashboard, activities management, student profiles, and admin configuration.
 
-pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+## Architecture
 
-## Stack
+### Monorepo Structure (pnpm workspaces)
+- `artifacts/api-server/` - Express 5 + Socket.IO backend API
+- `artifacts/school-id/` - React + Vite PWA frontend (staff portal)
+- `lib/db/` - Drizzle ORM schema + PostgreSQL database access
+- `lib/api-zod/` - Generated Zod validators from OpenAPI spec
+- `lib/api-client-react/` - Generated React Query hooks from OpenAPI spec
+- `lib/api-spec/openapi.yaml` - OpenAPI 0.1.0 specification
 
-- **Monorepo tool**: pnpm workspaces
-- **Node.js version**: 24
-- **Package manager**: pnpm
-- **TypeScript version**: 5.9
-- **API framework**: Express 5
-- **Database**: PostgreSQL + Drizzle ORM
-- **Validation**: Zod (`zod/v4`), `drizzle-zod`
-- **API codegen**: Orval (from OpenAPI spec)
-- **Build**: esbuild (CJS bundle)
+### Technology Stack
+- **Frontend**: React 19, Vite, TailwindCSS v4, wouter routing, React Query, PWA (vite-plugin-pwa)
+- **Backend**: Express 5, Socket.IO, JWT auth (jsonwebtoken + bcryptjs), Drizzle ORM
+- **Database**: PostgreSQL (Replit managed)
+- **Code generation**: Orval (OpenAPI → Zod + React Query)
 
-## Key Commands
+## Running Services
+- **API Server**: Port 8080, path `/api`
+- **Frontend**: Path `/`, Vite dev server
 
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- `pnpm --filter @workspace/api-server run dev` — run API server locally
+## Database Schema
+Tables:
+- `users` - Staff accounts (role: admin/staff)
+- `students` - Student records with QR codes (`SCID-{studentId}` format)
+- `scan_events` - Scan history (gate_in, gate_out, class, event, assembly, activity, detention, club)
+- `activities` - Activities/events/clubs (status: upcoming/active/completed/cancelled)
+- `activity_members` - Students enrolled in activities
+- `activity_attendance` - Attendance records per activity
+- `behavior_logs` - Merit/demerit records
+- `behavior_categories` - Categories for behavior tracking
+- `school_settings` - School configuration (name, times, timezone)
 
-See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
+## Student State Engine
+States: `not_arrived` | `on_campus` | `in_class` | `at_event` | `checked_out` | `unaccounted`
+
+State transitions based on scan type:
+- `gate_in` → on_campus
+- `gate_out` / `checkout` → checked_out
+- `class` → in_class
+- `event` / `assembly` / `activity` / `detention` / `club` → at_event
+- No scans → not_arrived
+
+## API Routes
+- `POST /api/auth/login` - JWT login
+- `GET /api/auth/me` - Current user
+- `GET/POST /api/students` - List/create students
+- `GET /api/students/:id` - Student profile with today's timeline
+- `PATCH /api/students/:id` - Update student
+- `GET /api/students/lookup/:qrCode` - Lookup by QR/ID
+- `POST /api/scan` - Process a scan (updates student state, broadcasts via Socket.IO)
+- `GET /api/scan/events` - List scan events
+- `GET /api/dashboard/summary` - Live dashboard KPIs + feed
+- `GET /api/dashboard/feed` - Recent activity feed
+- `GET/POST /api/activities` - List/create activities
+- `GET/PATCH/DELETE /api/activities/:id` - Activity detail/update/delete
+- `GET /api/activities/:id/attendance` - Activity attendance
+- `GET/POST /api/behavior/logs` - Behavior logs
+- `GET/POST /api/behavior/categories` - Behavior categories
+- `GET/PATCH /api/settings` - School settings
+- `GET /api/users` - List users
+- `POST /api/users` - Create user
+
+## Real-Time
+Socket.IO on path `/api/socket.io` emits:
+- `state_changed` - When a student's state changes
+- `dashboard_update` - Triggers dashboard refresh
+
+## Frontend Pages (Bottom Tab Navigation)
+1. **Scan** (`/scan`) - QR/barcode scan interface, manual ID entry, recent scan result display
+2. **Dashboard** (`/dashboard`) - Live KPIs, status breakdown bar chart, exceptions (unaccounted, late), activity feed
+3. **Activities** (`/activities`) - Active/upcoming/completed activities, attendance tracking, create new activity
+4. **Students** (`/students`) - Student list with search/filter, student profile with today's timeline
+5. **Admin** (`/admin`) - School settings, staff account management
+
+## Authentication
+- JWT-based with 24h expiration
+- Token stored in localStorage (`school-id-token`)
+- Demo credentials: admin/admin123, staff1/staff123, staff2/staff123
+
+## Demo Data (Seeded)
+- 96 students across grades 8-12 (8A/8B/8C, 9A/9B/9C, 10A/10B, 11A/11B, 12A/12B)
+- 3 staff accounts (admin, staff1, staff2)
+- 72 gate_in scan events for today
+- 3 activities (Morning Assembly - active, Inter-House Sports - upcoming, Science Club - upcoming)
+- 6 behavior categories (3 merit, 3 demerit)
+- School: "Westbrook Academy", 07:30-14:30, Africa/Johannesburg
+
+## Status Color Coding
+- Green = On Campus
+- Blue = In Class
+- Yellow = At Event
+- Grey/Slate = Not Arrived
+- Muted = Checked Out
+- Red = Unaccounted
+
+## PWA Configuration
+- Service worker with auto-update
+- Offline cache for assets
+- Installable on mobile devices
+- Optimized for portrait orientation

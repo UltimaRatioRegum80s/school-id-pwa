@@ -3,13 +3,28 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: School ID App API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication
+  - name: students
+    description: Student management
+  - name: scan
+    description: Scan events
+  - name: dashboard
+    description: Live dashboard
+  - name: activities
+    description: Activities management
+  - name: behavior
+    description: Behavior logging
+  - name: settings
+    description: School settings
+
 paths:
   /healthz:
     get:
@@ -24,6 +39,516 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginBody"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          description: Invalid credentials
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "401":
+          description: Unauthorized
+
+  /students:
+    get:
+      operationId: listStudents
+      tags: [students]
+      summary: List students
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: grade
+          in: query
+          schema:
+            type: string
+        - name: className
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of students with current state
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StudentWithState"
+    post:
+      operationId: createStudent
+      tags: [students]
+      summary: Create a student
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateStudentBody"
+      responses:
+        "201":
+          description: Student created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Student"
+
+  /students/{id}:
+    get:
+      operationId: getStudent
+      tags: [students]
+      summary: Get a student with full profile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Student with state and today's timeline
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentProfile"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateStudent
+      tags: [students]
+      summary: Update a student
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateStudentBody"
+      responses:
+        "200":
+          description: Student updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Student"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteStudent
+      tags: [students]
+      summary: Delete a student
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /students/lookup/{qrCode}:
+    get:
+      operationId: lookupStudentByQr
+      tags: [students]
+      summary: Lookup a student by QR code or student ID
+      parameters:
+        - name: qrCode
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Student with current state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentWithState"
+        "404":
+          description: Not found
+
+  /scan:
+    post:
+      operationId: processScan
+      tags: [scan]
+      summary: Process a scan event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScanBody"
+      responses:
+        "200":
+          description: Scan processed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanResult"
+        "404":
+          description: Student not found
+
+  /scan/events:
+    get:
+      operationId: listScanEvents
+      tags: [scan]
+      summary: List scan events
+      parameters:
+        - name: studentId
+          in: query
+          schema:
+            type: integer
+        - name: date
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of scan events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScanEvent"
+
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get live dashboard summary
+      responses:
+        "200":
+          description: Dashboard summary with KPIs, exceptions, and feed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /dashboard/feed:
+    get:
+      operationId: getDashboardFeed
+      tags: [dashboard]
+      summary: Get live activity feed
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Live activity feed
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FeedItem"
+
+  /activities:
+    get:
+      operationId: listActivities
+      tags: [activities]
+      summary: List activities
+      parameters:
+        - name: activityType
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: date
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of activities
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityWithCounts"
+    post:
+      operationId: createActivity
+      tags: [activities]
+      summary: Create an activity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateActivityBody"
+      responses:
+        "201":
+          description: Activity created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Activity"
+
+  /activities/{id}:
+    get:
+      operationId: getActivity
+      tags: [activities]
+      summary: Get activity detail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Activity with attendance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActivityDetail"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateActivity
+      tags: [activities]
+      summary: Update an activity
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateActivityBody"
+      responses:
+        "200":
+          description: Activity updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Activity"
+    delete:
+      operationId: deleteActivity
+      tags: [activities]
+      summary: Delete an activity
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /activities/{id}/attendance:
+    get:
+      operationId: getActivityAttendance
+      tags: [activities]
+      summary: Get attendance for an activity
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Attendance list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AttendanceRecord"
+
+  /behavior/logs:
+    get:
+      operationId: listBehaviorLogs
+      tags: [behavior]
+      summary: List behavior logs
+      parameters:
+        - name: studentId
+          in: query
+          schema:
+            type: integer
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of behavior logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BehaviorLog"
+    post:
+      operationId: createBehaviorLog
+      tags: [behavior]
+      summary: Log a behavior event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBehaviorLogBody"
+      responses:
+        "201":
+          description: Behavior logged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BehaviorLog"
+
+  /behavior/categories:
+    get:
+      operationId: listBehaviorCategories
+      tags: [behavior]
+      summary: List behavior categories
+      responses:
+        "200":
+          description: List of categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BehaviorCategory"
+    post:
+      operationId: createBehaviorCategory
+      tags: [behavior]
+      summary: Create a behavior category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBehaviorCategoryBody"
+      responses:
+        "201":
+          description: Category created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BehaviorCategory"
+
+  /settings:
+    get:
+      operationId: getSettings
+      tags: [settings]
+      summary: Get school settings
+      responses:
+        "200":
+          description: School settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SchoolSettings"
+    patch:
+      operationId: updateSettings
+      tags: [settings]
+      summary: Update school settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSettingsBody"
+      responses:
+        "200":
+          description: Settings updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SchoolSettings"
+
+  /users:
+    get:
+      operationId: listUsers
+      tags: [auth]
+      summary: List staff/admin users
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserProfile"
+    post:
+      operationId: createUser
+      tags: [auth]
+      summary: Create a staff/admin user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserBody"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +559,618 @@ components:
       required:
         - status
 
+    LoginBody:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+      required:
+        - username
+        - password
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/UserProfile"
+      required:
+        - token
+        - user
+
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        role:
+          type: string
+        isActive:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - username
+        - firstName
+        - lastName
+        - role
+        - isActive
+        - createdAt
+
+    CreateUserBody:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        role:
+          type: string
+      required:
+        - username
+        - password
+        - firstName
+        - lastName
+        - role
+
+    Student:
+      type: object
+      properties:
+        id:
+          type: integer
+        studentId:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        grade:
+          type: string
+        className:
+          type: string
+        photoUrl:
+          type: ["string", "null"]
+        qrCode:
+          type: string
+        isActive:
+          type: integer
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - studentId
+        - firstName
+        - lastName
+        - grade
+        - className
+        - qrCode
+        - isActive
+        - createdAt
+        - updatedAt
+
+    StudentWithState:
+      allOf:
+        - $ref: "#/components/schemas/Student"
+        - type: object
+          properties:
+            currentState:
+              type: string
+            lastSeenAt:
+              type: ["string", "null"]
+            lastSeenLocation:
+              type: ["string", "null"]
+          required:
+            - currentState
+
+    StudentProfile:
+      allOf:
+        - $ref: "#/components/schemas/StudentWithState"
+        - type: object
+          properties:
+            todayTimeline:
+              type: array
+              items:
+                $ref: "#/components/schemas/ScanEvent"
+            behaviorSummary:
+              $ref: "#/components/schemas/BehaviorSummary"
+          required:
+            - todayTimeline
+            - behaviorSummary
+
+    BehaviorSummary:
+      type: object
+      properties:
+        totalMerits:
+          type: integer
+        totalDemerits:
+          type: integer
+        recentLogs:
+          type: array
+          items:
+            $ref: "#/components/schemas/BehaviorLog"
+      required:
+        - totalMerits
+        - totalDemerits
+        - recentLogs
+
+    CreateStudentBody:
+      type: object
+      properties:
+        studentId:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        grade:
+          type: string
+        className:
+          type: string
+        photoUrl:
+          type: ["string", "null"]
+      required:
+        - studentId
+        - firstName
+        - lastName
+        - grade
+        - className
+
+    UpdateStudentBody:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        grade:
+          type: string
+        className:
+          type: string
+        photoUrl:
+          type: ["string", "null"]
+        isActive:
+          type: integer
+
+    ScanBody:
+      type: object
+      properties:
+        qrCode:
+          type: string
+        scanType:
+          type: string
+        location:
+          type: ["string", "null"]
+        activityId:
+          type: ["integer", "null"]
+        notes:
+          type: ["string", "null"]
+      required:
+        - qrCode
+        - scanType
+
+    ScanResult:
+      type: object
+      properties:
+        scanEvent:
+          $ref: "#/components/schemas/ScanEvent"
+        student:
+          $ref: "#/components/schemas/StudentWithState"
+        warnings:
+          type: array
+          items:
+            type: string
+      required:
+        - scanEvent
+        - student
+        - warnings
+
+    ScanEvent:
+      type: object
+      properties:
+        id:
+          type: integer
+        studentId:
+          type: integer
+        scannedById:
+          type: ["integer", "null"]
+        scanType:
+          type: string
+        location:
+          type: ["string", "null"]
+        activityId:
+          type: ["integer", "null"]
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        studentName:
+          type: ["string", "null"]
+      required:
+        - id
+        - studentId
+        - scanType
+        - createdAt
+
+    DashboardSummary:
+      type: object
+      properties:
+        kpis:
+          $ref: "#/components/schemas/DashboardKpis"
+        exceptions:
+          $ref: "#/components/schemas/DashboardExceptions"
+        statusDistribution:
+          type: array
+          items:
+            $ref: "#/components/schemas/StatusCount"
+        recentFeed:
+          type: array
+          items:
+            $ref: "#/components/schemas/FeedItem"
+        lastUpdated:
+          type: string
+      required:
+        - kpis
+        - exceptions
+        - statusDistribution
+        - recentFeed
+        - lastUpdated
+
+    DashboardKpis:
+      type: object
+      properties:
+        total:
+          type: integer
+        present:
+          type: integer
+        absent:
+          type: integer
+        late:
+          type: integer
+        checkedOut:
+          type: integer
+        unaccounted:
+          type: integer
+        onCampus:
+          type: integer
+        inClass:
+          type: integer
+        atEvent:
+          type: integer
+      required:
+        - total
+        - present
+        - absent
+        - late
+        - checkedOut
+        - unaccounted
+        - onCampus
+        - inClass
+        - atEvent
+
+    DashboardExceptions:
+      type: object
+      properties:
+        missingFromClass:
+          type: array
+          items:
+            $ref: "#/components/schemas/StudentWithState"
+        unaccountedStudents:
+          type: array
+          items:
+            $ref: "#/components/schemas/StudentWithState"
+        lateArrivals:
+          type: array
+          items:
+            $ref: "#/components/schemas/StudentWithState"
+        checkedOutWithoutReason:
+          type: array
+          items:
+            $ref: "#/components/schemas/StudentWithState"
+      required:
+        - missingFromClass
+        - unaccountedStudents
+        - lateArrivals
+        - checkedOutWithoutReason
+
+    StatusCount:
+      type: object
+      properties:
+        state:
+          type: string
+        count:
+          type: integer
+      required:
+        - state
+        - count
+
+    FeedItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        message:
+          type: string
+        studentName:
+          type: string
+        scanType:
+          type: string
+        createdAt:
+          type: string
+        studentId:
+          type: integer
+      required:
+        - id
+        - message
+        - studentName
+        - scanType
+        - createdAt
+        - studentId
+
+    Activity:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        activityType:
+          type: string
+        description:
+          type: ["string", "null"]
+        responsibleStaffId:
+          type: ["integer", "null"]
+        startTime:
+          type: string
+        endTime:
+          type: ["string", "null"]
+        status:
+          type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - name
+        - activityType
+        - startTime
+        - status
+        - createdAt
+        - updatedAt
+
+    ActivityWithCounts:
+      allOf:
+        - $ref: "#/components/schemas/Activity"
+        - type: object
+          properties:
+            expectedCount:
+              type: integer
+            presentCount:
+              type: integer
+            missingCount:
+              type: integer
+            staffName:
+              type: ["string", "null"]
+          required:
+            - expectedCount
+            - presentCount
+            - missingCount
+
+    ActivityDetail:
+      allOf:
+        - $ref: "#/components/schemas/ActivityWithCounts"
+        - type: object
+          properties:
+            presentStudents:
+              type: array
+              items:
+                $ref: "#/components/schemas/StudentWithState"
+            missingStudents:
+              type: array
+              items:
+                $ref: "#/components/schemas/StudentWithState"
+          required:
+            - presentStudents
+            - missingStudents
+
+    CreateActivityBody:
+      type: object
+      properties:
+        name:
+          type: string
+        activityType:
+          type: string
+        description:
+          type: ["string", "null"]
+        responsibleStaffId:
+          type: ["integer", "null"]
+        startTime:
+          type: string
+        endTime:
+          type: ["string", "null"]
+        status:
+          type: string
+      required:
+        - name
+        - activityType
+        - startTime
+
+    UpdateActivityBody:
+      type: object
+      properties:
+        name:
+          type: string
+        activityType:
+          type: string
+        description:
+          type: ["string", "null"]
+        responsibleStaffId:
+          type: ["integer", "null"]
+        startTime:
+          type: string
+        endTime:
+          type: ["string", "null"]
+        status:
+          type: string
+
+    AttendanceRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+        activityId:
+          type: integer
+        studentId:
+          type: integer
+        status:
+          type: string
+        markedAt:
+          type: string
+        studentName:
+          type: ["string", "null"]
+      required:
+        - id
+        - activityId
+        - studentId
+        - status
+        - markedAt
+
+    BehaviorLog:
+      type: object
+      properties:
+        id:
+          type: integer
+        studentId:
+          type: integer
+        categoryId:
+          type: ["integer", "null"]
+        type:
+          type: string
+        points:
+          type: integer
+        note:
+          type: ["string", "null"]
+        loggedById:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+        categoryName:
+          type: ["string", "null"]
+      required:
+        - id
+        - studentId
+        - type
+        - points
+        - createdAt
+
+    CreateBehaviorLogBody:
+      type: object
+      properties:
+        studentId:
+          type: integer
+        categoryId:
+          type: ["integer", "null"]
+        type:
+          type: string
+        points:
+          type: integer
+        note:
+          type: ["string", "null"]
+      required:
+        - studentId
+        - type
+        - points
+
+    BehaviorCategory:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        type:
+          type: string
+        points:
+          type: integer
+        description:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - name
+        - type
+        - points
+        - createdAt
+
+    CreateBehaviorCategoryBody:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        points:
+          type: integer
+        description:
+          type: ["string", "null"]
+      required:
+        - name
+        - type
+        - points
+
+    SchoolSettings:
+      type: object
+      properties:
+        id:
+          type: integer
+        schoolName:
+          type: string
+        startTime:
+          type: string
+        endTime:
+          type: string
+        lateThresholdMinutes:
+          type: string
+        timezone:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - schoolName
+        - startTime
+        - endTime
+        - lateThresholdMinutes
+        - timezone
+        - updatedAt
+
+    UpdateSettingsBody:
+      type: object
+      properties:
+        schoolName:
+          type: string
+        startTime:
+          type: string
+        endTime:
+          type: string
+        lateThresholdMinutes:
+          type: string
+        timezone:
+          type: string
