@@ -4,6 +4,12 @@ import { eq, and, sql } from "drizzle-orm";
 import { db, activitiesTable, activityAttendanceTable, studentsTable, scanEventsTable } from "@workspace/db";
 import { CreateActivityBody, UpdateActivityBody } from "@workspace/api-zod";
 import { computeStudentState } from "../lib/state-engine";
+import { z } from "zod";
+
+const MarkAttendanceBody = z.object({
+  studentId: z.number().int().positive(),
+  status: z.enum(["present", "absent", "late", "excused"]).default("present"),
+});
 
 const router: IRouter = Router();
 
@@ -263,6 +269,95 @@ router.get("/activities/:id/attendance", requireAuth, async (req, res): Promise<
       studentName: studentNames[a.studentId] ?? null,
     }))
   );
+});
+
+router.post("/activities/:id/attendance", requireAuth, async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const activityId = parseInt(raw, 10);
+  if (isNaN(activityId)) {
+    res.status(400).json({ error: "Invalid activity ID" });
+    return;
+  }
+
+  const parsed = MarkAttendanceBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const [activity] = await db.select().from(activitiesTable).where(eq(activitiesTable.id, activityId));
+  if (!activity) {
+    res.status(404).json({ error: "Activity not found" });
+    return;
+  }
+
+  const { studentId, status } = parsed.data;
+
+  const [existing] = await db
+    .select()
+    .from(activityAttendanceTable)
+    .where(and(eq(activityAttendanceTable.activityId, activityId), eq(activityAttendanceTable.studentId, studentId)));
+
+  let record;
+  if (existing) {
+    [record] = await db
+      .update(activityAttendanceTable)
+      .set({ status, markedAt: new Date() })
+      .where(eq(activityAttendanceTable.id, existing.id))
+      .returning();
+  } else {
+    [record] = await db
+      .insert(activityAttendanceTable)
+      .values({ activityId, studentId, status })
+      .returning();
+  }
+
+  res.status(existing ? 200 : 201).json({
+    id: record.id,
+    activityId: record.activityId,
+    studentId: record.studentId,
+    status: record.status,
+    markedAt: record.markedAt.toISOString(),
+  });
+});
+
+router.patch("/activities/:id/attendance/:attendanceId", requireAuth, async (req, res): Promise<void> => {
+  const activityId = parseInt(req.params.id, 10);
+  const attendanceId = parseInt(req.params.attendanceId, 10);
+  if (isNaN(activityId) || isNaN(attendanceId)) {
+    res.status(400).json({ error: "Invalid ID" });
+    return;
+  }
+
+  const { status } = req.body as { status?: string };
+  if (!status || !["present", "absent", "late", "excused"].includes(status)) {
+    res.status(400).json({ error: "status must be one of: present, absent, late, excused" });
+    return;
+  }
+
+  const [existing] = await db
+    .select()
+    .from(activityAttendanceTable)
+    .where(and(eq(activityAttendanceTable.id, attendanceId), eq(activityAttendanceTable.activityId, activityId)));
+
+  if (!existing) {
+    res.status(404).json({ error: "Attendance record not found" });
+    return;
+  }
+
+  const [updated] = await db
+    .update(activityAttendanceTable)
+    .set({ status, markedAt: new Date() })
+    .where(eq(activityAttendanceTable.id, attendanceId))
+    .returning();
+
+  res.json({
+    id: updated.id,
+    activityId: updated.activityId,
+    studentId: updated.studentId,
+    status: updated.status,
+    markedAt: updated.markedAt.toISOString(),
+  });
 });
 
 export default router;

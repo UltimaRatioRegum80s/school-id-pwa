@@ -7,6 +7,19 @@
  */
 import * as zod from "zod";
 
+export const ScanType = zod.enum([
+  "gate_in",
+  "gate_out",
+  "checkout",
+  "class",
+  "event",
+  "assembly",
+  "activity",
+  "detention",
+  "club",
+]);
+export type ScanTypeValue = zod.infer<typeof ScanType>;
+
 /**
  * Returns server health status
  * @summary Health check
@@ -129,7 +142,7 @@ export const GetStudentResponse = zod
           id: zod.number(),
           studentId: zod.number(),
           scannedById: zod.number().nullish(),
-          scanType: zod.string(),
+          scanType: ScanType,
           location: zod.string().nullish(),
           activityId: zod.number().nullish(),
           notes: zod.string().nullish(),
@@ -228,7 +241,7 @@ export const LookupStudentByQrResponse = zod
  */
 export const ProcessScanBody = zod.object({
   qrCode: zod.string(),
-  scanType: zod.string(),
+  scanType: ScanType,
   location: zod.string().nullish(),
   activityId: zod.number().nullish(),
   notes: zod.string().nullish(),
@@ -239,7 +252,7 @@ export const ProcessScanResponse = zod.object({
     id: zod.number(),
     studentId: zod.number(),
     scannedById: zod.number().nullish(),
-    scanType: zod.string(),
+    scanType: ScanType,
     location: zod.string().nullish(),
     activityId: zod.number().nullish(),
     notes: zod.string().nullish(),
@@ -283,7 +296,7 @@ export const ListScanEventsResponseItem = zod.object({
   id: zod.number(),
   studentId: zod.number(),
   scannedById: zod.number().nullish(),
-  scanType: zod.string(),
+  scanType: ScanType,
   location: zod.string().nullish(),
   activityId: zod.number().nullish(),
   notes: zod.string().nullish(),
@@ -412,7 +425,7 @@ export const GetDashboardSummaryResponse = zod.object({
       id: zod.number(),
       message: zod.string(),
       studentName: zod.string(),
-      scanType: zod.string(),
+      scanType: ScanType,
       createdAt: zod.string(),
       studentId: zod.number(),
     }),
@@ -431,7 +444,7 @@ export const GetDashboardFeedResponseItem = zod.object({
   id: zod.number(),
   message: zod.string(),
   studentName: zod.string(),
-  scanType: zod.string(),
+  scanType: ScanType,
   createdAt: zod.string(),
   studentId: zod.number(),
 });

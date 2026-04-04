@@ -747,13 +747,26 @@ components:
         isActive:
           type: integer
 
+    ScanType:
+      type: string
+      enum:
+        - gate_in
+        - gate_out
+        - checkout
+        - class
+        - event
+        - assembly
+        - activity
+        - detention
+        - club
+
     ScanBody:
       type: object
       properties:
         qrCode:
           type: string
         scanType:
-          type: string
+          $ref: "#/components/schemas/ScanType"
         location:
           type: ["string", "null"]
         activityId:
@@ -790,7 +803,7 @@ components:
         scannedById:
           type: ["integer", "null"]
         scanType:
-          type: string
+          $ref: "#/components/schemas/ScanType"
         location:
           type: ["string", "null"]
         activityId:
@@ -909,7 +922,7 @@ components:
         studentName:
           type: string
         scanType:
-          type: string
+          $ref: "#/components/schemas/ScanType"
         createdAt:
           type: string
         studentId:

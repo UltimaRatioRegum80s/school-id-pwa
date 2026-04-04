@@ -3,6 +3,14 @@ import { requireAuth } from "../lib/auth";
 import { eq, desc } from "drizzle-orm";
 import { db, behaviorLogsTable, behaviorCategoriesTable } from "@workspace/db";
 import { CreateBehaviorLogBody, CreateBehaviorCategoryBody } from "@workspace/api-zod";
+import { z } from "zod";
+
+const UpdateBehaviorLogBody = z.object({
+  type: z.enum(["merit", "demerit"]).optional(),
+  categoryId: z.number().int().positive().nullable().optional(),
+  points: z.number().int().optional(),
+  note: z.string().nullable().optional(),
+});
 
 const router: IRouter = Router();
 
@@ -123,6 +131,74 @@ router.post("/behavior/logs", requireAuth, async (req, res): Promise<void> => {
     createdAt: log.createdAt.toISOString(),
     categoryName: null,
   });
+});
+
+router.patch("/behavior/logs/:id", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid log ID" });
+    return;
+  }
+
+  const parsed = UpdateBehaviorLogBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const [existing] = await db
+    .select()
+    .from(behaviorLogsTable)
+    .where(eq(behaviorLogsTable.id, id));
+
+  if (!existing) {
+    res.status(404).json({ error: "Behavior log not found" });
+    return;
+  }
+
+  const updates: Partial<typeof behaviorLogsTable.$inferInsert> = {};
+  if (parsed.data.type !== undefined) updates.type = parsed.data.type;
+  if (parsed.data.categoryId !== undefined) updates.categoryId = parsed.data.categoryId;
+  if (parsed.data.points !== undefined) updates.points = parsed.data.points;
+  if (parsed.data.note !== undefined) updates.note = parsed.data.note;
+
+  const [updated] = await db
+    .update(behaviorLogsTable)
+    .set(updates)
+    .where(eq(behaviorLogsTable.id, id))
+    .returning();
+
+  res.json({
+    id: updated.id,
+    studentId: updated.studentId,
+    categoryId: updated.categoryId,
+    type: updated.type,
+    points: updated.points,
+    note: updated.note,
+    loggedById: updated.loggedById,
+    createdAt: updated.createdAt.toISOString(),
+  });
+});
+
+router.delete("/behavior/logs/:id", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid log ID" });
+    return;
+  }
+
+  const [existing] = await db
+    .select()
+    .from(behaviorLogsTable)
+    .where(eq(behaviorLogsTable.id, id));
+
+  if (!existing) {
+    res.status(404).json({ error: "Behavior log not found" });
+    return;
+  }
+
+  await db.delete(behaviorLogsTable).where(eq(behaviorLogsTable.id, id));
+  res.status(204).send();
 });
 
 export default router;
