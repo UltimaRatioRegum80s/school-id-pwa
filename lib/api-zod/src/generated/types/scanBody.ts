@@ -5,10 +5,11 @@
  * School ID App API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ScanType } from "./scanType";
 
 export interface ScanBody {
   qrCode: string;
-  scanType: string;
+  scanType: ScanType;
   /** @nullable */
   location?: string | null;
   /** @nullable */

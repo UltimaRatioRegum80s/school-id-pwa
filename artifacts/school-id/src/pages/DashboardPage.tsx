@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { io } from "socket.io-client";
 import { PageHeader } from "@/components/PageHeader";
@@ -9,7 +9,16 @@ import {
   getGetDashboardSummaryQueryKey,
 } from "@workspace/api-client-react";
 import type { StudentWithState } from "@workspace/api-client-react";
-import { Users, CheckCircle, Clock, AlertTriangle, RefreshCw, TrendingUp } from "lucide-react";
+import {
+  Users,
+  CheckCircle,
+  Clock,
+  AlertTriangle,
+  RefreshCw,
+  TrendingUp,
+  LogOut,
+  X,
+} from "lucide-react";
 
 const STATE_COLORS: Record<string, string> = {
   on_campus: "#22c55e",
@@ -20,13 +29,28 @@ const STATE_COLORS: Record<string, string> = {
   not_arrived: "#cbd5e1",
 };
 
+const GRADES = ["8", "9", "10", "11", "12"];
+const CLASS_SUFFIXES = ["A", "B", "C"];
+
 type StudentCard = StudentWithState;
 
 export default function DashboardPage() {
   const queryClient = useQueryClient();
-  const { data, isLoading, refetch } = useGetDashboardSummary({
+  const [gradeFilter, setGradeFilter] = useState<string | null>(null);
+  const [classFilter, setClassFilter] = useState<string | null>(null);
+
+  const filterParams = gradeFilter || classFilter
+    ? {
+        ...(gradeFilter ? { grade: gradeFilter } : {}),
+        ...(classFilter ? { className: classFilter } : {}),
+      }
+    : undefined;
+
+  const queryKey = getGetDashboardSummaryQueryKey(filterParams);
+
+  const { data, isLoading, refetch } = useGetDashboardSummary(filterParams, {
     query: {
-      queryKey: getGetDashboardSummaryQueryKey(),
+      queryKey,
       refetchInterval: 30000,
     },
   });
@@ -42,17 +66,36 @@ export default function DashboardPage() {
     });
 
     socket.on("dashboard_update", () => {
-      queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
+      queryClient.invalidateQueries({ queryKey });
     });
 
     socket.on("state_changed", () => {
-      queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
+      queryClient.invalidateQueries({ queryKey });
     });
 
     return () => {
       socket.disconnect();
     };
-  }, [queryClient]);
+  }, [queryClient, queryKey]);
+
+  const classOptions =
+    gradeFilter
+      ? CLASS_SUFFIXES.map((s) => `${gradeFilter}${s}`)
+      : [];
+
+  function handleGradeChip(g: string) {
+    if (gradeFilter === g) {
+      setGradeFilter(null);
+      setClassFilter(null);
+    } else {
+      setGradeFilter(g);
+      setClassFilter(null);
+    }
+  }
+
+  function handleClassChip(c: string) {
+    setClassFilter(classFilter === c ? null : c);
+  }
 
   if (isLoading) {
     return (
@@ -89,6 +132,50 @@ export default function DashboardPage() {
       />
 
       <div className="max-w-lg mx-auto w-full px-4 py-4 space-y-4">
+        {/* Grade / Class filter chips */}
+        <div data-testid="panel-filter-chips">
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            <FilterChip
+              label="All Grades"
+              active={gradeFilter === null}
+              onClick={() => { setGradeFilter(null); setClassFilter(null); }}
+              testId="chip-grade-all"
+            />
+            {GRADES.map((g) => (
+              <FilterChip
+                key={g}
+                label={`Gr ${g}`}
+                active={gradeFilter === g}
+                onClick={() => handleGradeChip(g)}
+                testId={`chip-grade-${g}`}
+              />
+            ))}
+          </div>
+          {gradeFilter && classOptions.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto pb-1 mt-2 scrollbar-hide" data-testid="panel-class-chips">
+              {classOptions.map((c) => (
+                <FilterChip
+                  key={c}
+                  label={c}
+                  active={classFilter === c}
+                  onClick={() => handleClassChip(c)}
+                  testId={`chip-class-${c}`}
+                />
+              ))}
+            </div>
+          )}
+          {(gradeFilter || classFilter) && (
+            <button
+              className="mt-2 text-xs text-muted-foreground flex items-center gap-1 hover:text-foreground transition-colors"
+              onClick={() => { setGradeFilter(null); setClassFilter(null); }}
+              data-testid="button-clear-filters"
+            >
+              <X className="w-3 h-3" />
+              Clear filter
+            </button>
+          )}
+        </div>
+
         {/* Exceptions first — most urgent */}
         {d.exceptions.unaccountedStudents.length > 0 && (
           <ExceptionCard
@@ -114,35 +201,50 @@ export default function DashboardPage() {
           />
         )}
 
-        {/* KPI Grid */}
-        <div className="grid grid-cols-2 gap-3" data-testid="grid-kpis">
+        {/* KPI Grid — 6 cards: Total, Present, Absent, Late, Checked Out, Unaccounted */}
+        <div className="grid grid-cols-3 gap-3" data-testid="grid-kpis">
           <KpiCard
-            label="Present Today"
+            label="Total"
+            value={d.kpis.total}
+            total={d.kpis.total}
+            icon={<Users className="w-4 h-4 text-primary" />}
+            showPct={false}
+            testId="kpi-total"
+          />
+          <KpiCard
+            label="Present"
             value={d.kpis.present}
             total={d.kpis.total}
-            icon={<CheckCircle className="w-5 h-5 text-green-500" />}
+            icon={<CheckCircle className="w-4 h-4 text-green-500" />}
             testId="kpi-present"
           />
           <KpiCard
             label="Not Arrived"
             value={d.kpis.absent}
             total={d.kpis.total}
-            icon={<Clock className="w-5 h-5 text-slate-400" />}
+            icon={<Clock className="w-4 h-4 text-slate-400" />}
             testId="kpi-absent"
+          />
+          <KpiCard
+            label="Late"
+            value={d.kpis.late}
+            total={d.kpis.total}
+            icon={<TrendingUp className="w-4 h-4 text-yellow-500" />}
+            testId="kpi-late"
+          />
+          <KpiCard
+            label="Checked Out"
+            value={d.kpis.checkedOut}
+            total={d.kpis.total}
+            icon={<LogOut className="w-4 h-4 text-slate-500" />}
+            testId="kpi-checked-out"
           />
           <KpiCard
             label="Unaccounted"
             value={d.kpis.unaccounted}
             total={d.kpis.total}
-            icon={<AlertTriangle className="w-5 h-5 text-red-500" />}
+            icon={<AlertTriangle className="w-4 h-4 text-red-500" />}
             testId="kpi-unaccounted"
-          />
-          <KpiCard
-            label="Late Arrivals"
-            value={d.kpis.late}
-            total={d.kpis.total}
-            icon={<TrendingUp className="w-5 h-5 text-yellow-500" />}
-            testId="kpi-late"
           />
         </div>
 
@@ -203,28 +305,56 @@ export default function DashboardPage() {
   );
 }
 
+function FilterChip({
+  label,
+  active,
+  onClick,
+  testId,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  testId: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+        active
+          ? "bg-primary text-primary-foreground border-primary"
+          : "bg-card text-muted-foreground border-border hover:border-primary/50 hover:text-foreground"
+      }`}
+      data-testid={testId}
+    >
+      {label}
+    </button>
+  );
+}
+
 function KpiCard({
   label,
   value,
   total,
   icon,
   testId,
+  showPct = true,
 }: {
   label: string;
   value: number;
   total: number;
   icon: React.ReactNode;
   testId: string;
+  showPct?: boolean;
 }) {
   const pct = total > 0 ? Math.round((value / total) * 100) : 0;
   return (
-    <div className="bg-card border border-border rounded-xl p-3.5" data-testid={testId}>
-      <div className="flex items-center justify-between mb-2">
+    <div className="bg-card border border-border rounded-xl p-3" data-testid={testId}>
+      <div className="flex items-center justify-between mb-1.5">
         {icon}
-        <span className="text-xs text-muted-foreground">{pct}%</span>
+        {showPct && <span className="text-[10px] text-muted-foreground">{pct}%</span>}
       </div>
-      <p className="text-2xl font-bold text-foreground leading-none">{value}</p>
-      <p className="text-xs text-muted-foreground mt-1 leading-tight">{label}</p>
+      <p className="text-xl font-bold text-foreground leading-none">{value}</p>
+      <p className="text-[10px] text-muted-foreground mt-1 leading-tight">{label}</p>
     </div>
   );
 }

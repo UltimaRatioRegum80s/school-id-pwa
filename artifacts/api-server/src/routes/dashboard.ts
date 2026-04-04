@@ -35,13 +35,18 @@ function formatStudentWithState(
   };
 }
 
-router.get("/dashboard/summary", requireAuth, async (_req, res): Promise<void> => {
+router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> => {
+  const { grade, className } = req.query as { grade?: string; className?: string };
   const todayStartDate = todayStart();
 
   const [settingsRow] = await db.select().from(schoolSettingsTable).limit(1);
   const schoolStartTime = settingsRow?.startTime ?? "07:30";
 
-  const students = await db.select().from(studentsTable).where(eq(studentsTable.isActive, 1));
+  let allStudents = await db.select().from(studentsTable).where(eq(studentsTable.isActive, 1));
+  if (grade) allStudents = allStudents.filter((s) => s.grade === grade);
+  if (className) allStudents = allStudents.filter((s) => s.className === className);
+  const students = allStudents;
+
   const todayEvents = await db
     .select()
     .from(scanEventsTable)

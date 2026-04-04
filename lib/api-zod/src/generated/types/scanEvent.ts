@@ -5,13 +5,14 @@
  * School ID App API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ScanType } from "./scanType";
 
 export interface ScanEvent {
   id: number;
   studentId: number;
   /** @nullable */
   scannedById?: number | null;
-  scanType: string;
+  scanType: ScanType;
   /** @nullable */
   location?: string | null;
   /** @nullable */

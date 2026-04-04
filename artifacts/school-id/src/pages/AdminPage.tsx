@@ -10,12 +10,16 @@ import {
   useListBehaviorCategories,
   useCreateBehaviorCategory,
   useCreateStudent,
+  useListActivities,
+  useCreateActivity,
+  useUpdateActivity,
   getGetSettingsQueryKey,
   getListUsersQueryKey,
   getListBehaviorCategoriesQueryKey,
   getListStudentsQueryKey,
+  getListActivitiesQueryKey,
 } from "@workspace/api-client-react";
-import type { SchoolSettings } from "@workspace/api-client-react";
+import type { SchoolSettings, Activity } from "@workspace/api-client-react";
 import {
   Settings,
   Users,
@@ -28,19 +32,46 @@ import {
   Star,
   UserPlus,
   Upload,
+  CalendarRange,
+  Plus,
+  Pencil,
 } from "lucide-react";
 
-type AdminView = "main" | "settings" | "users" | "create-user" | "behavior-categories" | "add-student";
+type AdminView =
+  | "main"
+  | "settings"
+  | "users"
+  | "create-user"
+  | "behavior-categories"
+  | "add-student"
+  | "activity-management"
+  | "create-activity"
+  | "edit-activity";
 
 export default function AdminPage() {
   const { user, logout } = useAuth();
   const [view, setView] = useState<AdminView>("main");
+
+  const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
 
   if (view === "settings") return <SettingsView onBack={() => setView("main")} />;
   if (view === "users") return <UsersView onBack={() => setView("main")} onCreateUser={() => setView("create-user")} />;
   if (view === "create-user") return <CreateUserView onBack={() => setView("users")} />;
   if (view === "behavior-categories") return <BehaviorCategoriesView onBack={() => setView("main")} />;
   if (view === "add-student") return <AddStudentView onBack={() => setView("main")} />;
+  if (view === "activity-management") return (
+    <ActivityManagementView
+      onBack={() => setView("main")}
+      onCreate={() => setView("create-activity")}
+      onEdit={(a) => { setEditingActivity(a); setView("edit-activity"); }}
+    />
+  );
+  if (view === "create-activity") return (
+    <CreateActivityView onBack={() => setView("activity-management")} />
+  );
+  if (view === "edit-activity" && editingActivity) return (
+    <EditActivityView activity={editingActivity} onBack={() => setView("activity-management")} />
+  );
 
   return (
     <div className="flex flex-col min-h-screen bg-background pb-20">
@@ -88,6 +119,16 @@ export default function AdminPage() {
                 description="Configure merit and demerit categories"
                 onClick={() => setView("behavior-categories")}
                 testId="button-nav-behavior-categories"
+              />
+            </div>
+
+            <div className="bg-card border border-border rounded-xl divide-y divide-border overflow-hidden">
+              <MenuRow
+                icon={<CalendarRange className="w-4 h-4 text-orange-500" />}
+                label="Activity Management"
+                description="Create and edit assemblies, events, clubs, detention"
+                onClick={() => setView("activity-management")}
+                testId="button-nav-activity-management"
               />
             </div>
 
@@ -756,6 +797,398 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
         {label}
       </label>
       {children}
+    </div>
+  );
+}
+
+const ACTIVITY_TYPES = [
+  { value: "assembly", label: "Assembly" },
+  { value: "event", label: "Event" },
+  { value: "club", label: "Club" },
+  { value: "detention", label: "Detention" },
+  { value: "class", label: "Class" },
+  { value: "activity", label: "Activity" },
+];
+
+const ACTIVITY_STATUSES = [
+  { value: "upcoming", label: "Upcoming" },
+  { value: "active", label: "Active" },
+  { value: "completed", label: "Completed" },
+  { value: "cancelled", label: "Cancelled" },
+];
+
+function ActivityManagementView({
+  onBack,
+  onCreate,
+  onEdit,
+}: {
+  onBack: () => void;
+  onCreate: () => void;
+  onEdit: (a: Activity) => void;
+}) {
+  const queryClient = useQueryClient();
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const { data, isLoading } = useListActivities(
+    typeFilter !== "all" ? { activityType: typeFilter } : {},
+    {
+      query: {
+        queryKey: getListActivitiesQueryKey(
+          typeFilter !== "all" ? { activityType: typeFilter } : {}
+        ),
+      },
+    }
+  );
+
+  const activities = (data ?? []) as Activity[];
+
+  return (
+    <div className="flex flex-col min-h-screen bg-background pb-20">
+      <PageHeader
+        title="Activity Management"
+        subtitle="Create and manage activities"
+        onBack={onBack}
+        action={
+          <button
+            onClick={onCreate}
+            className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-1.5 rounded-lg text-sm font-semibold"
+            data-testid="button-create-activity-admin"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            New
+          </button>
+        }
+      />
+      <div className="max-w-lg mx-auto w-full px-4 py-4 space-y-4">
+        {/* Type filter tabs */}
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide" data-testid="panel-activity-type-tabs">
+          {[{ value: "all", label: "All" }, ...ACTIVITY_TYPES].map((t) => (
+            <button
+              key={t.value}
+              onClick={() => setTypeFilter(t.value)}
+              className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+                typeFilter === t.value
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-card text-muted-foreground border-border hover:border-primary/50"
+              }`}
+              data-testid={`tab-activity-type-${t.value}`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {isLoading ? (
+          <div className="text-center py-12 text-muted-foreground text-sm">Loading...</div>
+        ) : activities.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground">
+            <CalendarRange className="w-10 h-10 mx-auto mb-3 opacity-30" />
+            <p className="text-sm">No activities found</p>
+            <button
+              onClick={onCreate}
+              className="mt-3 text-primary text-sm font-semibold"
+              data-testid="button-create-first-activity"
+            >
+              Create your first activity
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {activities.map((a) => (
+              <div
+                key={a.id}
+                className="bg-card border border-border rounded-xl px-4 py-3 flex items-center gap-3"
+                data-testid={`activity-row-${a.id}`}
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground">{a.name}</p>
+                  <p className="text-xs text-muted-foreground capitalize">
+                    {a.activityType} · {a.status}
+                  </p>
+                </div>
+                <button
+                  onClick={() => onEdit(a)}
+                  className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
+                  data-testid={`button-edit-activity-${a.id}`}
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CreateActivityView({ onBack }: { onBack: () => void }) {
+  const queryClient = useQueryClient();
+  const [name, setName] = useState("");
+  const [activityType, setActivityType] = useState("assembly");
+  const [description, setDescription] = useState("");
+  const [startTime, setStartTime] = useState(
+    () => new Date().toISOString().slice(0, 16)
+  );
+  const [endTime, setEndTime] = useState("");
+  const [status, setStatus] = useState("upcoming");
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
+
+  const createMutation = useCreateActivity({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListActivitiesQueryKey() });
+        setSaved(true);
+        setTimeout(() => onBack(), 1200);
+      },
+      onError: () => setError("Failed to create activity. Please try again."),
+    },
+  });
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setError("");
+    createMutation.mutate({
+      data: {
+        name: name.trim(),
+        activityType,
+        description: description || null,
+        startTime: new Date(startTime).toISOString(),
+        endTime: endTime ? new Date(endTime).toISOString() : null,
+        status,
+      },
+    });
+  }
+
+  return (
+    <div className="flex flex-col min-h-screen bg-background pb-20">
+      <PageHeader title="New Activity" subtitle="Create a new activity" onBack={onBack} />
+      <form onSubmit={handleSubmit} className="max-w-lg mx-auto w-full px-4 py-4 space-y-4">
+        {saved && (
+          <div className="flex items-center gap-2 text-green-700 bg-green-50 border border-green-200 px-4 py-3 rounded-xl" data-testid="text-create-activity-success">
+            <Check className="w-4 h-4" />
+            Activity created!
+          </div>
+        )}
+        {error && (
+          <div className="flex items-center gap-2 text-destructive bg-destructive/10 border border-destructive/20 px-4 py-3 rounded-xl" data-testid="text-create-activity-error">
+            <AlertCircle className="w-4 h-4" />
+            {error}
+          </div>
+        )}
+        <Field label="Activity Name">
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Morning Assembly"
+            required
+            className="input-field"
+            data-testid="input-activity-name"
+          />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Type">
+            <select
+              value={activityType}
+              onChange={(e) => setActivityType(e.target.value)}
+              className="input-field"
+              data-testid="select-activity-type"
+            >
+              {ACTIVITY_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Status">
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className="input-field"
+              data-testid="select-activity-status"
+            >
+              {ACTIVITY_STATUSES.map((s) => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
+          </Field>
+        </div>
+        <Field label="Description">
+          <input
+            type="text"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Optional description"
+            className="input-field"
+            data-testid="input-activity-description"
+          />
+        </Field>
+        <Field label="Start Time">
+          <input
+            type="datetime-local"
+            value={startTime}
+            onChange={(e) => setStartTime(e.target.value)}
+            required
+            className="input-field"
+            data-testid="input-activity-start"
+          />
+        </Field>
+        <Field label="End Time (optional)">
+          <input
+            type="datetime-local"
+            value={endTime}
+            onChange={(e) => setEndTime(e.target.value)}
+            className="input-field"
+            data-testid="input-activity-end"
+          />
+        </Field>
+        <button
+          type="submit"
+          disabled={createMutation.isPending || !name.trim()}
+          className="w-full bg-primary text-primary-foreground font-semibold py-3 rounded-xl disabled:opacity-50 transition-opacity"
+          data-testid="button-save-activity"
+        >
+          {createMutation.isPending ? "Creating..." : "Create Activity"}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+function EditActivityView({ activity, onBack }: { activity: Activity; onBack: () => void }) {
+  const queryClient = useQueryClient();
+  const [name, setName] = useState(activity.name);
+  const [activityType, setActivityType] = useState(activity.activityType);
+  const [description, setDescription] = useState(activity.description ?? "");
+  const [startTime, setStartTime] = useState(
+    () => new Date(activity.startTime).toISOString().slice(0, 16)
+  );
+  const [endTime, setEndTime] = useState(
+    activity.endTime ? new Date(activity.endTime).toISOString().slice(0, 16) : ""
+  );
+  const [status, setStatus] = useState(activity.status);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
+
+  const updateMutation = useUpdateActivity({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListActivitiesQueryKey() });
+        setSaved(true);
+        setTimeout(() => onBack(), 1200);
+      },
+      onError: () => setError("Failed to update activity. Please try again."),
+    },
+  });
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    updateMutation.mutate({
+      id: activity.id,
+      data: {
+        name: name.trim(),
+        activityType,
+        description: description || null,
+        startTime: new Date(startTime).toISOString(),
+        endTime: endTime ? new Date(endTime).toISOString() : null,
+        status,
+      },
+    });
+  }
+
+  return (
+    <div className="flex flex-col min-h-screen bg-background pb-20">
+      <PageHeader title="Edit Activity" subtitle={activity.name} onBack={onBack} />
+      <form onSubmit={handleSubmit} className="max-w-lg mx-auto w-full px-4 py-4 space-y-4">
+        {saved && (
+          <div className="flex items-center gap-2 text-green-700 bg-green-50 border border-green-200 px-4 py-3 rounded-xl" data-testid="text-edit-activity-success">
+            <Check className="w-4 h-4" />
+            Activity updated!
+          </div>
+        )}
+        {error && (
+          <div className="flex items-center gap-2 text-destructive bg-destructive/10 border border-destructive/20 px-4 py-3 rounded-xl" data-testid="text-edit-activity-error">
+            <AlertCircle className="w-4 h-4" />
+            {error}
+          </div>
+        )}
+        <Field label="Activity Name">
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Morning Assembly"
+            required
+            className="input-field"
+            data-testid="input-edit-activity-name"
+          />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Type">
+            <select
+              value={activityType}
+              onChange={(e) => setActivityType(e.target.value)}
+              className="input-field"
+              data-testid="select-edit-activity-type"
+            >
+              {ACTIVITY_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Status">
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className="input-field"
+              data-testid="select-edit-activity-status"
+            >
+              {ACTIVITY_STATUSES.map((s) => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
+          </Field>
+        </div>
+        <Field label="Description">
+          <input
+            type="text"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Optional description"
+            className="input-field"
+            data-testid="input-edit-activity-description"
+          />
+        </Field>
+        <Field label="Start Time">
+          <input
+            type="datetime-local"
+            value={startTime}
+            onChange={(e) => setStartTime(e.target.value)}
+            required
+            className="input-field"
+            data-testid="input-edit-activity-start"
+          />
+        </Field>
+        <Field label="End Time (optional)">
+          <input
+            type="datetime-local"
+            value={endTime}
+            onChange={(e) => setEndTime(e.target.value)}
+            className="input-field"
+            data-testid="input-edit-activity-end"
+          />
+        </Field>
+        <button
+          type="submit"
+          disabled={updateMutation.isPending || !name.trim()}
+          className="w-full bg-primary text-primary-foreground font-semibold py-3 rounded-xl disabled:opacity-50 transition-opacity"
+          data-testid="button-update-activity"
+        >
+          {updateMutation.isPending ? "Saving..." : "Save Changes"}
+        </button>
+      </form>
     </div>
   );
 }

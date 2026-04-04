@@ -60,12 +60,26 @@ export type StudentWithState = Student & {
   lastSeenLocation?: string | null;
 };
 
+export type ScanType = (typeof ScanType)[keyof typeof ScanType];
+
+export const ScanType = {
+  gate_in: "gate_in",
+  gate_out: "gate_out",
+  checkout: "checkout",
+  class: "class",
+  event: "event",
+  assembly: "assembly",
+  activity: "activity",
+  detention: "detention",
+  club: "club",
+} as const;
+
 export interface ScanEvent {
   id: number;
   studentId: number;
   /** @nullable */
   scannedById?: number | null;
-  scanType: string;
+  scanType: ScanType;
   /** @nullable */
   location?: string | null;
   /** @nullable */
@@ -126,7 +140,7 @@ export interface UpdateStudentBody {
 
 export interface ScanBody {
   qrCode: string;
-  scanType: string;
+  scanType: ScanType;
   /** @nullable */
   location?: string | null;
   /** @nullable */
@@ -169,7 +183,7 @@ export interface FeedItem {
   id: number;
   message: string;
   studentName: string;
-  scanType: string;
+  scanType: ScanType;
   createdAt: string;
   studentId: number;
 }
@@ -237,14 +251,50 @@ export interface UpdateActivityBody {
   status?: string;
 }
 
+export type AttendanceStatus =
+  (typeof AttendanceStatus)[keyof typeof AttendanceStatus];
+
+export const AttendanceStatus = {
+  present: "present",
+  absent: "absent",
+  late: "late",
+  excused: "excused",
+} as const;
+
 export interface AttendanceRecord {
   id: number;
   activityId: number;
   studentId: number;
-  status: string;
+  status: AttendanceStatus;
   markedAt: string;
   /** @nullable */
   studentName?: string | null;
+}
+
+export interface MarkAttendanceBody {
+  studentId: number;
+  status?: AttendanceStatus;
+}
+
+export interface UpdateAttendanceBody {
+  status: AttendanceStatus;
+}
+
+export type UpdateBehaviorLogBodyType =
+  (typeof UpdateBehaviorLogBodyType)[keyof typeof UpdateBehaviorLogBodyType];
+
+export const UpdateBehaviorLogBodyType = {
+  merit: "merit",
+  demerit: "demerit",
+} as const;
+
+export interface UpdateBehaviorLogBody {
+  type?: UpdateBehaviorLogBodyType;
+  /** @nullable */
+  categoryId?: number | null;
+  points?: number;
+  /** @nullable */
+  note?: string | null;
 }
 
 export interface CreateBehaviorLogBody {
@@ -304,6 +354,17 @@ export type ListScanEventsParams = {
   studentId?: number;
   date?: string;
   limit?: number;
+};
+
+export type GetDashboardSummaryParams = {
+  /**
+   * Filter by grade (e.g. "8", "9", "10", "11", "12")
+   */
+  grade?: string;
+  /**
+   * Filter by class name (e.g. "8A", "10B")
+   */
+  className?: string;
 };
 
 export type GetDashboardFeedParams = {

@@ -7,12 +7,7 @@
  */
 import type { AttendanceStatus } from "./attendanceStatus";
 
-export interface AttendanceRecord {
-  id: number;
-  activityId: number;
+export interface MarkAttendanceBody {
   studentId: number;
-  status: AttendanceStatus;
-  markedAt: string;
-  /** @nullable */
-  studentName?: string | null;
+  status?: AttendanceStatus;
 }

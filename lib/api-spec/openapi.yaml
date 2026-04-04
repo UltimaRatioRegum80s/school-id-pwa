@@ -259,6 +259,17 @@ paths:
       operationId: getDashboardSummary
       tags: [dashboard]
       summary: Get live dashboard summary
+      parameters:
+        - name: grade
+          in: query
+          schema:
+            type: string
+          description: Filter by grade (e.g. "8", "9", "10", "11", "12")
+        - name: className
+          in: query
+          schema:
+            type: string
+          description: Filter by class name (e.g. "8A", "10B")
       responses:
         "200":
           description: Dashboard summary with KPIs, exceptions, and feed

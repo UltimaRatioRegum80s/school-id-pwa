@@ -5,12 +5,13 @@
  * School ID App API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ScanType } from "./scanType";
 
 export interface FeedItem {
   id: number;
   message: string;
   studentName: string;
-  scanType: string;
+  scanType: ScanType;
   createdAt: string;
   studentId: number;
 }

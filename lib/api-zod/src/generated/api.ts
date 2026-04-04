@@ -7,19 +7,6 @@
  */
 import * as zod from "zod";
 
-export const ScanType = zod.enum([
-  "gate_in",
-  "gate_out",
-  "checkout",
-  "class",
-  "event",
-  "assembly",
-  "activity",
-  "detention",
-  "club",
-]);
-export type ScanTypeValue = zod.infer<typeof ScanType>;
-
 /**
  * Returns server health status
  * @summary Health check
@@ -142,7 +129,17 @@ export const GetStudentResponse = zod
           id: zod.number(),
           studentId: zod.number(),
           scannedById: zod.number().nullish(),
-          scanType: ScanType,
+          scanType: zod.enum([
+            "gate_in",
+            "gate_out",
+            "checkout",
+            "class",
+            "event",
+            "assembly",
+            "activity",
+            "detention",
+            "club",
+          ]),
           location: zod.string().nullish(),
           activityId: zod.number().nullish(),
           notes: zod.string().nullish(),
@@ -241,7 +238,17 @@ export const LookupStudentByQrResponse = zod
  */
 export const ProcessScanBody = zod.object({
   qrCode: zod.string(),
-  scanType: ScanType,
+  scanType: zod.enum([
+    "gate_in",
+    "gate_out",
+    "checkout",
+    "class",
+    "event",
+    "assembly",
+    "activity",
+    "detention",
+    "club",
+  ]),
   location: zod.string().nullish(),
   activityId: zod.number().nullish(),
   notes: zod.string().nullish(),
@@ -252,7 +259,17 @@ export const ProcessScanResponse = zod.object({
     id: zod.number(),
     studentId: zod.number(),
     scannedById: zod.number().nullish(),
-    scanType: ScanType,
+    scanType: zod.enum([
+      "gate_in",
+      "gate_out",
+      "checkout",
+      "class",
+      "event",
+      "assembly",
+      "activity",
+      "detention",
+      "club",
+    ]),
     location: zod.string().nullish(),
     activityId: zod.number().nullish(),
     notes: zod.string().nullish(),
@@ -296,7 +313,17 @@ export const ListScanEventsResponseItem = zod.object({
   id: zod.number(),
   studentId: zod.number(),
   scannedById: zod.number().nullish(),
-  scanType: ScanType,
+  scanType: zod.enum([
+    "gate_in",
+    "gate_out",
+    "checkout",
+    "class",
+    "event",
+    "assembly",
+    "activity",
+    "detention",
+    "club",
+  ]),
   location: zod.string().nullish(),
   activityId: zod.number().nullish(),
   notes: zod.string().nullish(),
@@ -308,6 +335,17 @@ export const ListScanEventsResponse = zod.array(ListScanEventsResponseItem);
 /**
  * @summary Get live dashboard summary
  */
+export const GetDashboardSummaryQueryParams = zod.object({
+  grade: zod.coerce
+    .string()
+    .optional()
+    .describe('Filter by grade (e.g. \"8\", \"9\", \"10\", \"11\", \"12\")'),
+  className: zod.coerce
+    .string()
+    .optional()
+    .describe('Filter by class name (e.g. \"8A\", \"10B\")'),
+});
+
 export const GetDashboardSummaryResponse = zod.object({
   kpis: zod.object({
     total: zod.number(),
@@ -425,7 +463,17 @@ export const GetDashboardSummaryResponse = zod.object({
       id: zod.number(),
       message: zod.string(),
       studentName: zod.string(),
-      scanType: ScanType,
+      scanType: zod.enum([
+        "gate_in",
+        "gate_out",
+        "checkout",
+        "class",
+        "event",
+        "assembly",
+        "activity",
+        "detention",
+        "club",
+      ]),
       createdAt: zod.string(),
       studentId: zod.number(),
     }),
@@ -444,7 +492,17 @@ export const GetDashboardFeedResponseItem = zod.object({
   id: zod.number(),
   message: zod.string(),
   studentName: zod.string(),
-  scanType: ScanType,
+  scanType: zod.enum([
+    "gate_in",
+    "gate_out",
+    "checkout",
+    "class",
+    "event",
+    "assembly",
+    "activity",
+    "detention",
+    "club",
+  ]),
   createdAt: zod.string(),
   studentId: zod.number(),
 });
@@ -622,7 +680,7 @@ export const GetActivityAttendanceResponseItem = zod.object({
   id: zod.number(),
   activityId: zod.number(),
   studentId: zod.number(),
-  status: zod.string(),
+  status: zod.enum(["present", "absent", "late", "excused"]),
   markedAt: zod.string(),
   studentName: zod.string().nullish(),
 });
@@ -630,20 +688,26 @@ export const GetActivityAttendanceResponse = zod.array(
   GetActivityAttendanceResponseItem,
 );
 
-export const AttendanceStatus = zod.enum(["present", "absent", "late", "excused"]);
-export type AttendanceStatusValue = zod.infer<typeof AttendanceStatus>;
-
 /**
  * @summary Mark or update attendance for a student in an activity
  */
 export const MarkActivityAttendanceParams = zod.object({
   id: zod.coerce.number(),
 });
-export const MarkAttendanceBody = zod.object({
-  studentId: zod.number().int().positive(),
-  status: AttendanceStatus.default("present"),
+
+export const MarkActivityAttendanceBody = zod.object({
+  studentId: zod.number(),
+  status: zod.enum(["present", "absent", "late", "excused"]).optional(),
 });
-export const MarkAttendanceResponse = GetActivityAttendanceResponseItem;
+
+export const MarkActivityAttendanceResponse = zod.object({
+  id: zod.number(),
+  activityId: zod.number(),
+  studentId: zod.number(),
+  status: zod.enum(["present", "absent", "late", "excused"]),
+  markedAt: zod.string(),
+  studentName: zod.string().nullish(),
+});
 
 /**
  * @summary Update an existing attendance record
@@ -652,10 +716,19 @@ export const UpdateActivityAttendanceParams = zod.object({
   id: zod.coerce.number(),
   attendanceId: zod.coerce.number(),
 });
-export const UpdateAttendanceBody = zod.object({
-  status: AttendanceStatus,
+
+export const UpdateActivityAttendanceBody = zod.object({
+  status: zod.enum(["present", "absent", "late", "excused"]),
 });
-export const UpdateAttendanceResponse = GetActivityAttendanceResponseItem;
+
+export const UpdateActivityAttendanceResponse = zod.object({
+  id: zod.number(),
+  activityId: zod.number(),
+  studentId: zod.number(),
+  status: zod.enum(["present", "absent", "late", "excused"]),
+  markedAt: zod.string(),
+  studentName: zod.string().nullish(),
+});
 
 /**
  * @summary List behavior logs
@@ -696,11 +769,24 @@ export const CreateBehaviorLogBody = zod.object({
 export const UpdateBehaviorLogParams = zod.object({
   id: zod.coerce.number(),
 });
+
 export const UpdateBehaviorLogBody = zod.object({
   type: zod.enum(["merit", "demerit"]).optional(),
-  categoryId: zod.number().int().positive().nullable().optional(),
-  points: zod.number().int().optional(),
-  note: zod.string().nullable().optional(),
+  categoryId: zod.number().nullish(),
+  points: zod.number().optional(),
+  note: zod.string().nullish(),
+});
+
+export const UpdateBehaviorLogResponse = zod.object({
+  id: zod.number(),
+  studentId: zod.number(),
+  categoryId: zod.number().nullish(),
+  type: zod.string(),
+  points: zod.number(),
+  note: zod.string().nullish(),
+  loggedById: zod.number().nullish(),
+  createdAt: zod.string(),
+  categoryName: zod.string().nullish(),
 });
 
 /**

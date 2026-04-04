@@ -31,6 +31,7 @@ import type {
   DashboardSummary,
   FeedItem,
   GetDashboardFeedParams,
+  GetDashboardSummaryParams,
   HealthStatus,
   ListActivitiesParams,
   ListBehaviorLogsParams,
@@ -38,6 +39,7 @@ import type {
   ListStudentsParams,
   LoginBody,
   LoginResponse,
+  MarkAttendanceBody,
   ScanBody,
   ScanEvent,
   ScanResult,
@@ -46,6 +48,8 @@ import type {
   StudentProfile,
   StudentWithState,
   UpdateActivityBody,
+  UpdateAttendanceBody,
+  UpdateBehaviorLogBody,
   UpdateSettingsBody,
   UpdateStudentBody,
   UserProfile,
@@ -994,41 +998,63 @@ export function useListScanEvents<
 /**
  * @summary Get live dashboard summary
  */
-export const getGetDashboardSummaryUrl = () => {
-  return `/api/dashboard/summary`;
+export const getGetDashboardSummaryUrl = (
+  params?: GetDashboardSummaryParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/dashboard/summary?${stringifiedParams}`
+    : `/api/dashboard/summary`;
 };
 
 export const getDashboardSummary = async (
+  params?: GetDashboardSummaryParams,
   options?: RequestInit,
 ): Promise<DashboardSummary> => {
-  return customFetch<DashboardSummary>(getGetDashboardSummaryUrl(), {
+  return customFetch<DashboardSummary>(getGetDashboardSummaryUrl(params), {
     ...options,
     method: "GET",
   });
 };
 
-export const getGetDashboardSummaryQueryKey = () => {
-  return [`/api/dashboard/summary`] as const;
+export const getGetDashboardSummaryQueryKey = (
+  params?: GetDashboardSummaryParams,
+) => {
+  return [`/api/dashboard/summary`, ...(params ? [params] : [])] as const;
 };
 
 export const getGetDashboardSummaryQueryOptions = <
   TData = Awaited<ReturnType<typeof getDashboardSummary>>,
   TError = ErrorType<unknown>,
->(options?: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<typeof getDashboardSummary>>,
-    TError,
-    TData
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}) => {
+>(
+  params?: GetDashboardSummaryParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getDashboardSummary>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetDashboardSummaryQueryKey();
+  const queryKey =
+    queryOptions?.queryKey ?? getGetDashboardSummaryQueryKey(params);
 
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof getDashboardSummary>>
-  > = ({ signal }) => getDashboardSummary({ signal, ...requestOptions });
+  > = ({ signal }) =>
+    getDashboardSummary(params, { signal, ...requestOptions });
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof getDashboardSummary>>,
@@ -1049,15 +1075,18 @@ export type GetDashboardSummaryQueryError = ErrorType<unknown>;
 export function useGetDashboardSummary<
   TData = Awaited<ReturnType<typeof getDashboardSummary>>,
   TError = ErrorType<unknown>,
->(options?: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<typeof getDashboardSummary>>,
-    TError,
-    TData
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getGetDashboardSummaryQueryOptions(options);
+>(
+  params?: GetDashboardSummaryParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getDashboardSummary>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetDashboardSummaryQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
@@ -1690,6 +1719,188 @@ export function useGetActivityAttendance<
 }
 
 /**
+ * @summary Mark or update attendance for a student in an activity
+ */
+export const getMarkActivityAttendanceUrl = (id: number) => {
+  return `/api/activities/${id}/attendance`;
+};
+
+export const markActivityAttendance = async (
+  id: number,
+  markAttendanceBody: MarkAttendanceBody,
+  options?: RequestInit,
+): Promise<AttendanceRecord> => {
+  return customFetch<AttendanceRecord>(getMarkActivityAttendanceUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(markAttendanceBody),
+  });
+};
+
+export const getMarkActivityAttendanceMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof markActivityAttendance>>,
+    TError,
+    { id: number; data: BodyType<MarkAttendanceBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof markActivityAttendance>>,
+  TError,
+  { id: number; data: BodyType<MarkAttendanceBody> },
+  TContext
+> => {
+  const mutationKey = ["markActivityAttendance"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof markActivityAttendance>>,
+    { id: number; data: BodyType<MarkAttendanceBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return markActivityAttendance(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type MarkActivityAttendanceMutationResult = NonNullable<
+  Awaited<ReturnType<typeof markActivityAttendance>>
+>;
+export type MarkActivityAttendanceMutationBody = BodyType<MarkAttendanceBody>;
+export type MarkActivityAttendanceMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Mark or update attendance for a student in an activity
+ */
+export const useMarkActivityAttendance = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof markActivityAttendance>>,
+    TError,
+    { id: number; data: BodyType<MarkAttendanceBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof markActivityAttendance>>,
+  TError,
+  { id: number; data: BodyType<MarkAttendanceBody> },
+  TContext
+> => {
+  return useMutation(getMarkActivityAttendanceMutationOptions(options));
+};
+
+/**
+ * @summary Update an existing attendance record
+ */
+export const getUpdateActivityAttendanceUrl = (
+  id: number,
+  attendanceId: number,
+) => {
+  return `/api/activities/${id}/attendance/${attendanceId}`;
+};
+
+export const updateActivityAttendance = async (
+  id: number,
+  attendanceId: number,
+  updateAttendanceBody: UpdateAttendanceBody,
+  options?: RequestInit,
+): Promise<AttendanceRecord> => {
+  return customFetch<AttendanceRecord>(
+    getUpdateActivityAttendanceUrl(id, attendanceId),
+    {
+      ...options,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(updateAttendanceBody),
+    },
+  );
+};
+
+export const getUpdateActivityAttendanceMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateActivityAttendance>>,
+    TError,
+    { id: number; attendanceId: number; data: BodyType<UpdateAttendanceBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateActivityAttendance>>,
+  TError,
+  { id: number; attendanceId: number; data: BodyType<UpdateAttendanceBody> },
+  TContext
+> => {
+  const mutationKey = ["updateActivityAttendance"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateActivityAttendance>>,
+    { id: number; attendanceId: number; data: BodyType<UpdateAttendanceBody> }
+  > = (props) => {
+    const { id, attendanceId, data } = props ?? {};
+
+    return updateActivityAttendance(id, attendanceId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateActivityAttendanceMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateActivityAttendance>>
+>;
+export type UpdateActivityAttendanceMutationBody =
+  BodyType<UpdateAttendanceBody>;
+export type UpdateActivityAttendanceMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update an existing attendance record
+ */
+export const useUpdateActivityAttendance = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateActivityAttendance>>,
+    TError,
+    { id: number; attendanceId: number; data: BodyType<UpdateAttendanceBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateActivityAttendance>>,
+  TError,
+  { id: number; attendanceId: number; data: BodyType<UpdateAttendanceBody> },
+  TContext
+> => {
+  return useMutation(getUpdateActivityAttendanceMutationOptions(options));
+};
+
+/**
  * @summary List behavior logs
  */
 export const getListBehaviorLogsUrl = (params?: ListBehaviorLogsParams) => {
@@ -1870,6 +2081,177 @@ export const useCreateBehaviorLog = <
   TContext
 > => {
   return useMutation(getCreateBehaviorLogMutationOptions(options));
+};
+
+/**
+ * @summary Update a behavior log entry
+ */
+export const getUpdateBehaviorLogUrl = (id: number) => {
+  return `/api/behavior/logs/${id}`;
+};
+
+export const updateBehaviorLog = async (
+  id: number,
+  updateBehaviorLogBody: UpdateBehaviorLogBody,
+  options?: RequestInit,
+): Promise<BehaviorLog> => {
+  return customFetch<BehaviorLog>(getUpdateBehaviorLogUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateBehaviorLogBody),
+  });
+};
+
+export const getUpdateBehaviorLogMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateBehaviorLog>>,
+    TError,
+    { id: number; data: BodyType<UpdateBehaviorLogBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateBehaviorLog>>,
+  TError,
+  { id: number; data: BodyType<UpdateBehaviorLogBody> },
+  TContext
+> => {
+  const mutationKey = ["updateBehaviorLog"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateBehaviorLog>>,
+    { id: number; data: BodyType<UpdateBehaviorLogBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateBehaviorLog(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateBehaviorLogMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateBehaviorLog>>
+>;
+export type UpdateBehaviorLogMutationBody = BodyType<UpdateBehaviorLogBody>;
+export type UpdateBehaviorLogMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a behavior log entry
+ */
+export const useUpdateBehaviorLog = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateBehaviorLog>>,
+    TError,
+    { id: number; data: BodyType<UpdateBehaviorLogBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateBehaviorLog>>,
+  TError,
+  { id: number; data: BodyType<UpdateBehaviorLogBody> },
+  TContext
+> => {
+  return useMutation(getUpdateBehaviorLogMutationOptions(options));
+};
+
+/**
+ * @summary Delete a behavior log entry
+ */
+export const getDeleteBehaviorLogUrl = (id: number) => {
+  return `/api/behavior/logs/${id}`;
+};
+
+export const deleteBehaviorLog = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteBehaviorLogUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteBehaviorLogMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteBehaviorLog>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteBehaviorLog>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteBehaviorLog"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteBehaviorLog>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteBehaviorLog(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteBehaviorLogMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteBehaviorLog>>
+>;
+
+export type DeleteBehaviorLogMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a behavior log entry
+ */
+export const useDeleteBehaviorLog = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteBehaviorLog>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteBehaviorLog>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteBehaviorLogMutationOptions(options));
 };
 
 /**
