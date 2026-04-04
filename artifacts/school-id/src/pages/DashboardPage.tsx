@@ -1,63 +1,15 @@
-import { useEffect, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { io } from "socket.io-client";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
-import { BASE_URL } from "@/lib/api";
 import { formatRelativeTime, getStateLabel } from "@/lib/status";
+import {
+  useGetDashboardSummary,
+  getGetDashboardSummaryQueryKey,
+} from "@workspace/api-client-react";
+import type { StudentWithState } from "@workspace/api-client-react";
 import { Users, CheckCircle, Clock, AlertTriangle, RefreshCw, TrendingUp } from "lucide-react";
-
-interface DashboardData {
-  kpis: {
-    total: number;
-    present: number;
-    absent: number;
-    late: number;
-    checkedOut: number;
-    unaccounted: number;
-    onCampus: number;
-    inClass: number;
-    atEvent: number;
-  };
-  statusDistribution: Array<{ state: string; count: number }>;
-  exceptions: {
-    unaccountedStudents: StudentCard[];
-    lateArrivals: StudentCard[];
-    missingFromClass: StudentCard[];
-  };
-  recentFeed: FeedItem[];
-  lastUpdated: string;
-}
-
-interface StudentCard {
-  id: number;
-  firstName: string;
-  lastName: string;
-  studentId: string;
-  grade: string;
-  className: string;
-  currentState: string;
-  lastSeenAt: string | null;
-  lastSeenLocation: string | null;
-}
-
-interface FeedItem {
-  id: number;
-  message: string;
-  studentName: string;
-  scanType: string;
-  createdAt: string;
-  studentId: number;
-}
-
-async function fetchDashboard(): Promise<DashboardData> {
-  const token = localStorage.getItem("school-id-token");
-  const res = await fetch(`${BASE_URL}/api/dashboard/summary`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) throw new Error("Failed to fetch dashboard");
-  return res.json();
-}
 
 const STATE_COLORS: Record<string, string> = {
   on_campus: "#22c55e",
@@ -68,12 +20,15 @@ const STATE_COLORS: Record<string, string> = {
   not_arrived: "#cbd5e1",
 };
 
+type StudentCard = StudentWithState;
+
 export default function DashboardPage() {
   const queryClient = useQueryClient();
-  const { data, isLoading, refetch } = useQuery({
-    queryKey: ["dashboard"],
-    queryFn: fetchDashboard,
-    refetchInterval: 30000,
+  const { data, isLoading, refetch } = useGetDashboardSummary({
+    query: {
+      queryKey: getGetDashboardSummaryQueryKey(),
+      refetchInterval: 30000,
+    },
   });
 
   useEffect(() => {
@@ -87,11 +42,11 @@ export default function DashboardPage() {
     });
 
     socket.on("dashboard_update", () => {
-      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
     });
 
     socket.on("state_changed", () => {
-      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
     });
 
     return () => {
@@ -113,7 +68,9 @@ export default function DashboardPage() {
     );
   }
 
-  const d = data!;
+  if (!data) return null;
+
+  const d = data;
 
   return (
     <div className="flex flex-col min-h-screen bg-background pb-20">
@@ -124,6 +81,7 @@ export default function DashboardPage() {
           <button
             onClick={() => refetch()}
             className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            data-testid="button-refresh-dashboard"
           >
             <RefreshCw className="w-4 h-4" />
           </button>
@@ -131,46 +89,71 @@ export default function DashboardPage() {
       />
 
       <div className="max-w-lg mx-auto w-full px-4 py-4 space-y-4">
+        {/* Exceptions first — most urgent */}
+        {d.exceptions.unaccountedStudents.length > 0 && (
+          <ExceptionCard
+            title="Unaccounted Students"
+            students={d.exceptions.unaccountedStudents}
+            color="red"
+          />
+        )}
+
+        {d.exceptions.lateArrivals.length > 0 && (
+          <ExceptionCard
+            title="Late Arrivals"
+            students={d.exceptions.lateArrivals}
+            color="yellow"
+          />
+        )}
+
+        {d.exceptions.missingFromClass.length > 0 && (
+          <ExceptionCard
+            title="Missing From Class"
+            students={d.exceptions.missingFromClass}
+            color="yellow"
+          />
+        )}
+
         {/* KPI Grid */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3" data-testid="grid-kpis">
           <KpiCard
             label="Present Today"
             value={d.kpis.present}
             total={d.kpis.total}
             icon={<CheckCircle className="w-5 h-5 text-green-500" />}
-            color="green"
+            testId="kpi-present"
           />
           <KpiCard
             label="Not Arrived"
             value={d.kpis.absent}
             total={d.kpis.total}
             icon={<Clock className="w-5 h-5 text-slate-400" />}
-            color="slate"
+            testId="kpi-absent"
           />
           <KpiCard
             label="Unaccounted"
             value={d.kpis.unaccounted}
             total={d.kpis.total}
             icon={<AlertTriangle className="w-5 h-5 text-red-500" />}
-            color="red"
+            testId="kpi-unaccounted"
           />
           <KpiCard
             label="Late Arrivals"
             value={d.kpis.late}
             total={d.kpis.total}
             icon={<TrendingUp className="w-5 h-5 text-yellow-500" />}
-            color="yellow"
+            testId="kpi-late"
           />
         </div>
 
         {/* Status breakdown */}
-        <div className="bg-card border border-border rounded-xl p-4">
+        <div className="bg-card border border-border rounded-xl p-4" data-testid="panel-status-breakdown">
           <h3 className="text-sm font-semibold text-foreground mb-3">Status Breakdown</h3>
           <div className="space-y-2">
             {d.statusDistribution.map(({ state, count }) => {
               const pct = d.kpis.total > 0 ? (count / d.kpis.total) * 100 : 0;
               return (
-                <div key={state} className="flex items-center gap-3">
+                <div key={state} className="flex items-center gap-3" data-testid={`status-row-${state}`}>
                   <span className="text-xs text-muted-foreground w-24 flex-shrink-0">
                     {getStateLabel(state)}
                   </span>
@@ -192,32 +175,15 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Exceptions */}
-        {d.exceptions.unaccountedStudents.length > 0 && (
-          <ExceptionCard
-            title="Unaccounted Students"
-            students={d.exceptions.unaccountedStudents}
-            color="red"
-          />
-        )}
-
-        {d.exceptions.lateArrivals.length > 0 && (
-          <ExceptionCard
-            title="Late Arrivals"
-            students={d.exceptions.lateArrivals}
-            color="yellow"
-          />
-        )}
-
         {/* Recent Feed */}
-        <div className="bg-card border border-border rounded-xl p-4">
+        <div className="bg-card border border-border rounded-xl p-4" data-testid="panel-recent-feed">
           <h3 className="text-sm font-semibold text-foreground mb-3">Recent Activity</h3>
           {d.recentFeed.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">No activity today yet</p>
           ) : (
             <div className="space-y-0 divide-y divide-border">
               {d.recentFeed.slice(0, 10).map((item) => (
-                <div key={item.id} className="py-2.5 flex items-start gap-3">
+                <div key={item.id} className="py-2.5 flex items-start gap-3" data-testid={`feed-item-${item.id}`}>
                   <div className="w-7 h-7 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                     <Users className="w-3.5 h-3.5 text-primary" />
                   </div>
@@ -242,17 +208,17 @@ function KpiCard({
   value,
   total,
   icon,
-  color,
+  testId,
 }: {
   label: string;
   value: number;
   total: number;
   icon: React.ReactNode;
-  color: string;
+  testId: string;
 }) {
   const pct = total > 0 ? Math.round((value / total) * 100) : 0;
   return (
-    <div className="bg-card border border-border rounded-xl p-3.5">
+    <div className="bg-card border border-border rounded-xl p-3.5" data-testid={testId}>
       <div className="flex items-center justify-between mb-2">
         {icon}
         <span className="text-xs text-muted-foreground">{pct}%</span>
@@ -277,14 +243,14 @@ function ExceptionCard({
   const textColor = color === "red" ? "text-red-800" : "text-yellow-800";
 
   return (
-    <div className={`border ${borderColor} rounded-xl overflow-hidden`}>
+    <div className={`border ${borderColor} rounded-xl overflow-hidden`} data-testid={`panel-exception-${title.toLowerCase().replace(/\s+/g, "-")}`}>
       <div className={`${bgColor} px-4 py-2.5 flex items-center justify-between`}>
         <h3 className={`text-sm font-semibold ${textColor}`}>{title}</h3>
         <span className={`text-xs font-bold ${textColor}`}>{students.length}</span>
       </div>
       <div className="bg-card divide-y divide-border">
         {students.slice(0, 5).map((s) => (
-          <div key={s.id} className="px-4 py-2.5 flex items-center justify-between">
+          <div key={s.id} className="px-4 py-2.5 flex items-center justify-between" data-testid={`exception-student-${s.id}`}>
             <div>
               <p className="text-sm font-medium text-foreground">
                 {s.firstName} {s.lastName}

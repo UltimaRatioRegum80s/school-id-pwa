@@ -1,65 +1,46 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
-import { BASE_URL } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  useGetSettings,
+  useUpdateSettings,
+  useListUsers,
+  useCreateUser,
+  useListBehaviorCategories,
+  useCreateBehaviorCategory,
+  useCreateStudent,
+  getGetSettingsQueryKey,
+  getListUsersQueryKey,
+  getListBehaviorCategoriesQueryKey,
+  getListStudentsQueryKey,
+} from "@workspace/api-client-react";
+import type { SchoolSettings } from "@workspace/api-client-react";
 import {
   Settings,
   Users,
   Shield,
   Building2,
-  Clock,
   ChevronRight,
   Check,
   AlertCircle,
   X,
+  Star,
+  UserPlus,
+  Upload,
 } from "lucide-react";
 
-interface SchoolSettings {
-  id: number;
-  schoolName: string;
-  startTime: string;
-  endTime: string;
-  lateThresholdMinutes: string;
-  timezone: string;
-}
-
-interface UserRecord {
-  id: number;
-  username: string;
-  firstName: string;
-  lastName: string;
-  role: string;
-  isActive: string;
-}
-
-async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const token = localStorage.getItem("school-id-token");
-  const res = await fetch(`${BASE_URL}/api${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      ...options?.headers,
-    },
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error ?? "Request failed");
-  }
-  if (res.status === 204) return undefined as T;
-  return res.json();
-}
-
-type AdminView = "main" | "settings" | "users" | "create-user";
+type AdminView = "main" | "settings" | "users" | "create-user" | "behavior-categories" | "add-student";
 
 export default function AdminPage() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [view, setView] = useState<AdminView>("main");
 
   if (view === "settings") return <SettingsView onBack={() => setView("main")} />;
   if (view === "users") return <UsersView onBack={() => setView("main")} onCreateUser={() => setView("create-user")} />;
   if (view === "create-user") return <CreateUserView onBack={() => setView("users")} />;
+  if (view === "behavior-categories") return <BehaviorCategoriesView onBack={() => setView("main")} />;
+  if (view === "add-student") return <AddStudentView onBack={() => setView("main")} />;
 
   return (
     <div className="flex flex-col min-h-screen bg-background pb-20">
@@ -67,15 +48,15 @@ export default function AdminPage() {
 
       <div className="max-w-lg mx-auto w-full px-4 py-4 space-y-4">
         {/* Profile card */}
-        <div className="bg-card border border-border rounded-xl p-4">
+        <div className="bg-card border border-border rounded-xl p-4" data-testid="panel-admin-profile">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
               <span className="text-base font-bold text-primary">
                 {user?.firstName[0]}{user?.lastName[0]}
               </span>
             </div>
-            <div>
-              <p className="font-semibold text-foreground">
+            <div className="flex-1">
+              <p className="font-semibold text-foreground" data-testid="text-admin-name">
                 {user?.firstName} {user?.lastName}
               </p>
               <p className="text-xs text-muted-foreground">{user?.username} · {user?.role}</p>
@@ -83,23 +64,51 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Admin menu */}
-        <div className="bg-card border border-border rounded-xl divide-y divide-border overflow-hidden">
-          <MenuRow
-            icon={<Building2 className="w-4 h-4 text-blue-500" />}
-            label="School Settings"
-            description="Configure school name, times, and timezone"
-            onClick={() => setView("settings")}
-            disabled={user?.role !== "admin"}
-          />
-          <MenuRow
-            icon={<Users className="w-4 h-4 text-purple-500" />}
-            label="Staff Accounts"
-            description="Manage staff users and permissions"
-            onClick={() => setView("users")}
-            disabled={user?.role !== "admin"}
-          />
-        </div>
+        {/* Admin-only section */}
+        {user?.role === "admin" && (
+          <>
+            <div className="bg-card border border-border rounded-xl divide-y divide-border overflow-hidden">
+              <MenuRow
+                icon={<Building2 className="w-4 h-4 text-blue-500" />}
+                label="School Settings"
+                description="Configure school name, times, and timezone"
+                onClick={() => setView("settings")}
+                testId="button-nav-school-settings"
+              />
+              <MenuRow
+                icon={<Users className="w-4 h-4 text-purple-500" />}
+                label="Staff Accounts"
+                description="Manage staff users and permissions"
+                onClick={() => setView("users")}
+                testId="button-nav-staff-accounts"
+              />
+              <MenuRow
+                icon={<Star className="w-4 h-4 text-yellow-500" />}
+                label="Behavior Categories"
+                description="Configure merit and demerit categories"
+                onClick={() => setView("behavior-categories")}
+                testId="button-nav-behavior-categories"
+              />
+            </div>
+
+            <div className="bg-card border border-border rounded-xl divide-y divide-border overflow-hidden">
+              <MenuRow
+                icon={<UserPlus className="w-4 h-4 text-green-500" />}
+                label="Add Student"
+                description="Manually enroll a new student"
+                onClick={() => setView("add-student")}
+                testId="button-nav-add-student"
+              />
+              <MenuRow
+                icon={<Upload className="w-4 h-4 text-indigo-500" />}
+                label="Import Students (CSV)"
+                description="Bulk import student data from a CSV file"
+                onClick={() => alert("CSV import — coming soon")}
+                testId="button-nav-import-csv"
+              />
+            </div>
+          </>
+        )}
 
         {user?.role !== "admin" && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 border border-border rounded-lg px-4 py-3">
@@ -124,6 +133,15 @@ export default function AdminPage() {
             </div>
           </div>
         </div>
+
+        {/* Logout */}
+        <button
+          onClick={logout}
+          className="w-full bg-destructive/10 border border-destructive/20 text-destructive font-semibold py-2.5 rounded-xl hover:bg-destructive/20 transition-colors"
+          data-testid="button-logout"
+        >
+          Sign Out
+        </button>
       </div>
     </div>
   );
@@ -135,12 +153,14 @@ function MenuRow({
   description,
   onClick,
   disabled,
+  testId,
 }: {
   icon: React.ReactNode;
   label: string;
   description: string;
   onClick: () => void;
   disabled?: boolean;
+  testId?: string;
 }) {
   return (
     <button
@@ -149,6 +169,7 @@ function MenuRow({
       className={`w-full px-4 py-3.5 flex items-center gap-3 text-left transition-colors ${
         disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-muted/30"
       }`}
+      data-testid={testId}
     >
       <div className="w-8 h-8 bg-muted rounded-lg flex items-center justify-center flex-shrink-0">
         {icon}
@@ -164,27 +185,26 @@ function MenuRow({
 
 function SettingsView({ onBack }: { onBack: () => void }) {
   const queryClient = useQueryClient();
-  const { data, isLoading } = useQuery({
-    queryKey: ["settings"],
-    queryFn: () => apiFetch<SchoolSettings>("/settings"),
+  const { data, isLoading } = useGetSettings({
+    query: { queryKey: getGetSettingsQueryKey() },
   });
 
   const [form, setForm] = useState<Partial<SchoolSettings> | null>(null);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
 
-  const currentForm = form ?? data ?? {};
+  const currentForm = (form ?? data ?? {}) as Partial<SchoolSettings>;
 
-  const saveMutation = useMutation({
-    mutationFn: (d: Partial<SchoolSettings>) =>
-      apiFetch<SchoolSettings>("/settings", { method: "PATCH", body: JSON.stringify(d) }),
-    onSuccess: (updated) => {
-      queryClient.setQueryData(["settings"], updated);
-      setForm(null);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+  const saveMutation = useUpdateSettings({
+    mutation: {
+      onSuccess: (updated) => {
+        queryClient.setQueryData(getGetSettingsQueryKey(), updated);
+        setForm(null);
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      },
+      onError: () => setError("Failed to save settings. Please try again."),
     },
-    onError: (err: Error) => setError(err.message),
   });
 
   function handleChange(field: keyof SchoolSettings, value: string) {
@@ -194,19 +214,19 @@ function SettingsView({ onBack }: { onBack: () => void }) {
   function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (!form) return;
-    saveMutation.mutate(form);
+    saveMutation.mutate({ data: form });
   }
 
   return (
     <div className="flex flex-col min-h-screen bg-background pb-20">
       <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-0 z-40">
         <div className="max-w-lg mx-auto flex items-center gap-3">
-          <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+          <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-muted transition-colors" data-testid="button-settings-back">
             <X className="w-4 h-4" />
           </button>
           <h1 className="text-base font-bold text-foreground flex-1">School Settings</h1>
           {saved && (
-            <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+            <span className="flex items-center gap-1 text-xs text-green-600 font-medium" data-testid="text-settings-saved">
               <Check className="w-3.5 h-3.5" /> Saved
             </span>
           )}
@@ -216,52 +236,68 @@ function SettingsView({ onBack }: { onBack: () => void }) {
       {isLoading ? (
         <div className="flex items-center justify-center flex-1 text-muted-foreground text-sm">Loading...</div>
       ) : (
-        <form onSubmit={handleSave} className="max-w-lg mx-auto w-full px-4 py-4 space-y-4">
+        <form onSubmit={handleSave} className="max-w-lg mx-auto w-full px-4 py-4 space-y-4" data-testid="form-settings">
           {error && (
-            <div className="bg-destructive/10 border border-destructive/20 text-destructive text-sm px-4 py-3 rounded-lg flex items-center gap-2">
+            <div className="bg-destructive/10 border border-destructive/20 text-destructive text-sm px-4 py-3 rounded-lg flex items-center gap-2" data-testid="text-settings-error">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
               {error}
             </div>
           )}
 
-          <SettingsField
-            label="School Name"
-            value={(currentForm as SchoolSettings).schoolName ?? ""}
-            onChange={(v) => handleChange("schoolName", v)}
-            placeholder="e.g. Westbrook Academy"
-          />
-          <SettingsField
-            label="Start Time"
-            value={(currentForm as SchoolSettings).startTime ?? ""}
-            onChange={(v) => handleChange("startTime", v)}
-            placeholder="07:30"
-            type="time"
-          />
-          <SettingsField
-            label="End Time"
-            value={(currentForm as SchoolSettings).endTime ?? ""}
-            onChange={(v) => handleChange("endTime", v)}
-            placeholder="14:30"
-            type="time"
-          />
-          <SettingsField
-            label="Late Threshold (minutes)"
-            value={(currentForm as SchoolSettings).lateThresholdMinutes ?? ""}
-            onChange={(v) => handleChange("lateThresholdMinutes", v)}
-            placeholder="15"
-            type="number"
-          />
-          <SettingsField
-            label="Timezone"
-            value={(currentForm as SchoolSettings).timezone ?? ""}
-            onChange={(v) => handleChange("timezone", v)}
-            placeholder="Africa/Johannesburg"
-          />
+          <Field label="School Name">
+            <input
+              type="text"
+              value={currentForm.schoolName ?? ""}
+              onChange={(e) => handleChange("schoolName", e.target.value)}
+              placeholder="e.g. Westbrook Academy"
+              className="input-field"
+              data-testid="input-school-name"
+            />
+          </Field>
+          <Field label="Start Time">
+            <input
+              type="time"
+              value={currentForm.startTime ?? ""}
+              onChange={(e) => handleChange("startTime", e.target.value)}
+              className="input-field"
+              data-testid="input-start-time"
+            />
+          </Field>
+          <Field label="End Time">
+            <input
+              type="time"
+              value={currentForm.endTime ?? ""}
+              onChange={(e) => handleChange("endTime", e.target.value)}
+              className="input-field"
+              data-testid="input-end-time"
+            />
+          </Field>
+          <Field label="Late Threshold (minutes)">
+            <input
+              type="number"
+              value={currentForm.lateThresholdMinutes ?? ""}
+              onChange={(e) => handleChange("lateThresholdMinutes", e.target.value)}
+              placeholder="15"
+              className="input-field"
+              data-testid="input-late-threshold"
+            />
+          </Field>
+          <Field label="Timezone">
+            <input
+              type="text"
+              value={currentForm.timezone ?? ""}
+              onChange={(e) => handleChange("timezone", e.target.value)}
+              placeholder="Africa/Johannesburg"
+              className="input-field"
+              data-testid="input-timezone"
+            />
+          </Field>
 
           <button
             type="submit"
             disabled={saveMutation.isPending || !form}
             className="w-full bg-primary text-primary-foreground font-semibold py-2.5 rounded-lg disabled:opacity-50"
+            data-testid="button-save-settings"
           >
             {saveMutation.isPending ? "Saving..." : "Save Settings"}
           </button>
@@ -271,52 +307,23 @@ function SettingsView({ onBack }: { onBack: () => void }) {
   );
 }
 
-function SettingsField({
-  label,
-  value,
-  onChange,
-  placeholder,
-  type = "text",
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  type?: string;
-}) {
-  return (
-    <div>
-      <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-        {label}
-      </label>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full bg-card border border-border rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-      />
-    </div>
-  );
-}
-
 function UsersView({ onBack, onCreateUser }: { onBack: () => void; onCreateUser: () => void }) {
-  const { data: users, isLoading } = useQuery({
-    queryKey: ["users"],
-    queryFn: () => apiFetch<UserRecord[]>("/users"),
+  const { data: users, isLoading } = useListUsers({
+    query: { queryKey: getListUsersQueryKey() },
   });
 
   return (
     <div className="flex flex-col min-h-screen bg-background pb-20">
       <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-0 z-40">
         <div className="max-w-lg mx-auto flex items-center gap-3">
-          <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+          <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-muted transition-colors" data-testid="button-users-back">
             <X className="w-4 h-4" />
           </button>
           <h1 className="text-base font-bold text-foreground flex-1">Staff Accounts</h1>
           <button
             onClick={onCreateUser}
             className="bg-primary text-primary-foreground text-xs font-semibold px-3 py-1.5 rounded-lg"
+            data-testid="button-add-staff"
           >
             Add Staff
           </button>
@@ -327,9 +334,9 @@ function UsersView({ onBack, onCreateUser }: { onBack: () => void; onCreateUser:
         {isLoading ? (
           <div className="text-center py-8 text-muted-foreground text-sm">Loading...</div>
         ) : (
-          <div className="bg-card border border-border rounded-xl divide-y divide-border overflow-hidden">
+          <div className="bg-card border border-border rounded-xl divide-y divide-border overflow-hidden" data-testid="list-staff-users">
             {(users ?? []).map((u) => (
-              <div key={u.id} className="px-4 py-3 flex items-center gap-3">
+              <div key={u.id} className="px-4 py-3 flex items-center gap-3" data-testid={`row-user-${u.id}`}>
                 <div className="w-9 h-9 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
                   <span className="text-xs font-bold text-primary">
                     {u.firstName[0]}{u.lastName[0]}
@@ -366,51 +373,85 @@ function CreateUserView({ onBack }: { onBack: () => void }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("staff");
-  const [error, setError] = useState("");
 
-  const createMutation = useMutation({
-    mutationFn: (data: object) =>
-      apiFetch("/users", { method: "POST", body: JSON.stringify(data) }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["users"] });
-      onBack();
+  const createMutation = useCreateUser({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
+        onBack();
+      },
     },
-    onError: (err: Error) => setError(err.message),
   });
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!firstName || !lastName || !username || !password) {
-      setError("All fields are required");
-      return;
-    }
-    createMutation.mutate({ firstName, lastName, username, password, role });
+    createMutation.mutate({ data: { firstName, lastName, username, password, role } });
   }
 
   return (
     <div className="flex flex-col min-h-screen bg-background pb-20">
       <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-0 z-40">
         <div className="max-w-lg mx-auto flex items-center gap-3">
-          <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+          <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-muted transition-colors" data-testid="button-create-user-back">
             <X className="w-4 h-4" />
           </button>
           <h1 className="text-base font-bold text-foreground">Add Staff Member</h1>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="max-w-lg mx-auto w-full px-4 py-4 space-y-4">
-        {error && (
-          <div className="bg-destructive/10 border border-destructive/20 text-destructive text-sm px-4 py-3 rounded-lg">
-            {error}
+      <form onSubmit={handleSubmit} className="max-w-lg mx-auto w-full px-4 py-4 space-y-4" data-testid="form-create-user">
+        {createMutation.isError && (
+          <div className="bg-destructive/10 border border-destructive/20 text-destructive text-sm px-4 py-3 rounded-lg" data-testid="text-create-user-error">
+            Failed to create user. Please try again.
           </div>
         )}
 
         <div className="grid grid-cols-2 gap-3">
-          <SettingsField label="First Name" value={firstName} onChange={setFirstName} placeholder="Sarah" />
-          <SettingsField label="Last Name" value={lastName} onChange={setLastName} placeholder="Johnson" />
+          <Field label="First Name">
+            <input
+              type="text"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              placeholder="Sarah"
+              required
+              className="input-field"
+              data-testid="input-user-firstname"
+            />
+          </Field>
+          <Field label="Last Name">
+            <input
+              type="text"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              placeholder="Johnson"
+              required
+              className="input-field"
+              data-testid="input-user-lastname"
+            />
+          </Field>
         </div>
-        <SettingsField label="Username" value={username} onChange={setUsername} placeholder="sjohnson" />
-        <SettingsField label="Password" value={password} onChange={setPassword} placeholder="Temporary password" type="password" />
+        <Field label="Username">
+          <input
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="sjohnson"
+            required
+            className="input-field"
+            data-testid="input-user-username"
+          />
+        </Field>
+        <Field label="Password">
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Temporary password"
+            required
+            className="input-field"
+            data-testid="input-user-password"
+          />
+        </Field>
 
         <div>
           <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
@@ -427,6 +468,7 @@ function CreateUserView({ onBack }: { onBack: () => void }) {
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted text-muted-foreground"
                 }`}
+                data-testid={`button-role-${r}`}
               >
                 {r}
               </button>
@@ -438,10 +480,282 @@ function CreateUserView({ onBack }: { onBack: () => void }) {
           type="submit"
           disabled={createMutation.isPending}
           className="w-full bg-primary text-primary-foreground font-semibold py-2.5 rounded-lg disabled:opacity-50"
+          data-testid="button-submit-create-user"
         >
           {createMutation.isPending ? "Creating..." : "Create Account"}
         </button>
       </form>
+    </div>
+  );
+}
+
+function BehaviorCategoriesView({ onBack }: { onBack: () => void }) {
+  const queryClient = useQueryClient();
+  const { data: categories, isLoading } = useListBehaviorCategories({
+    query: { queryKey: getListBehaviorCategoriesQueryKey() },
+  });
+
+  const [name, setName] = useState("");
+  const [type, setType] = useState("merit");
+  const [points, setPoints] = useState("1");
+  const [description, setDescription] = useState("");
+  const [showForm, setShowForm] = useState(false);
+
+  const createMutation = useCreateBehaviorCategory({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListBehaviorCategoriesQueryKey() });
+        setName(""); setDescription(""); setPoints("1"); setType("merit");
+        setShowForm(false);
+      },
+    },
+  });
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    createMutation.mutate({
+      data: { name, type, points: parseInt(points, 10), description: description || null },
+    });
+  }
+
+  return (
+    <div className="flex flex-col min-h-screen bg-background pb-20">
+      <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-0 z-40">
+        <div className="max-w-lg mx-auto flex items-center gap-3">
+          <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-muted transition-colors" data-testid="button-categories-back">
+            <X className="w-4 h-4" />
+          </button>
+          <h1 className="text-base font-bold text-foreground flex-1">Behavior Categories</h1>
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="bg-primary text-primary-foreground text-xs font-semibold px-3 py-1.5 rounded-lg"
+            data-testid="button-toggle-category-form"
+          >
+            {showForm ? "Cancel" : "Add New"}
+          </button>
+        </div>
+      </div>
+
+      <div className="max-w-lg mx-auto w-full px-4 py-4 space-y-4">
+        {showForm && (
+          <form onSubmit={handleSubmit} className="bg-card border border-border rounded-xl p-4 space-y-3" data-testid="form-create-category">
+            <Field label="Name">
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Outstanding Work"
+                required
+                className="input-field"
+                data-testid="input-category-name"
+              />
+            </Field>
+            <div className="flex gap-3">
+              {["merit", "demerit"].map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setType(t)}
+                  className={`flex-1 py-2 rounded-lg text-sm font-semibold capitalize ${
+                    type === t
+                      ? t === "merit" ? "bg-green-600 text-white" : "bg-red-600 text-white"
+                      : "bg-muted text-muted-foreground"
+                  }`}
+                  data-testid={`button-category-type-${t}`}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+            <Field label="Points">
+              <input
+                type="number"
+                value={points}
+                onChange={(e) => setPoints(e.target.value)}
+                min="1"
+                max="100"
+                className="input-field"
+                data-testid="input-category-points"
+              />
+            </Field>
+            <Field label="Description (optional)">
+              <input
+                type="text"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Brief description..."
+                className="input-field"
+                data-testid="input-category-description"
+              />
+            </Field>
+            <button
+              type="submit"
+              disabled={createMutation.isPending}
+              className="w-full bg-primary text-primary-foreground font-semibold py-2 rounded-lg disabled:opacity-50 text-sm"
+              data-testid="button-submit-create-category"
+            >
+              {createMutation.isPending ? "Creating..." : "Create Category"}
+            </button>
+          </form>
+        )}
+
+        {isLoading ? (
+          <div className="text-center py-8 text-muted-foreground text-sm">Loading...</div>
+        ) : (
+          <div className="bg-card border border-border rounded-xl divide-y divide-border overflow-hidden" data-testid="list-behavior-categories">
+            {(categories ?? []).length === 0 ? (
+              <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                No categories yet. Add one above.
+              </div>
+            ) : (
+              (categories ?? []).map((cat) => (
+                <div key={cat.id} className="px-4 py-3 flex items-center gap-3" data-testid={`row-category-${cat.id}`}>
+                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${cat.type === "merit" ? "bg-green-500" : "bg-red-500"}`} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-foreground">{cat.name}</p>
+                    {cat.description && (
+                      <p className="text-xs text-muted-foreground truncate">{cat.description}</p>
+                    )}
+                  </div>
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                    cat.type === "merit" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                  }`}>
+                    {cat.points} pts
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AddStudentView({ onBack }: { onBack: () => void }) {
+  const queryClient = useQueryClient();
+  const [studentId, setStudentId] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [grade, setGrade] = useState("10");
+  const [className, setClassName] = useState("");
+
+  const createMutation = useCreateStudent({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListStudentsQueryKey() });
+        onBack();
+      },
+    },
+  });
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    createMutation.mutate({
+      data: { studentId, firstName, lastName, grade, className },
+    });
+  }
+
+  return (
+    <div className="flex flex-col min-h-screen bg-background pb-20">
+      <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-0 z-40">
+        <div className="max-w-lg mx-auto flex items-center gap-3">
+          <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-muted transition-colors" data-testid="button-add-student-back">
+            <X className="w-4 h-4" />
+          </button>
+          <h1 className="text-base font-bold text-foreground">Add Student</h1>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="max-w-lg mx-auto w-full px-4 py-4 space-y-4" data-testid="form-add-student">
+        {createMutation.isError && (
+          <div className="bg-destructive/10 border border-destructive/20 text-destructive text-sm px-4 py-3 rounded-lg" data-testid="text-add-student-error">
+            Failed to add student. Check the student ID is unique.
+          </div>
+        )}
+
+        <Field label="Student ID">
+          <input
+            type="text"
+            value={studentId}
+            onChange={(e) => setStudentId(e.target.value)}
+            placeholder="e.g. STU2024001"
+            required
+            className="input-field"
+            data-testid="input-new-student-id"
+          />
+        </Field>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="First Name">
+            <input
+              type="text"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              placeholder="Alice"
+              required
+              className="input-field"
+              data-testid="input-new-student-firstname"
+            />
+          </Field>
+          <Field label="Last Name">
+            <input
+              type="text"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              placeholder="Johnson"
+              required
+              className="input-field"
+              data-testid="input-new-student-lastname"
+            />
+          </Field>
+        </div>
+
+        <Field label="Grade">
+          <select
+            value={grade}
+            onChange={(e) => setGrade(e.target.value)}
+            className="input-field"
+            data-testid="select-new-student-grade"
+          >
+            {["8", "9", "10", "11", "12"].map((g) => (
+              <option key={g} value={g}>Grade {g}</option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label="Class / Homeroom">
+          <input
+            type="text"
+            value={className}
+            onChange={(e) => setClassName(e.target.value)}
+            placeholder="e.g. 10A"
+            required
+            className="input-field"
+            data-testid="input-new-student-classname"
+          />
+        </Field>
+
+        <button
+          type="submit"
+          disabled={createMutation.isPending}
+          className="w-full bg-primary text-primary-foreground font-semibold py-2.5 rounded-lg disabled:opacity-50"
+          data-testid="button-submit-add-student"
+        >
+          {createMutation.isPending ? "Adding..." : "Add Student"}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+        {label}
+      </label>
+      {children}
     </div>
   );
 }

@@ -1,48 +1,14 @@
-import { useState, useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
-import { BASE_URL } from "@/lib/api";
-import { formatRelativeTime, getScanTypeLabel, formatTime, getStateLabel } from "@/lib/status";
+import { formatRelativeTime, getScanTypeLabel, formatTime } from "@/lib/status";
+import {
+  useListStudents,
+  useGetStudent,
+  getListStudentsQueryKey,
+  getGetStudentQueryKey,
+} from "@workspace/api-client-react";
 import { Search, ChevronRight, X, User, Clock, MapPin, Filter } from "lucide-react";
-
-interface Student {
-  id: number;
-  studentId: string;
-  firstName: string;
-  lastName: string;
-  grade: string;
-  className: string;
-  photoUrl: string | null;
-  qrCode: string;
-  currentState: string;
-  lastSeenAt: string | null;
-  lastSeenLocation: string | null;
-}
-
-interface StudentProfile extends Student {
-  todayTimeline: TimelineEvent[];
-  behaviorSummary: {
-    totalMerits: number;
-    totalDemerits: number;
-  };
-}
-
-interface TimelineEvent {
-  id: number;
-  scanType: string;
-  location: string | null;
-  createdAt: string;
-}
-
-async function apiFetch<T>(path: string): Promise<T> {
-  const token = localStorage.getItem("school-id-token");
-  const res = await fetch(`${BASE_URL}/api${path}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) throw new Error("Failed to fetch");
-  return res.json();
-}
 
 const STATES = [
   { value: "", label: "All" },
@@ -63,18 +29,21 @@ export default function StudentsPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
-  const queryKey = ["students", search, grade, status];
-  const { data: students, isLoading } = useQuery({
-    queryKey,
-    queryFn: () => {
-      const params = new URLSearchParams();
-      if (search) params.set("search", search);
-      if (grade) params.set("grade", grade);
-      if (status) params.set("status", status);
-      return apiFetch<Student[]>(`/students?${params.toString()}`);
-    },
-    refetchInterval: 30000,
-  });
+  const listParams = {
+    ...(search ? { search } : {}),
+    ...(grade ? { grade } : {}),
+    ...(status ? { status } : {}),
+  };
+
+  const { data: students, isLoading } = useListStudents(
+    Object.keys(listParams).length > 0 ? listParams : undefined,
+    {
+      query: {
+        queryKey: getListStudentsQueryKey(Object.keys(listParams).length > 0 ? listParams : undefined),
+        refetchInterval: 30000,
+      },
+    }
+  );
 
   if (selectedId) {
     return (
@@ -96,6 +65,7 @@ export default function StudentsPage() {
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`p-1.5 rounded-lg transition-colors ${showFilters ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
+            data-testid="button-toggle-filters"
           >
             <Filter className="w-4 h-4" />
           </button>
@@ -111,11 +81,13 @@ export default function StudentsPage() {
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search name or student ID..."
             className="w-full pl-9 pr-4 py-2.5 bg-card border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            data-testid="input-student-search"
           />
           {search && (
             <button
               onClick={() => setSearch("")}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              data-testid="button-clear-search"
             >
               <X className="w-4 h-4" />
             </button>
@@ -128,6 +100,7 @@ export default function StudentsPage() {
               value={grade}
               onChange={(e) => setGrade(e.target.value)}
               className="flex-1 bg-card border border-border rounded-lg px-2 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              data-testid="select-grade-filter"
             >
               {GRADES.map((g) => (
                 <option key={g} value={g}>{g ? `Grade ${g}` : "All Grades"}</option>
@@ -137,6 +110,7 @@ export default function StudentsPage() {
               value={status}
               onChange={(e) => setStatus(e.target.value)}
               className="flex-1 bg-card border border-border rounded-lg px-2 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              data-testid="select-status-filter"
             >
               {STATES.map((s) => (
                 <option key={s.value} value={s.value}>{s.label}</option>
@@ -161,6 +135,7 @@ export default function StudentsPage() {
                 key={s.id}
                 onClick={() => setSelectedId(s.id)}
                 className="w-full px-4 py-3 flex items-center gap-3 hover:bg-muted/30 transition-colors text-left"
+                data-testid={`row-student-${s.id}`}
               >
                 <div className="w-9 h-9 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
                   {s.photoUrl ? (
@@ -172,7 +147,7 @@ export default function StudentsPage() {
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-foreground">
+                  <p className="text-sm font-semibold text-foreground" data-testid={`text-student-name-${s.id}`}>
                     {s.firstName} {s.lastName}
                   </p>
                   <p className="text-xs text-muted-foreground">
@@ -193,10 +168,11 @@ export default function StudentsPage() {
 }
 
 function StudentProfileView({ id, onBack }: { id: number; onBack: () => void }) {
-  const { data, isLoading } = useQuery({
-    queryKey: ["student", id],
-    queryFn: () => apiFetch<StudentProfile>(`/students/${id}`),
-    refetchInterval: 15000,
+  const { data, isLoading } = useGetStudent(id, {
+    query: {
+      queryKey: getGetStudentQueryKey(id),
+      refetchInterval: 15000,
+    },
   });
 
   if (isLoading || !data) {
@@ -216,7 +192,7 @@ function StudentProfileView({ id, onBack }: { id: number; onBack: () => void }) 
     <div className="flex flex-col min-h-screen bg-background pb-20">
       <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-0 z-40">
         <div className="max-w-lg mx-auto flex items-center gap-3">
-          <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+          <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-muted transition-colors" data-testid="button-profile-back">
             <X className="w-4 h-4" />
           </button>
           <h1 className="text-base font-bold text-foreground flex-1">Student Profile</h1>
@@ -225,7 +201,7 @@ function StudentProfileView({ id, onBack }: { id: number; onBack: () => void }) 
 
       <div className="max-w-lg mx-auto w-full px-4 py-4 space-y-4">
         {/* Student card */}
-        <div className="bg-card border border-border rounded-xl p-4">
+        <div className="bg-card border border-border rounded-xl p-4" data-testid="panel-student-profile">
           <div className="flex items-start gap-4">
             <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
               {s.photoUrl ? (
@@ -237,7 +213,7 @@ function StudentProfileView({ id, onBack }: { id: number; onBack: () => void }) 
               )}
             </div>
             <div className="min-w-0 flex-1">
-              <h2 className="text-lg font-bold text-foreground">
+              <h2 className="text-lg font-bold text-foreground" data-testid="text-profile-name">
                 {s.firstName} {s.lastName}
               </h2>
               <p className="text-sm text-muted-foreground">{s.studentId}</p>
@@ -249,7 +225,7 @@ function StudentProfileView({ id, onBack }: { id: number; onBack: () => void }) 
                   {s.className}
                 </span>
               </div>
-              <div className="mt-2">
+              <div className="mt-2" data-testid="status-profile">
                 <StatusBadge state={s.currentState} />
               </div>
             </div>
@@ -275,20 +251,20 @@ function StudentProfileView({ id, onBack }: { id: number; onBack: () => void }) 
 
         {/* Behavior summary */}
         {(s.behaviorSummary.totalMerits > 0 || s.behaviorSummary.totalDemerits > 0) && (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3" data-testid="panel-behavior-summary">
             <div className="bg-card border border-border rounded-xl p-3 text-center">
-              <p className="text-2xl font-bold text-green-600">{s.behaviorSummary.totalMerits}</p>
+              <p className="text-2xl font-bold text-green-600" data-testid="text-merit-points">{s.behaviorSummary.totalMerits}</p>
               <p className="text-xs text-muted-foreground mt-0.5">Merit Points</p>
             </div>
             <div className="bg-card border border-border rounded-xl p-3 text-center">
-              <p className="text-2xl font-bold text-red-600">{s.behaviorSummary.totalDemerits}</p>
+              <p className="text-2xl font-bold text-red-600" data-testid="text-demerit-points">{s.behaviorSummary.totalDemerits}</p>
               <p className="text-xs text-muted-foreground mt-0.5">Demerit Points</p>
             </div>
           </div>
         )}
 
         {/* Today's timeline */}
-        <div className="bg-card border border-border rounded-xl overflow-hidden">
+        <div className="bg-card border border-border rounded-xl overflow-hidden" data-testid="panel-timeline">
           <div className="px-4 py-2.5 border-b border-border">
             <h3 className="text-sm font-semibold text-foreground">Today's Timeline</h3>
           </div>
@@ -299,7 +275,7 @@ function StudentProfileView({ id, onBack }: { id: number; onBack: () => void }) 
           ) : (
             <div className="divide-y divide-border">
               {s.todayTimeline.map((event, i) => (
-                <div key={event.id} className="px-4 py-3 flex items-start gap-3">
+                <div key={event.id} className="px-4 py-3 flex items-start gap-3" data-testid={`timeline-event-${event.id}`}>
                   <div className="flex flex-col items-center">
                     <div className="w-2 h-2 rounded-full bg-primary mt-1.5 flex-shrink-0" />
                     {i < s.todayTimeline.length - 1 && (
@@ -327,6 +303,31 @@ function StudentProfileView({ id, onBack }: { id: number; onBack: () => void }) 
             </div>
           )}
         </div>
+
+        {/* Behavior history */}
+        {s.behaviorSummary.recentLogs && s.behaviorSummary.recentLogs.length > 0 && (
+          <div className="bg-card border border-border rounded-xl overflow-hidden" data-testid="panel-behavior-history">
+            <div className="px-4 py-2.5 border-b border-border">
+              <h3 className="text-sm font-semibold text-foreground">Behavior History</h3>
+            </div>
+            <div className="divide-y divide-border">
+              {s.behaviorSummary.recentLogs.map((log) => (
+                <div key={log.id} className="px-4 py-3 flex items-center justify-between" data-testid={`behavior-log-${log.id}`}>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-foreground capitalize">{log.type}</p>
+                    {log.note && (
+                      <p className="text-xs text-muted-foreground truncate">{log.note}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">{formatRelativeTime(log.createdAt)}</p>
+                  </div>
+                  <span className={`text-sm font-bold ml-3 flex-shrink-0 ${log.type === "merit" ? "text-green-600" : "text-red-600"}`}>
+                    {log.points > 0 ? "+" : ""}{log.points}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
