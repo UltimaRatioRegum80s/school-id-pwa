@@ -2,14 +2,8 @@ import { Router, type IRouter } from "express";
 import { requireAuth } from "../lib/auth";
 import { eq, and, sql } from "drizzle-orm";
 import { db, activitiesTable, activityAttendanceTable, studentsTable, scanEventsTable } from "@workspace/db";
-import { CreateActivityBody, UpdateActivityBody } from "@workspace/api-zod";
+import { CreateActivityBody, UpdateActivityBody, MarkAttendanceBody, UpdateAttendanceBody } from "@workspace/api-zod";
 import { computeStudentState } from "../lib/state-engine";
-import { z } from "zod";
-
-const MarkAttendanceBody = z.object({
-  studentId: z.number().int().positive(),
-  status: z.enum(["present", "absent", "late", "excused"]).default("present"),
-});
 
 const router: IRouter = Router();
 
@@ -322,18 +316,21 @@ router.post("/activities/:id/attendance", requireAuth, async (req, res): Promise
 });
 
 router.patch("/activities/:id/attendance/:attendanceId", requireAuth, async (req, res): Promise<void> => {
-  const activityId = parseInt(req.params.id, 10);
-  const attendanceId = parseInt(req.params.attendanceId, 10);
+  const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const rawAttId = Array.isArray(req.params.attendanceId) ? req.params.attendanceId[0] : req.params.attendanceId;
+  const activityId = parseInt(rawId, 10);
+  const attendanceId = parseInt(rawAttId, 10);
   if (isNaN(activityId) || isNaN(attendanceId)) {
     res.status(400).json({ error: "Invalid ID" });
     return;
   }
 
-  const { status } = req.body as { status?: string };
-  if (!status || !["present", "absent", "late", "excused"].includes(status)) {
-    res.status(400).json({ error: "status must be one of: present, absent, late, excused" });
+  const parsedUpdate = UpdateAttendanceBody.safeParse(req.body);
+  if (!parsedUpdate.success) {
+    res.status(400).json({ error: parsedUpdate.error.message });
     return;
   }
+  const { status } = parsedUpdate.data;
 
   const [existing] = await db
     .select()

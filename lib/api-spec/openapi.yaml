@@ -409,6 +409,65 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/AttendanceRecord"
+    post:
+      operationId: markActivityAttendance
+      tags: [activities]
+      summary: Mark or update attendance for a student in an activity
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MarkAttendanceBody"
+      responses:
+        "200":
+          description: Attendance updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceRecord"
+        "201":
+          description: Attendance marked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceRecord"
+
+  /activities/{id}/attendance/{attendanceId}:
+    patch:
+      operationId: updateActivityAttendance
+      tags: [activities]
+      summary: Update an existing attendance record
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: attendanceId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAttendanceBody"
+      responses:
+        "200":
+          description: Attendance updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceRecord"
 
   /behavior/logs:
     get:
@@ -454,6 +513,44 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/BehaviorLog"
+
+  /behavior/logs/{id}:
+    patch:
+      operationId: updateBehaviorLog
+      tags: [behavior]
+      summary: Update a behavior log entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBehaviorLogBody"
+      responses:
+        "200":
+          description: Behavior log updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BehaviorLog"
+    delete:
+      operationId: deleteBehaviorLog
+      tags: [behavior]
+      summary: Delete a behavior log entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
 
   /behavior/categories:
     get:
@@ -1042,6 +1139,14 @@ components:
         status:
           type: string
 
+    AttendanceStatus:
+      type: string
+      enum:
+        - present
+        - absent
+        - late
+        - excused
+
     AttendanceRecord:
       type: object
       properties:
@@ -1052,7 +1157,7 @@ components:
         studentId:
           type: integer
         status:
-          type: string
+          $ref: "#/components/schemas/AttendanceStatus"
         markedAt:
           type: string
         studentName:
@@ -1063,6 +1168,37 @@ components:
         - studentId
         - status
         - markedAt
+
+    MarkAttendanceBody:
+      type: object
+      properties:
+        studentId:
+          type: integer
+        status:
+          $ref: "#/components/schemas/AttendanceStatus"
+      required:
+        - studentId
+
+    UpdateAttendanceBody:
+      type: object
+      properties:
+        status:
+          $ref: "#/components/schemas/AttendanceStatus"
+      required:
+        - status
+
+    UpdateBehaviorLogBody:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [merit, demerit]
+        categoryId:
+          type: ["integer", "null"]
+        points:
+          type: integer
+        note:
+          type: ["string", "null"]
 
     BehaviorLog:
       type: object

@@ -630,6 +630,33 @@ export const GetActivityAttendanceResponse = zod.array(
   GetActivityAttendanceResponseItem,
 );
 
+export const AttendanceStatus = zod.enum(["present", "absent", "late", "excused"]);
+export type AttendanceStatusValue = zod.infer<typeof AttendanceStatus>;
+
+/**
+ * @summary Mark or update attendance for a student in an activity
+ */
+export const MarkActivityAttendanceParams = zod.object({
+  id: zod.coerce.number(),
+});
+export const MarkAttendanceBody = zod.object({
+  studentId: zod.number().int().positive(),
+  status: AttendanceStatus.default("present"),
+});
+export const MarkAttendanceResponse = GetActivityAttendanceResponseItem;
+
+/**
+ * @summary Update an existing attendance record
+ */
+export const UpdateActivityAttendanceParams = zod.object({
+  id: zod.coerce.number(),
+  attendanceId: zod.coerce.number(),
+});
+export const UpdateAttendanceBody = zod.object({
+  status: AttendanceStatus,
+});
+export const UpdateAttendanceResponse = GetActivityAttendanceResponseItem;
+
 /**
  * @summary List behavior logs
  */
@@ -661,6 +688,26 @@ export const CreateBehaviorLogBody = zod.object({
   type: zod.string(),
   points: zod.number(),
   note: zod.string().nullish(),
+});
+
+/**
+ * @summary Update a behavior log entry
+ */
+export const UpdateBehaviorLogParams = zod.object({
+  id: zod.coerce.number(),
+});
+export const UpdateBehaviorLogBody = zod.object({
+  type: zod.enum(["merit", "demerit"]).optional(),
+  categoryId: zod.number().int().positive().nullable().optional(),
+  points: zod.number().int().optional(),
+  note: zod.string().nullable().optional(),
+});
+
+/**
+ * @summary Delete a behavior log entry
+ */
+export const DeleteBehaviorLogParams = zod.object({
+  id: zod.coerce.number(),
 });
 
 /**

@@ -2,15 +2,7 @@ import { Router, type IRouter } from "express";
 import { requireAuth } from "../lib/auth";
 import { eq, desc } from "drizzle-orm";
 import { db, behaviorLogsTable, behaviorCategoriesTable } from "@workspace/db";
-import { CreateBehaviorLogBody, CreateBehaviorCategoryBody } from "@workspace/api-zod";
-import { z } from "zod";
-
-const UpdateBehaviorLogBody = z.object({
-  type: z.enum(["merit", "demerit"]).optional(),
-  categoryId: z.number().int().positive().nullable().optional(),
-  points: z.number().int().optional(),
-  note: z.string().nullable().optional(),
-});
+import { CreateBehaviorLogBody, CreateBehaviorCategoryBody, UpdateBehaviorLogBody } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
@@ -134,7 +126,8 @@ router.post("/behavior/logs", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.patch("/behavior/logs/:id", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = parseInt(rawId, 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid log ID" });
     return;
@@ -181,7 +174,8 @@ router.patch("/behavior/logs/:id", requireAuth, async (req, res): Promise<void> 
 });
 
 router.delete("/behavior/logs/:id", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = parseInt(rawId, 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid log ID" });
     return;
