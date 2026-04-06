@@ -244,6 +244,7 @@ export default function PrintCardsPage({ onBack }: { onBack: () => void }) {
   return (
     <div className="flex flex-col min-h-screen bg-background pb-20">
       <style>{`
+        @page { size: A4 landscape; margin: 8mm; }
         @media print {
           .no-print { display: none !important; }
           body { margin: 0; padding: 0; }
@@ -251,7 +252,7 @@ export default function PrintCardsPage({ onBack }: { onBack: () => void }) {
             display: grid !important;
             grid-template-columns: repeat(3, 85mm) !important;
             gap: 4mm !important;
-            padding: 8mm !important;
+            padding: 0 !important;
             width: 100% !important;
           }
           .student-id-card {

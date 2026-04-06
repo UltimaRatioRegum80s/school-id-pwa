@@ -3,7 +3,7 @@ import { eq, ilike, and, or, sql, desc } from "drizzle-orm";
 import { db, studentsTable, scanEventsTable, schoolsTable, studentQrCodesTable } from "@workspace/db";
 import { CreateStudentBody, UpdateStudentBody } from "@workspace/api-zod";
 import { computeStudentState } from "../lib/state-engine";
-import { requireAuth } from "../lib/auth";
+import { requireAuth, requireAdmin } from "../lib/auth";
 import type { Request } from "express";
 import type { JwtPayload } from "../lib/auth";
 
@@ -223,7 +223,7 @@ router.get("/students/lookup/:qrCode", requireAuth, async (req, res): Promise<vo
   res.json(formatStudent(student, todayEvents));
 });
 
-router.get("/students/print", requireAuth, async (req, res): Promise<void> => {
+router.get("/students/print", requireAdmin, async (req, res): Promise<void> => {
   const { grade, className } = req.query as Record<string, string | undefined>;
   const user = (req as Request & { user: JwtPayload }).user;
 
