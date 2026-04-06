@@ -51,6 +51,9 @@ type AdminView =
 export default function AdminPage() {
   const { user, logout } = useAuth();
   const [view, setView] = useState<AdminView>("main");
+  const { data: settings } = useGetSettings({
+    query: { queryKey: getGetSettingsQueryKey() },
+  });
 
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
 
@@ -73,11 +76,29 @@ export default function AdminPage() {
     <EditActivityView activity={editingActivity} onBack={() => setView("activity-management")} />
   );
 
+  const schoolDisplayName = settings?.schoolName ?? user?.schoolName;
+  const schoolCode = user?.schoolCode;
+
   return (
     <div className="flex flex-col min-h-screen bg-background pb-20">
       <PageHeader title="Admin" subtitle={`${user?.role === "admin" ? "Administrator" : "Staff"}`} />
 
       <div className="max-w-lg mx-auto w-full px-4 py-4 space-y-4">
+        {/* School identity banner */}
+        {schoolDisplayName && (
+          <div className="bg-primary/5 border border-primary/20 rounded-xl px-4 py-3 flex items-center gap-3" data-testid="panel-school-identity">
+            <Building2 className="w-5 h-5 text-primary flex-shrink-0" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-foreground truncate" data-testid="text-school-name">
+                {schoolDisplayName}
+              </p>
+              {schoolCode && (
+                <p className="text-xs text-muted-foreground font-mono">{schoolCode}</p>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Profile card */}
         <div className="bg-card border border-border rounded-xl p-4" data-testid="panel-admin-profile">
           <div className="flex items-center gap-3">

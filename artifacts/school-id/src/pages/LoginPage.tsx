@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLogin } from "@workspace/api-client-react";
 import { School } from "lucide-react";
+import { Link } from "wouter";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -89,7 +90,17 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="text-center text-xs text-muted-foreground mt-6">
+        <p className="text-center text-sm mt-4">
+          <Link
+            to="/register"
+            className="text-primary font-medium hover:underline"
+            data-testid="link-register-school"
+          >
+            Register your school
+          </Link>
+        </p>
+
+        <p className="text-center text-xs text-muted-foreground mt-4">
           Demo: admin / admin123
         </p>
       </div>

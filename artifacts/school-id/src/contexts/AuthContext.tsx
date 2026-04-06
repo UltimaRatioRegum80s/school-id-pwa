@@ -8,6 +8,9 @@ interface User {
   role: string;
   isActive: string;
   createdAt: string;
+  schoolId?: number;
+  schoolCode?: string;
+  schoolName?: string;
 }
 
 interface AuthContextValue {

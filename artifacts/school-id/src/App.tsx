@@ -12,6 +12,7 @@ import DashboardPage from "@/pages/DashboardPage";
 import ActivitiesPage from "@/pages/ActivitiesPage";
 import StudentsPage from "@/pages/StudentsPage";
 import AdminPage from "@/pages/AdminPage";
+import RegisterSchoolPage from "@/pages/RegisterSchoolPage";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -26,26 +27,38 @@ const queryClient = new QueryClient({
 function ProtectedApp() {
   const { isAuthenticated } = useAuth();
 
-  if (!isAuthenticated) {
-    return <LoginPage />;
-  }
+  return (
+    <Switch>
+      <Route path="/register" component={RegisterSchoolPage} />
+      {!isAuthenticated ? (
+        <Route component={LoginPage} />
+      ) : (
+        <>
+          <Route path="/">
+            <Redirect to="/dashboard" />
+          </Route>
+          <Route path="/scan" component={ScanPage} />
+          <Route path="/dashboard" component={DashboardPage} />
+          <Route path="/activities" component={ActivitiesPage} />
+          <Route path="/students" component={StudentsPage} />
+          <Route path="/admin" component={AdminPage} />
+          <Route component={NotFound} />
+        </>
+      )}
+    </Switch>
+  );
+}
+
+function AuthenticatedLayout() {
+  const { isAuthenticated } = useAuth();
+
+  if (!isAuthenticated) return null;
 
   return (
-    <div className="flex flex-col min-h-screen bg-background">
-      <Switch>
-        <Route path="/">
-          <Redirect to="/dashboard" />
-        </Route>
-        <Route path="/scan" component={ScanPage} />
-        <Route path="/dashboard" component={DashboardPage} />
-        <Route path="/activities" component={ActivitiesPage} />
-        <Route path="/students" component={StudentsPage} />
-        <Route path="/admin" component={AdminPage} />
-        <Route component={NotFound} />
-      </Switch>
+    <>
       <BottomNav />
       <IosInstallPrompt />
-    </div>
+    </>
   );
 }
 
@@ -55,7 +68,10 @@ function App() {
       <TooltipProvider>
         <AuthProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <ProtectedApp />
+            <div className="flex flex-col min-h-screen bg-background">
+              <ProtectedApp />
+              <AuthenticatedLayout />
+            </div>
           </WouterRouter>
         </AuthProvider>
         <Toaster />
