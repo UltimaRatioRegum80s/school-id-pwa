@@ -7,8 +7,6 @@ import {
 } from "@workspace/api-client-react";
 import type { PrintCardStudent, PrintCardBranding } from "@workspace/api-client-react";
 
-const GRADES = ["8", "9", "10", "11", "12"];
-
 const PALETTE_COLORS: Record<string, string> = {
   "navy-gold": "#1e40af",
   "forest-green-white": "#166534",
@@ -211,26 +209,41 @@ export default function PrintCardsPage({ onBack }: { onBack: () => void }) {
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
 
   const { data, isLoading } = useGetStudentsForPrint(
-    selectedGrade ? { grade: selectedGrade } : {},
+    {},
     {
       query: {
-        queryKey: getGetStudentsForPrintQueryKey(selectedGrade ? { grade: selectedGrade } : {}),
-        enabled: !!selectedGrade,
+        queryKey: getGetStudentsForPrintQueryKey({}),
       },
     }
   );
 
-  const allClasses = useMemo(() => {
+  const availableGrades = useMemo(() => {
     if (!data?.students) return [];
-    const classSet = new Set(data.students.map((s) => s.className));
-    return Array.from(classSet).sort();
+    const gradeSet = new Set(data.students.map((s) => s.grade));
+    return Array.from(gradeSet).sort((a, b) => {
+      const numA = parseInt(a.replace(/\D/g, ""), 10);
+      const numB = parseInt(b.replace(/\D/g, ""), 10);
+      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+      return a.localeCompare(b);
+    });
   }, [data?.students]);
 
+  const availableClasses = useMemo(() => {
+    if (!data?.students || !selectedGrade) return [];
+    const classSet = new Set(
+      data.students.filter((s) => s.grade === selectedGrade).map((s) => s.className)
+    );
+    return Array.from(classSet).sort();
+  }, [data?.students, selectedGrade]);
+
   const displayedStudents = useMemo(() => {
-    if (!data?.students) return [];
-    if (selectedClass) return data.students.filter((s) => s.className === selectedClass);
-    return data.students;
-  }, [data?.students, selectedClass]);
+    if (!data?.students || !selectedGrade) return [];
+    return data.students.filter((s) => {
+      if (s.grade !== selectedGrade) return false;
+      if (selectedClass && s.className !== selectedClass) return false;
+      return true;
+    });
+  }, [data?.students, selectedGrade, selectedClass]);
 
   function handleGradeSelect(grade: string) {
     setSelectedGrade((prev) => (prev === grade ? null : grade));
@@ -291,35 +304,48 @@ export default function PrintCardsPage({ onBack }: { onBack: () => void }) {
 
       <div className="max-w-2xl mx-auto w-full px-4 py-4 space-y-4 print-container">
         <div className="no-print space-y-4">
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-              Select Grade
-            </p>
-            <div className="flex flex-wrap gap-2" data-testid="grade-filter-chips">
-              {GRADES.map((grade) => (
-                <button
-                  key={grade}
-                  onClick={() => handleGradeSelect(grade)}
-                  className={`px-4 py-1.5 rounded-full text-sm font-semibold border transition-colors ${
-                    selectedGrade === grade
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-card border-border text-foreground hover:bg-muted/50"
-                  }`}
-                  data-testid={`chip-grade-${grade}`}
-                >
-                  Grade {grade}
-                </button>
-              ))}
-            </div>
-          </div>
 
-          {allClasses.length > 0 && (
+          {isLoading && (
+            <div className="text-center py-8 text-sm text-muted-foreground">Loading students...</div>
+          )}
+
+          {!isLoading && availableGrades.length === 0 && (
+            <div className="bg-muted/30 border border-border rounded-xl px-4 py-8 text-center">
+              <p className="text-sm text-muted-foreground">No students found. Import students first.</p>
+            </div>
+          )}
+
+          {!isLoading && availableGrades.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                Select Grade
+              </p>
+              <div className="flex flex-wrap gap-2" data-testid="grade-filter-chips">
+                {availableGrades.map((grade) => (
+                  <button
+                    key={grade}
+                    onClick={() => handleGradeSelect(grade)}
+                    className={`px-4 py-1.5 rounded-full text-sm font-semibold border transition-colors ${
+                      selectedGrade === grade
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-card border-border text-foreground hover:bg-muted/50"
+                    }`}
+                    data-testid={`chip-grade-${grade}`}
+                  >
+                    Grade {grade}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {availableClasses.length > 0 && (
             <div>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                 Filter by Class (optional)
               </p>
               <div className="flex flex-wrap gap-2" data-testid="class-filter-chips">
-                {allClasses.map((cls) => (
+                {availableClasses.map((cls) => (
                   <button
                     key={cls}
                     onClick={() => handleClassSelect(cls)}
@@ -337,23 +363,19 @@ export default function PrintCardsPage({ onBack }: { onBack: () => void }) {
             </div>
           )}
 
-          {!selectedGrade && (
+          {!selectedGrade && !isLoading && availableGrades.length > 0 && (
             <div className="bg-muted/30 border border-border rounded-xl px-4 py-8 text-center">
               <p className="text-sm text-muted-foreground">Select a grade to preview ID cards</p>
             </div>
           )}
 
-          {selectedGrade && isLoading && (
-            <div className="text-center py-8 text-sm text-muted-foreground">Loading students...</div>
-          )}
-
-          {selectedGrade && !isLoading && displayedStudents.length === 0 && (
+          {selectedGrade && displayedStudents.length === 0 && (
             <div className="bg-muted/30 border border-border rounded-xl px-4 py-8 text-center">
               <p className="text-sm text-muted-foreground">No students found for this selection</p>
             </div>
           )}
 
-          {selectedGrade && !isLoading && displayedStudents.length > 0 && (
+          {selectedGrade && displayedStudents.length > 0 && (
             <div className="flex items-center justify-between">
               <p className="text-sm text-muted-foreground">
                 {displayedStudents.length} card{displayedStudents.length !== 1 ? "s" : ""} ready to print
