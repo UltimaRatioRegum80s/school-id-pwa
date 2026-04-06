@@ -388,6 +388,29 @@ export interface UpdateSettingsBody {
   timezone?: string;
 }
 
+export interface ImportStudentRow {
+  studentId: string;
+  firstName: string;
+  lastName: string;
+  grade: string;
+  className: string;
+}
+
+export interface ImportStudentsBody {
+  rows: ImportStudentRow[];
+}
+
+export interface ImportFailure {
+  row: number;
+  studentId: string;
+  reason: string;
+}
+
+export interface ImportStudentsResult {
+  imported: number;
+  failed: ImportFailure[];
+}
+
 export type ListStudentsParams = {
   search?: string;
   grade?: string;

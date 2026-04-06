@@ -115,6 +115,73 @@ router.post("/students", requireAuth, async (req, res): Promise<void> => {
   res.status(201).json(formatStudent(student));
 });
 
+router.post("/students/import", requireAuth, async (req, res): Promise<void> => {
+  const user = (req as Request & { user: JwtPayload }).user;
+
+  const rows = req.body?.rows;
+  if (!Array.isArray(rows) || rows.length === 0) {
+    res.status(400).json({ error: "rows must be a non-empty array" });
+    return;
+  }
+
+  const [school] = await db
+    .select({ code: schoolsTable.code })
+    .from(schoolsTable)
+    .where(eq(schoolsTable.id, user.schoolId));
+
+  const schoolCode = school?.code ?? "SCH";
+
+  let imported = 0;
+  const failed: { row: number; studentId: string; reason: string }[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+
+    if (row === null || typeof row !== "object" || Array.isArray(row)) {
+      failed.push({ row: i + 1, studentId: "(invalid)", reason: "Row is not an object" });
+      continue;
+    }
+
+    const r = row as Record<string, unknown>;
+    const sourceRowNum: number = typeof r._rowIndex === "number" ? r._rowIndex : i + 1;
+    const rawStudentId = String(r.studentId ?? "").trim();
+    const firstName = String(r.firstName ?? "").trim();
+    const lastName = String(r.lastName ?? "").trim();
+    const grade = String(r.grade ?? "").trim();
+    const className = String(r.className ?? "").trim();
+
+    if (!rawStudentId || !firstName || !lastName || !grade || !className) {
+      failed.push({ row: sourceRowNum, studentId: rawStudentId || "(empty)", reason: "Missing required field(s)" });
+      continue;
+    }
+
+    const scopedStudentId = `${schoolCode}-${rawStudentId}`;
+    const qrCode = `SCID-${schoolCode}-${rawStudentId}`;
+
+    try {
+      await db.insert(studentsTable).values({
+        schoolId: user.schoolId,
+        studentId: scopedStudentId,
+        firstName,
+        lastName,
+        grade,
+        className,
+        photoUrl: null,
+        qrCode,
+      });
+      imported++;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      const code = (err as Record<string, unknown>)?.code;
+      const isDuplicate = code === "23505" || message.toLowerCase().includes("duplicate") || message.toLowerCase().includes("unique");
+      const reason = isDuplicate ? "Duplicate student ID" : "Insert failed";
+      failed.push({ row: sourceRowNum, studentId: rawStudentId, reason });
+    }
+  }
+
+  res.json({ imported, failed });
+});
+
 router.get("/students/lookup/:qrCode", requireAuth, async (req, res): Promise<void> => {
   const rawQr = Array.isArray(req.params.qrCode) ? req.params.qrCode[0] : req.params.qrCode;
   const user = (req as Request & { user: JwtPayload }).user;

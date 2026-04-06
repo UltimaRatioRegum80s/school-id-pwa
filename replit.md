@@ -49,6 +49,7 @@ State transitions based on scan type:
 - `POST /api/auth/login` - JWT login
 - `GET /api/auth/me` - Current user
 - `GET/POST /api/students` - List/create students
+- `POST /api/students/import` - Bulk import students (JSON rows array); returns `{ imported, failed: [{ row, studentId, reason }] }`
 - `GET /api/students/:id` - Student profile with today's timeline
 - `PATCH /api/students/:id` - Update student
 - `GET /api/students/lookup/:qrCode` - Lookup by QR/ID
@@ -75,7 +76,7 @@ Socket.IO on path `/api/socket.io` emits:
 2. **Dashboard** (`/dashboard`) - Exceptions panel first (unaccounted/missing), Live KPIs grid, status breakdown, Socket.IO real-time updates
 3. **Activities** (`/activities`) - Type filter tabs (All/Class/Event/Assembly/Club/Detention), activity detail with attendance + Start Scanning shortcut, create/edit modal
 4. **Students** (`/students`) - Student list with search/filter by grade/class/state, student profile with today's timeline + behavior log
-5. **Admin** (`/admin`) - School settings, staff accounts, behavior categories CRUD, Add Student form, CSV import UI, Sign Out
+5. **Admin** (`/admin`) - School settings, staff accounts, behavior categories CRUD, Add Student form, bulk Import Students (CSV/Excel/Word), Sign Out
 
 ## API Client
 All frontend pages use generated React Query hooks from `@workspace/api-client-react` (generated via Orval from OpenAPI spec). No raw fetch calls. All interactive elements have `data-testid` attributes. Auth token injected via `setAuthTokenGetter` in `src/lib/api.ts`.

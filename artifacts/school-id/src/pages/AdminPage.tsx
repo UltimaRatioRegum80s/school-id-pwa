@@ -15,13 +15,14 @@ import {
   useListActivities,
   useCreateActivity,
   useUpdateActivity,
+  useImportStudents,
   getGetSettingsQueryKey,
   getListUsersQueryKey,
   getListBehaviorCategoriesQueryKey,
   getListStudentsQueryKey,
   getListActivitiesQueryKey,
 } from "@workspace/api-client-react";
-import type { SchoolSettings, Activity } from "@workspace/api-client-react";
+import type { SchoolSettings, Activity, ImportStudentRow, ImportFailure } from "@workspace/api-client-react";
 import {
   Settings,
   Users,
@@ -39,6 +40,9 @@ import {
   Pencil,
   Palette,
   School,
+  Download,
+  FileText,
+  Table,
 } from "lucide-react";
 
 type AdminView =
@@ -48,6 +52,7 @@ type AdminView =
   | "create-user"
   | "behavior-categories"
   | "add-student"
+  | "import-students"
   | "activity-management"
   | "create-activity"
   | "edit-activity"
@@ -67,6 +72,7 @@ export default function AdminPage() {
   if (view === "create-user") return <CreateUserView onBack={() => setView("users")} />;
   if (view === "behavior-categories") return <BehaviorCategoriesView onBack={() => setView("main")} />;
   if (view === "add-student") return <AddStudentView onBack={() => setView("main")} />;
+  if (view === "import-students") return <ImportStudentsView onBack={() => setView("main")} />;
   if (view === "activity-management") return (
     <ActivityManagementView
       onBack={() => setView("main")}
@@ -177,8 +183,8 @@ export default function AdminPage() {
               <MenuRow
                 icon={<Upload className="w-4 h-4 text-indigo-500" />}
                 label="Import Students (CSV)"
-                description="Bulk import student data from a CSV file"
-                onClick={() => alert("CSV import — coming soon")}
+                description="Bulk import student data from a CSV, Excel, or Word file"
+                onClick={() => setView("import-students")}
                 testId="button-nav-import-csv"
               />
             </div>
@@ -1223,6 +1229,350 @@ function EditActivityView({ activity, onBack }: { activity: Activity; onBack: ()
           {updateMutation.isPending ? "Saving..." : "Save Changes"}
         </button>
       </form>
+    </div>
+  );
+}
+
+type ParsedRow = ImportStudentRow & { _rowIndex: number; _errors: string[] };
+
+async function parseFileToRows(file: File): Promise<ParsedRow[]> {
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+
+  if (ext === "docx") {
+    const mammoth = await import("mammoth");
+    const arrayBuffer = await file.arrayBuffer();
+    const result = await mammoth.convertToHtml({ arrayBuffer });
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(result.value, "text/html");
+    const tables = doc.querySelectorAll("table");
+    if (tables.length === 0) throw new Error("No tables found in Word document");
+    const rows = Array.from(tables[0].querySelectorAll("tr"));
+    const header = Array.from(rows[0]?.querySelectorAll("td,th") ?? []).map((td) =>
+      td.textContent?.trim().toLowerCase() ?? ""
+    );
+    return rows.slice(1).map((tr, i) => {
+      const cells = Array.from(tr.querySelectorAll("td,th")).map((td) => td.textContent?.trim() ?? "");
+      const obj: Record<string, string> = {};
+      header.forEach((h, hi) => { obj[h] = cells[hi] ?? ""; });
+      return normaliseRow(obj, i + 2);
+    });
+  }
+
+  const XLSX = await import("xlsx");
+  const arrayBuffer = await file.arrayBuffer();
+  const workbook = XLSX.read(arrayBuffer, { type: "array" });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const jsonRows = XLSX.utils.sheet_to_json<Record<string, string>>(sheet, { defval: "" });
+  return jsonRows.map((row, i) => normaliseRow(row, i + 2));
+}
+
+function normaliseRow(raw: Record<string, string>, rowIndex: number): ParsedRow {
+  const find = (keys: string[]) => {
+    for (const k of keys) {
+      const match = Object.keys(raw).find((rk) => rk.trim().toLowerCase() === k);
+      if (match) return String(raw[match]).trim();
+    }
+    return "";
+  };
+  const studentId = find(["studentid", "student_id", "student id", "id"]);
+  const firstName = find(["firstname", "first_name", "first name"]);
+  const lastName = find(["lastname", "last_name", "last name"]);
+  const grade = find(["grade", "year", "level"]);
+  const className = find(["classname", "class_name", "class", "classroom"]);
+
+  const errors: string[] = [];
+  if (!studentId) errors.push("Missing Student ID");
+  if (!firstName) errors.push("Missing First Name");
+  if (!lastName) errors.push("Missing Last Name");
+  if (!grade) errors.push("Missing Grade");
+  if (!className) errors.push("Missing Class");
+
+  return { studentId, firstName, lastName, grade, className, _rowIndex: rowIndex, _errors: errors };
+}
+
+function downloadTemplate() {
+  const csv = "studentId,firstName,lastName,grade,className\n2024001,Jane,Doe,Grade 10,10A\n";
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "student_import_template.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function ImportStudentsView({ onBack }: { onBack: () => void }) {
+  const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [rows, setRows] = useState<ParsedRow[] | null>(null);
+  const [fileName, setFileName] = useState("");
+  const [parseError, setParseError] = useState("");
+  const [isParsing, setIsParsing] = useState(false);
+  const [result, setResult] = useState<{ imported: number; failed: ImportFailure[] } | null>(null);
+
+  const importMutation = useImportStudents({
+    mutation: {
+      onSuccess: (data) => {
+        setResult(data);
+        queryClient.invalidateQueries({ queryKey: getListStudentsQueryKey() });
+      },
+    },
+  });
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setParseError("");
+    setRows(null);
+    setResult(null);
+    setFileName(file.name);
+    setIsParsing(true);
+    try {
+      const parsed = await parseFileToRows(file);
+      setRows(parsed);
+    } catch (err) {
+      setParseError(err instanceof Error ? err.message : "Failed to parse file");
+    } finally {
+      setIsParsing(false);
+    }
+  }
+
+  function handleImport() {
+    if (!rows) return;
+    const validRows = rows.filter((r) => r._errors.length === 0);
+    importMutation.mutate({
+      data: {
+        rows: validRows.map(({ studentId, firstName, lastName, grade, className, _rowIndex }) => ({
+          studentId,
+          firstName,
+          lastName,
+          grade,
+          className,
+          _rowIndex,
+        })) as import("@workspace/api-client-react").ImportStudentRow[],
+      },
+    });
+  }
+
+  const validRows = rows?.filter((r) => r._errors.length === 0) ?? [];
+  const invalidRows = rows?.filter((r) => r._errors.length > 0) ?? [];
+
+  return (
+    <div className="flex flex-col min-h-screen bg-background pb-20">
+      <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-0 z-40">
+        <div className="max-w-lg mx-auto flex items-center gap-3">
+          <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-muted transition-colors" data-testid="button-import-back">
+            <X className="w-4 h-4" />
+          </button>
+          <h1 className="text-base font-bold text-foreground flex-1">Import Students</h1>
+        </div>
+      </div>
+
+      <div className="max-w-lg mx-auto w-full px-4 py-4 space-y-4">
+        {/* Info card */}
+        <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+          <div className="flex items-start gap-3">
+            <FileText className="w-5 h-5 text-indigo-500 flex-shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-foreground">Accepted formats</p>
+              <p className="text-xs text-muted-foreground">CSV (.csv), Excel (.xlsx, .xls), Word (.docx)</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <Table className="w-5 h-5 text-indigo-500 flex-shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-foreground">Required columns</p>
+              <p className="text-xs text-muted-foreground font-mono">studentId, firstName, lastName, grade, className</p>
+            </div>
+          </div>
+          <button
+            onClick={downloadTemplate}
+            className="flex items-center gap-2 text-xs font-semibold text-primary hover:underline"
+            data-testid="button-download-template"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Download CSV Template
+          </button>
+        </div>
+
+        {/* File picker */}
+        {!result && (
+          <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+            <p className="text-sm font-semibold text-foreground">Select file</p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,.xlsx,.xls,.docx"
+              className="hidden"
+              onChange={handleFileChange}
+              data-testid="input-import-file"
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isParsing}
+              className="w-full border-2 border-dashed border-border rounded-xl py-6 flex flex-col items-center gap-2 hover:border-primary/50 hover:bg-muted/20 transition-colors disabled:opacity-50"
+              data-testid="button-pick-file"
+            >
+              <Upload className="w-6 h-6 text-muted-foreground" />
+              <span className="text-sm font-medium text-foreground">
+                {isParsing ? "Parsing file..." : fileName || "Tap to choose a file"}
+              </span>
+              {fileName && !isParsing && (
+                <span className="text-xs text-muted-foreground">{fileName}</span>
+              )}
+            </button>
+          </div>
+        )}
+
+        {parseError && (
+          <div className="bg-destructive/10 border border-destructive/20 text-destructive text-sm px-4 py-3 rounded-xl flex items-center gap-2" data-testid="text-parse-error">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            {parseError}
+          </div>
+        )}
+
+        {/* Preview table */}
+        {rows && rows.length > 0 && !result && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-foreground">
+                Preview — {rows.length} row{rows.length !== 1 ? "s" : ""} found
+              </p>
+              {invalidRows.length > 0 && (
+                <span className="text-xs text-destructive font-medium">{invalidRows.length} invalid</span>
+              )}
+            </div>
+
+            <div className="bg-card border border-border rounded-xl overflow-hidden">
+              <div className="overflow-x-auto max-h-64 overflow-y-auto">
+                <table className="w-full text-xs" data-testid="table-preview">
+                  <thead className="bg-muted/50 sticky top-0">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Row</th>
+                      <th className="px-3 py-2 text-left font-semibold text-muted-foreground">ID</th>
+                      <th className="px-3 py-2 text-left font-semibold text-muted-foreground">First</th>
+                      <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Last</th>
+                      <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Grade</th>
+                      <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Class</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {rows.map((row) => (
+                      <tr
+                        key={row._rowIndex}
+                        className={row._errors.length > 0 ? "bg-destructive/5" : ""}
+                        data-testid={`preview-row-${row._rowIndex}`}
+                      >
+                        <td className="px-3 py-2 text-muted-foreground">{row._rowIndex}</td>
+                        <td className={`px-3 py-2 font-mono ${!row.studentId ? "text-destructive" : "text-foreground"}`}>
+                          {row.studentId || <span className="italic text-destructive">missing</span>}
+                        </td>
+                        <td className={`px-3 py-2 ${!row.firstName ? "text-destructive" : "text-foreground"}`}>
+                          {row.firstName || <span className="italic text-destructive">missing</span>}
+                        </td>
+                        <td className={`px-3 py-2 ${!row.lastName ? "text-destructive" : "text-foreground"}`}>
+                          {row.lastName || <span className="italic text-destructive">missing</span>}
+                        </td>
+                        <td className={`px-3 py-2 ${!row.grade ? "text-destructive" : "text-foreground"}`}>
+                          {row.grade || <span className="italic text-destructive">missing</span>}
+                        </td>
+                        <td className={`px-3 py-2 ${!row.className ? "text-destructive" : "text-foreground"}`}>
+                          {row.className || <span className="italic text-destructive">missing</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {invalidRows.length > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 space-y-1">
+                <p className="text-xs font-semibold text-amber-800">{invalidRows.length} row{invalidRows.length !== 1 ? "s" : ""} will be skipped (highlighted in red)</p>
+                <p className="text-xs text-amber-700">Only {validRows.length} valid row{validRows.length !== 1 ? "s" : ""} will be imported.</p>
+              </div>
+            )}
+
+            {importMutation.isError && (
+              <div className="bg-destructive/10 border border-destructive/20 text-destructive text-sm px-4 py-3 rounded-xl flex items-center gap-2" data-testid="text-import-error">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                Import failed. Please try again.
+              </div>
+            )}
+
+            <button
+              onClick={handleImport}
+              disabled={importMutation.isPending || validRows.length === 0}
+              className="w-full bg-primary text-primary-foreground font-semibold py-3 rounded-xl disabled:opacity-50 transition-opacity"
+              data-testid="button-confirm-import"
+            >
+              {importMutation.isPending
+                ? "Importing..."
+                : `Import ${validRows.length} student${validRows.length !== 1 ? "s" : ""}`}
+            </button>
+          </div>
+        )}
+
+        {rows && rows.length === 0 && !isParsing && (
+          <div className="bg-card border border-border rounded-xl px-4 py-6 text-center text-sm text-muted-foreground" data-testid="text-empty-file">
+            No data rows found in the file. Check the file format.
+          </div>
+        )}
+
+        {/* Results summary */}
+        {result && (
+          <div className="space-y-3" data-testid="section-import-results">
+            <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-4 space-y-1">
+              <div className="flex items-center gap-2">
+                <Check className="w-5 h-5 text-green-600 flex-shrink-0" />
+                <p className="text-sm font-semibold text-green-800">Import complete</p>
+              </div>
+              <p className="text-sm text-green-700 ml-7">
+                {result.imported} student{result.imported !== 1 ? "s" : ""} imported successfully.
+              </p>
+              {result.failed.length > 0 && (
+                <p className="text-sm text-amber-700 ml-7">
+                  {result.failed.length} row{result.failed.length !== 1 ? "s" : ""} failed.
+                </p>
+              )}
+            </div>
+
+            {result.failed.length > 0 && (
+              <div className="bg-card border border-border rounded-xl overflow-hidden" data-testid="table-failed-rows">
+                <div className="px-4 py-3 border-b border-border">
+                  <p className="text-sm font-semibold text-foreground">Failed rows</p>
+                </div>
+                <div className="divide-y divide-border">
+                  {result.failed.map((f) => (
+                    <div key={f.row} className="px-4 py-3 flex items-start gap-3">
+                      <AlertCircle className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs font-semibold text-foreground">Row {f.row} — {f.studentId}</p>
+                        <p className="text-xs text-muted-foreground">{f.reason}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <button
+              onClick={() => {
+                setRows(null);
+                setFileName("");
+                setResult(null);
+                setParseError("");
+                importMutation.reset();
+                if (fileInputRef.current) fileInputRef.current.value = "";
+              }}
+              className="w-full bg-muted text-foreground font-semibold py-2.5 rounded-xl hover:bg-muted/70 transition-colors"
+              data-testid="button-import-another"
+            >
+              Import Another File
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

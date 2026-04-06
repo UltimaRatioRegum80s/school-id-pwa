@@ -221,6 +221,32 @@ export const DeleteStudentParams = zod.object({
 });
 
 /**
+ * @summary Bulk import students from parsed rows
+ */
+export const ImportStudentsBody = zod.object({
+  rows: zod.array(
+    zod.object({
+      studentId: zod.string(),
+      firstName: zod.string(),
+      lastName: zod.string(),
+      grade: zod.string(),
+      className: zod.string(),
+    }),
+  ),
+});
+
+export const ImportStudentsResponse = zod.object({
+  imported: zod.number(),
+  failed: zod.array(
+    zod.object({
+      row: zod.number(),
+      studentId: zod.string(),
+      reason: zod.string(),
+    }),
+  ),
+});
+
+/**
  * @summary Lookup a student by QR code or student ID
  */
 export const LookupStudentByQrParams = zod.object({

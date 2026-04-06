@@ -207,6 +207,25 @@ paths:
         "204":
           description: Deleted
 
+  /students/import:
+    post:
+      operationId: importStudents
+      tags: [students]
+      summary: Bulk import students from parsed rows
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImportStudentsBody"
+      responses:
+        "200":
+          description: Import result with success/failure breakdown
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportStudentsResult"
+
   /students/lookup/{qrCode}:
     get:
       operationId: lookupStudentByQr
@@ -1499,3 +1518,60 @@ components:
           type: string
         timezone:
           type: string
+
+    ImportStudentRow:
+      type: object
+      properties:
+        studentId:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        grade:
+          type: string
+        className:
+          type: string
+      required:
+        - studentId
+        - firstName
+        - lastName
+        - grade
+        - className
+
+    ImportStudentsBody:
+      type: object
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportStudentRow"
+      required:
+        - rows
+
+    ImportFailure:
+      type: object
+      properties:
+        row:
+          type: integer
+        studentId:
+          type: string
+        reason:
+          type: string
+      required:
+        - row
+        - studentId
+        - reason
+
+    ImportStudentsResult:
+      type: object
+      properties:
+        imported:
+          type: integer
+        failed:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportFailure"
+      required:
+        - imported
+        - failed
