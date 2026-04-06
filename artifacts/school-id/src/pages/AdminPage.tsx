@@ -1609,16 +1609,26 @@ async function parseFileToRows(file: File): Promise<ParsedRow[]> {
     const parser = new DOMParser();
     const doc = parser.parseFromString(result.value, "text/html");
     const tables = doc.querySelectorAll("table");
-    if (tables.length === 0) throw new Error("No tables found in Word document");
-    const rows = Array.from(tables[0].querySelectorAll("tr"));
-    const header = Array.from(rows[0]?.querySelectorAll("td,th") ?? []).map((td) =>
-      td.textContent?.trim().toLowerCase() ?? ""
-    );
-    return rows.slice(1).map((tr, i) => {
-      const cells = Array.from(tr.querySelectorAll("td,th")).map((td) => td.textContent?.trim() ?? "");
-      const obj: Record<string, string> = {};
-      header.forEach((h, hi) => { obj[h] = cells[hi] ?? ""; });
-      return normaliseRow(obj, i + 2);
+    if (tables.length > 0) {
+      const rows = Array.from(tables[0].querySelectorAll("tr"));
+      const header = Array.from(rows[0]?.querySelectorAll("td,th") ?? []).map((td) =>
+        td.textContent?.trim().toLowerCase() ?? ""
+      );
+      return rows.slice(1).map((tr, i) => {
+        const cells = Array.from(tr.querySelectorAll("td,th")).map((td) => td.textContent?.trim() ?? "");
+        const obj: Record<string, string> = {};
+        header.forEach((h, hi) => { obj[h] = cells[hi] ?? ""; });
+        return normaliseRow(obj, i + 2);
+      });
+    }
+    const nameLinePattern = /^([A-Z][a-zA-Z'-]+)([,\s]+([A-Z][a-zA-Z'-]+)){1,2}$/;
+    const paragraphs = Array.from(doc.querySelectorAll("p"))
+      .map((p) => p.textContent?.trim() ?? "")
+      .filter((line) => line.length > 0 && nameLinePattern.test(line) && !/\d/.test(line));
+    if (paragraphs.length === 0) throw new Error("No tables or name lines found in Word document");
+    return paragraphs.map((line, i) => {
+      const { firstName, lastName } = splitFullName(line);
+      return normaliseRow({ "first name": firstName, "last name": lastName }, i + 1);
     });
   }
 
@@ -1630,19 +1640,80 @@ async function parseFileToRows(file: File): Promise<ParsedRow[]> {
   return jsonRows.map((row, i) => normaliseRow(row, i + 2));
 }
 
-function normaliseRow(raw: Record<string, string>, rowIndex: number): ParsedRow {
-  const find = (keys: string[]) => {
-    for (const k of keys) {
-      const match = Object.keys(raw).find((rk) => rk.trim().toLowerCase() === k);
-      if (match) return String(raw[match]).trim();
+function similarityScore(a: string, b: string): number {
+  if (a === b) return 1;
+  if (a.length === 0 || b.length === 0) return 0;
+  const longer = a.length > b.length ? a : b;
+  const shorter = a.length > b.length ? b : a;
+  if (longer.includes(shorter)) return shorter.length / longer.length;
+  let matches = 0;
+  const usedB = new Array(b.length).fill(false);
+  for (let i = 0; i < a.length; i++) {
+    for (let j = 0; j < b.length; j++) {
+      if (!usedB[j] && a[i] === b[j]) { matches++; usedB[j] = true; break; }
     }
-    return "";
-  };
-  const studentId = find(["studentid", "student_id", "student id", "id"]);
-  const firstName = find(["firstname", "first_name", "first name"]);
-  const lastName = find(["lastname", "last_name", "last name"]);
-  const grade = find(["grade", "year", "level"]);
-  const className = find(["classname", "class_name", "class", "classroom"]);
+  }
+  return matches / Math.max(a.length, b.length);
+}
+
+const FIELD_SYNONYMS: Record<string, string[]> = {
+  studentId: ["studentid", "student_id", "student id", "student number", "studentnumber", "id", "no", "no.", "number", "roll", "roll number", "rollnumber"],
+  firstName: ["firstname", "first_name", "first name", "given name", "givenname", "given_name", "forename", "fore name", "preferred name"],
+  lastName: ["lastname", "last_name", "last name", "surname", "family name", "familyname", "family_name"],
+  fullName: ["name", "full name", "fullname", "full_name", "student name", "student's name", "student full name", "student's full name"],
+  grade: ["grade", "year", "level", "year level", "yearlevel", "year_level", "grade level"],
+  className: ["classname", "class_name", "class", "classroom", "room", "homeroom", "home room", "section"],
+};
+
+function fuzzyFind(raw: Record<string, string>, field: keyof typeof FIELD_SYNONYMS): string {
+  const synonyms = FIELD_SYNONYMS[field];
+  const rawKeys = Object.keys(raw);
+  for (const k of synonyms) {
+    const exact = rawKeys.find((rk) => rk.trim().toLowerCase() === k);
+    if (exact) return String(raw[exact]).trim();
+  }
+  let bestKey = "";
+  let bestScore = 0;
+  for (const rk of rawKeys) {
+    const normalised = rk.trim().toLowerCase();
+    for (const k of synonyms) {
+      const score = similarityScore(normalised, k);
+      if (score > bestScore && score >= 0.75) { bestScore = score; bestKey = rk; }
+    }
+  }
+  return bestKey ? String(raw[bestKey]).trim() : "";
+}
+
+function splitFullName(fullName: string): { firstName: string; lastName: string } {
+  const trimmed = fullName.trim();
+  if (!trimmed) return { firstName: "", lastName: "" };
+  if (trimmed.includes(",")) {
+    const [last, ...firstParts] = trimmed.split(",").map((s) => s.trim());
+    return { firstName: firstParts.join(" "), lastName: last };
+  }
+  const parts = trimmed.split(/\s+/);
+  if (parts.length === 1) return { firstName: parts[0], lastName: "" };
+  const last = parts[parts.length - 1];
+  const first = parts.slice(0, parts.length - 1).join(" ");
+  return { firstName: first, lastName: last };
+}
+
+function normaliseRow(raw: Record<string, string>, rowIndex: number): ParsedRow {
+  const studentId = fuzzyFind(raw, "studentId");
+  let firstName = fuzzyFind(raw, "firstName");
+  let lastName = fuzzyFind(raw, "lastName");
+
+  if (!firstName && !lastName) {
+    const fullName = fuzzyFind(raw, "fullName");
+    if (fullName) {
+      const split = splitFullName(fullName);
+      firstName = split.firstName;
+      lastName = split.lastName;
+    }
+  }
+
+  const grade = fuzzyFind(raw, "grade");
+  const className = fuzzyFind(raw, "className");
 
   const errors: string[] = [];
   if (!studentId) errors.push("Missing Student ID");
