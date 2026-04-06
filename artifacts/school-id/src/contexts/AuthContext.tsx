@@ -1,4 +1,6 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
+import { applyPalette } from "@/lib/palettes";
+import { getApiUrl } from "@/lib/api";
 
 interface User {
   id: number;
@@ -13,11 +15,19 @@ interface User {
   schoolName?: string;
 }
 
+export interface BrandingInfo {
+  logoUrl: string | null;
+  colorPalette: string;
+  schoolName: string;
+}
+
 interface AuthContextValue {
   user: User | null;
   token: string | null;
+  branding: BrandingInfo | null;
   login: (token: string, user: User) => void;
   logout: () => void;
+  refreshBranding: () => Promise<void>;
   isAuthenticated: boolean;
 }
 
@@ -31,24 +41,75 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const stored = localStorage.getItem("school-id-user");
     return stored ? JSON.parse(stored) : null;
   });
+  const [branding, setBranding] = useState<BrandingInfo | null>(() => {
+    const stored = localStorage.getItem("school-id-branding");
+    return stored ? JSON.parse(stored) : null;
+  });
+  const [brandingLoaded, setBrandingLoaded] = useState(false);
+
+  const fetchBranding = useCallback(async (currentToken: string): Promise<BrandingInfo | null> => {
+    try {
+      const res = await fetch(`${getApiUrl()}/school/branding`, {
+        headers: { Authorization: `Bearer ${currentToken}` },
+      });
+      if (!res.ok) return null;
+      const data: BrandingInfo = await res.json();
+      return data;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const refreshBranding = useCallback(async () => {
+    if (!token) return;
+    const data = await fetchBranding(token);
+    if (data) {
+      setBranding(data);
+      localStorage.setItem("school-id-branding", JSON.stringify(data));
+      applyPalette(data.colorPalette);
+    }
+  }, [token, fetchBranding]);
+
+  useEffect(() => {
+    if (branding) {
+      applyPalette(branding.colorPalette);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (token && !brandingLoaded) {
+      setBrandingLoaded(true);
+      fetchBranding(token).then((data) => {
+        if (data) {
+          setBranding(data);
+          localStorage.setItem("school-id-branding", JSON.stringify(data));
+          applyPalette(data.colorPalette);
+        }
+      });
+    }
+  }, [token, brandingLoaded, fetchBranding]);
 
   function login(newToken: string, newUser: User) {
     localStorage.setItem("school-id-token", newToken);
     localStorage.setItem("school-id-user", JSON.stringify(newUser));
     setToken(newToken);
     setUser(newUser);
+    setBrandingLoaded(false);
   }
 
   function logout() {
     localStorage.removeItem("school-id-token");
     localStorage.removeItem("school-id-user");
+    localStorage.removeItem("school-id-branding");
     setToken(null);
     setUser(null);
+    setBranding(null);
+    setBrandingLoaded(false);
   }
 
   return (
     <AuthContext.Provider
-      value={{ user, token, login, logout, isAuthenticated: !!token && !!user }}
+      value={{ user, token, branding, login, logout, refreshBranding, isAuthenticated: !!token && !!user }}
     >
       {children}
     </AuthContext.Provider>

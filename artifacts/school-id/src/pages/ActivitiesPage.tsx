@@ -90,10 +90,11 @@ export default function ActivitiesPage() {
       <PageHeader
         title="Activities"
         subtitle={`${active.length} active`}
+        showLogo={true}
         action={
           <button
             onClick={() => setShowCreate(true)}
-            className="p-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            className="p-1.5 rounded-lg bg-white/20 text-primary-foreground hover:bg-white/30 transition-colors"
             data-testid="button-create-activity"
           >
             <Plus className="w-4 h-4" />

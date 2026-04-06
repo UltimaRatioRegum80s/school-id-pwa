@@ -135,6 +135,7 @@ export default function ScanPage() {
       <PageHeader
         title="Scan"
         subtitle={`Mode: ${getScanTypeLabel(scanType)}`}
+        showLogo={true}
       />
 
       <div className="max-w-lg mx-auto w-full px-4 py-4 space-y-4">

@@ -43,6 +43,7 @@ async function seed() {
     contactEmail: "admin@westbrook.edu",
     plan: "free",
     isActive: true,
+    colorPalette: "navy-gold",
   }).returning();
 
   console.log(`School created: ${demoSchool.name} (code: ${demoSchool.code})`);

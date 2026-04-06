@@ -5,7 +5,7 @@ import { School } from "lucide-react";
 import { Link } from "wouter";
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, branding } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -27,14 +27,34 @@ export default function LoginPage() {
     loginMutation.mutate({ data: { username, password } });
   }
 
+  const schoolInitials = branding?.schoolName
+    ? branding.schoolName
+        .split(/\s+/)
+        .slice(0, 2)
+        .map((w) => w[0]?.toUpperCase() ?? "")
+        .join("")
+    : null;
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary rounded-2xl mb-4 shadow-md">
-            <School className="w-9 h-9 text-primary-foreground" />
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary rounded-2xl mb-4 shadow-md overflow-hidden">
+            {branding?.logoUrl ? (
+              <img
+                src={branding.logoUrl}
+                alt={branding.schoolName}
+                className="w-full h-full object-contain"
+              />
+            ) : schoolInitials ? (
+              <span className="text-xl font-bold text-primary-foreground">{schoolInitials}</span>
+            ) : (
+              <School className="w-9 h-9 text-primary-foreground" />
+            )}
           </div>
-          <h1 className="text-2xl font-bold text-foreground" data-testid="text-app-title">School ID</h1>
+          <h1 className="text-2xl font-bold text-foreground" data-testid="text-app-title">
+            {branding?.schoolName ?? "School ID"}
+          </h1>
           <p className="text-sm text-muted-foreground mt-1">Staff Portal</p>
         </div>
 
@@ -90,18 +110,18 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="text-center text-sm mt-4">
+        <p className="text-center text-xs text-muted-foreground mt-4">
+          Demo: admin / admin123
+        </p>
+
+        <p className="text-center text-sm mt-3">
           <Link
             to="/register"
             className="text-primary font-medium hover:underline"
             data-testid="link-register-school"
           >
-            Register your school
+            Register a new school
           </Link>
-        </p>
-
-        <p className="text-center text-xs text-muted-foreground mt-4">
-          Demo: admin / admin123
         </p>
       </div>
     </div>

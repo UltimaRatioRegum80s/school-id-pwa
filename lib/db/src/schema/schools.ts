@@ -11,6 +11,8 @@ export const schoolsTable = pgTable("schools", {
   contactEmail: text("contact_email"),
   plan: text("plan").notNull().default("free"),
   isActive: boolean("is_active").notNull().default(true),
+  logoUrl: text("logo_url"),
+  colorPalette: text("color_palette").notNull().default("navy-gold"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

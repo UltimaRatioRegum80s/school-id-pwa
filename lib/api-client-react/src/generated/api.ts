@@ -41,9 +41,12 @@ import type {
   LoginResponse,
   MarkAttendanceBody,
   RegisterSchoolBody,
+  RequestUploadUrlBody,
+  RequestUploadUrlResponse,
   ScanBody,
   ScanEvent,
   ScanResult,
+  SchoolBranding,
   SchoolSettings,
   Student,
   StudentProfile,
@@ -51,6 +54,7 @@ import type {
   UpdateActivityBody,
   UpdateAttendanceBody,
   UpdateBehaviorLogBody,
+  UpdateSchoolBrandingBody,
   UpdateSettingsBody,
   UpdateStudentBody,
   UserProfile,
@@ -2663,6 +2667,254 @@ export const useUpdateSettings = <
   TContext
 > => {
   return useMutation(getUpdateSettingsMutationOptions(options));
+};
+
+/**
+ * @summary Get school branding
+ */
+export const getGetSchoolBrandingUrl = () => {
+  return `/api/school/branding`;
+};
+
+export const getSchoolBranding = async (
+  options?: RequestInit,
+): Promise<SchoolBranding> => {
+  return customFetch<SchoolBranding>(getGetSchoolBrandingUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSchoolBrandingQueryKey = () => {
+  return [`/api/school/branding`] as const;
+};
+
+export const getGetSchoolBrandingQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSchoolBranding>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSchoolBranding>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetSchoolBrandingQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getSchoolBranding>>
+  > = ({ signal }) => getSchoolBranding({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSchoolBranding>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSchoolBrandingQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSchoolBranding>>
+>;
+export type GetSchoolBrandingQueryError = ErrorType<void>;
+
+/**
+ * @summary Get school branding
+ */
+
+export function useGetSchoolBranding<
+  TData = Awaited<ReturnType<typeof getSchoolBranding>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSchoolBranding>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSchoolBrandingQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update school branding (logo and/or palette)
+ */
+export const getUpdateSchoolBrandingUrl = () => {
+  return `/api/school/branding`;
+};
+
+export const updateSchoolBranding = async (
+  updateSchoolBrandingBody: UpdateSchoolBrandingBody,
+  options?: RequestInit,
+): Promise<SchoolBranding> => {
+  return customFetch<SchoolBranding>(getUpdateSchoolBrandingUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateSchoolBrandingBody),
+  });
+};
+
+export const getUpdateSchoolBrandingMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSchoolBranding>>,
+    TError,
+    { data: BodyType<UpdateSchoolBrandingBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateSchoolBranding>>,
+  TError,
+  { data: BodyType<UpdateSchoolBrandingBody> },
+  TContext
+> => {
+  const mutationKey = ["updateSchoolBranding"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateSchoolBranding>>,
+    { data: BodyType<UpdateSchoolBrandingBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateSchoolBranding(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateSchoolBrandingMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateSchoolBranding>>
+>;
+export type UpdateSchoolBrandingMutationBody =
+  BodyType<UpdateSchoolBrandingBody>;
+export type UpdateSchoolBrandingMutationError = ErrorType<void>;
+
+/**
+ * @summary Update school branding (logo and/or palette)
+ */
+export const useUpdateSchoolBranding = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSchoolBranding>>,
+    TError,
+    { data: BodyType<UpdateSchoolBrandingBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateSchoolBranding>>,
+  TError,
+  { data: BodyType<UpdateSchoolBrandingBody> },
+  TContext
+> => {
+  return useMutation(getUpdateSchoolBrandingMutationOptions(options));
+};
+
+/**
+ * @summary Upload or replace the school logo
+ */
+export const getUploadSchoolLogoUrl = () => {
+  return `/api/school/branding/logo`;
+};
+
+export const uploadSchoolLogo = async (
+  requestUploadUrlBody: RequestUploadUrlBody,
+  options?: RequestInit,
+): Promise<RequestUploadUrlResponse> => {
+  return customFetch<RequestUploadUrlResponse>(getUploadSchoolLogoUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(requestUploadUrlBody),
+  });
+};
+
+export const getUploadSchoolLogoMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof uploadSchoolLogo>>,
+    TError,
+    { data: BodyType<RequestUploadUrlBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof uploadSchoolLogo>>,
+  TError,
+  { data: BodyType<RequestUploadUrlBody> },
+  TContext
+> => {
+  const mutationKey = ["uploadSchoolLogo"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof uploadSchoolLogo>>,
+    { data: BodyType<RequestUploadUrlBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return uploadSchoolLogo(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UploadSchoolLogoMutationResult = NonNullable<
+  Awaited<ReturnType<typeof uploadSchoolLogo>>
+>;
+export type UploadSchoolLogoMutationBody = BodyType<RequestUploadUrlBody>;
+export type UploadSchoolLogoMutationError = ErrorType<void>;
+
+/**
+ * @summary Upload or replace the school logo
+ */
+export const useUploadSchoolLogo = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof uploadSchoolLogo>>,
+    TError,
+    { data: BodyType<RequestUploadUrlBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof uploadSchoolLogo>>,
+  TError,
+  { data: BodyType<RequestUploadUrlBody> },
+  TContext
+> => {
+  return useMutation(getUploadSchoolLogoMutationOptions(options));
 };
 
 /**

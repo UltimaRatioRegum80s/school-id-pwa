@@ -7,6 +7,8 @@ import dashboardRouter from "./dashboard";
 import activitiesRouter from "./activities";
 import behaviorRouter from "./behavior";
 import settingsRouter from "./settings";
+import brandingRouter from "./branding";
+import storageRouter from "./storage";
 
 const router: IRouter = Router();
 
@@ -18,5 +20,7 @@ router.use(dashboardRouter);
 router.use(activitiesRouter);
 router.use(behaviorRouter);
 router.use(settingsRouter);
+router.use(brandingRouter);
+router.use(storageRouter);
 
 export default router;

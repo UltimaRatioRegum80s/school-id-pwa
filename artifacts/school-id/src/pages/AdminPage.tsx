@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
 import { useAuth } from "@/contexts/AuthContext";
+import { PALETTES, applyPalette } from "@/lib/palettes";
+import { getApiUrl } from "@/lib/api";
 import {
   useGetSettings,
   useUpdateSettings,
@@ -35,6 +37,8 @@ import {
   CalendarRange,
   Plus,
   Pencil,
+  Palette,
+  School,
 } from "lucide-react";
 
 type AdminView =
@@ -46,7 +50,8 @@ type AdminView =
   | "add-student"
   | "activity-management"
   | "create-activity"
-  | "edit-activity";
+  | "edit-activity"
+  | "appearance";
 
 export default function AdminPage() {
   const { user, logout } = useAuth();
@@ -75,13 +80,14 @@ export default function AdminPage() {
   if (view === "edit-activity" && editingActivity) return (
     <EditActivityView activity={editingActivity} onBack={() => setView("activity-management")} />
   );
+  if (view === "appearance") return <AppearanceView onBack={() => setView("main")} />;
 
   const schoolDisplayName = settings?.schoolName ?? user?.schoolName;
   const schoolCode = user?.schoolCode;
 
   return (
     <div className="flex flex-col min-h-screen bg-background pb-20">
-      <PageHeader title="Admin" subtitle={`${user?.role === "admin" ? "Administrator" : "Staff"}`} />
+      <PageHeader title="Admin" subtitle={`${user?.role === "admin" ? "Administrator" : "Staff"}`} showLogo={true} />
 
       <div className="max-w-lg mx-auto w-full px-4 py-4 space-y-4">
         {/* School identity banner */}
@@ -126,6 +132,13 @@ export default function AdminPage() {
                 description="Configure school name, times, and timezone"
                 onClick={() => setView("settings")}
                 testId="button-nav-school-settings"
+              />
+              <MenuRow
+                icon={<Palette className="w-4 h-4 text-pink-500" />}
+                label="Appearance"
+                description="Logo and colour palette for your school"
+                onClick={() => setView("appearance")}
+                testId="button-nav-appearance"
               />
               <MenuRow
                 icon={<Users className="w-4 h-4 text-purple-500" />}
@@ -1210,6 +1223,224 @@ function EditActivityView({ activity, onBack }: { activity: Activity; onBack: ()
           {updateMutation.isPending ? "Saving..." : "Save Changes"}
         </button>
       </form>
+    </div>
+  );
+}
+
+function AppearanceView({ onBack }: { onBack: () => void }) {
+  const { branding, token, refreshBranding } = useAuth();
+  const [selectedPalette, setSelectedPalette] = useState<string>(branding?.colorPalette ?? "navy-gold");
+  const [previewPalette, setPreviewPalette] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
+  const [logoUploading, setLogoUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const activePalette = previewPalette ?? selectedPalette;
+
+  function handlePaletteHover(paletteName: string) {
+    applyPalette(paletteName);
+    setPreviewPalette(paletteName);
+  }
+
+  function handlePaletteLeave() {
+    applyPalette(activePalette);
+    setPreviewPalette(null);
+  }
+
+  function handlePaletteSelect(paletteName: string) {
+    setSelectedPalette(paletteName);
+    applyPalette(paletteName);
+    setPreviewPalette(null);
+  }
+
+  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setLogoUploading(true);
+    setError("");
+
+    try {
+      const urlRes = await fetch(`${getApiUrl()}/school/branding/logo`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
+      });
+
+      if (!urlRes.ok) throw new Error("Failed to get upload URL");
+      const { uploadURL, objectPath } = await urlRes.json();
+
+      const uploadRes = await fetch(uploadURL, {
+        method: "PUT",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+
+      if (!uploadRes.ok) throw new Error("Upload failed");
+
+      const brandingRes = await fetch(`${getApiUrl()}/school/branding`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ logoObjectPath: objectPath }),
+      });
+
+      if (!brandingRes.ok) throw new Error("Failed to save logo");
+
+      await refreshBranding();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      setError("Logo upload failed. Please try again.");
+    } finally {
+      setLogoUploading(false);
+    }
+  }
+
+  async function handleSavePalette() {
+    setSaving(true);
+    setError("");
+    try {
+      const res = await fetch(`${getApiUrl()}/school/branding`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ colorPalette: selectedPalette }),
+      });
+
+      if (!res.ok) throw new Error("Failed to save");
+
+      await refreshBranding();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch {
+      setError("Failed to save. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const schoolInitials = branding?.schoolName
+    ? branding.schoolName.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("")
+    : "SC";
+
+  return (
+    <div className="flex flex-col min-h-screen bg-background pb-20">
+      <div className="bg-primary text-primary-foreground px-4 pt-4 pb-3 sticky top-0 z-40">
+        <div className="max-w-lg mx-auto flex items-center gap-3">
+          <button
+            onClick={onBack}
+            className="p-1.5 rounded-lg text-primary-foreground/70 hover:text-primary-foreground hover:bg-white/10 transition-colors"
+            data-testid="button-appearance-back"
+          >
+            <X className="w-4 h-4" />
+          </button>
+          <h1 className="text-base font-bold flex-1">Appearance</h1>
+          {saved && (
+            <span className="flex items-center gap-1 text-xs text-primary-foreground/80 font-medium" data-testid="text-appearance-saved">
+              <Check className="w-3.5 h-3.5" /> Saved
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="max-w-lg mx-auto w-full px-4 py-4 space-y-6">
+        {error && (
+          <div className="bg-destructive/10 border border-destructive/20 text-destructive text-sm px-4 py-3 rounded-lg flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            {error}
+          </div>
+        )}
+
+        <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+          <h2 className="text-sm font-semibold text-foreground">School Logo</h2>
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 bg-primary rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0">
+              {branding?.logoUrl ? (
+                <img src={branding.logoUrl} alt="School logo" className="w-full h-full object-contain" />
+              ) : (
+                <span className="text-xl font-bold text-primary-foreground">{schoolInitials}</span>
+              )}
+            </div>
+            <div className="flex-1">
+              <p className="text-xs text-muted-foreground mb-2">
+                {branding?.logoUrl ? "Your school logo is set." : "No logo uploaded yet. Your initials will be shown."}
+              </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleLogoUpload}
+                data-testid="input-logo-upload"
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={logoUploading}
+                className="bg-primary text-primary-foreground text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-60"
+                data-testid="button-upload-logo"
+              >
+                {logoUploading ? "Uploading..." : branding?.logoUrl ? "Replace Logo" : "Upload Logo"}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+          <h2 className="text-sm font-semibold text-foreground">Colour Palette</h2>
+          <p className="text-xs text-muted-foreground">Hover to preview, click to select.</p>
+          <div className="grid grid-cols-2 gap-2" data-testid="palette-picker">
+            {Object.values(PALETTES).map((palette) => {
+              const isSelected = selectedPalette === palette.name;
+              return (
+                <button
+                  key={palette.name}
+                  onMouseEnter={() => handlePaletteHover(palette.name)}
+                  onMouseLeave={handlePaletteLeave}
+                  onClick={() => handlePaletteSelect(palette.name)}
+                  className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 text-left transition-colors ${
+                    isSelected
+                      ? "border-primary bg-primary/5"
+                      : "border-border bg-muted/30 hover:border-primary/40"
+                  }`}
+                  data-testid={`palette-option-${palette.name}`}
+                >
+                  <div className="flex gap-1 flex-shrink-0">
+                    <div
+                      className="w-5 h-5 rounded-md"
+                      style={{ background: `hsl(${palette.primary})` }}
+                    />
+                    <div
+                      className="w-5 h-5 rounded-md"
+                      style={{ background: `hsl(${palette.accent})` }}
+                    />
+                  </div>
+                  <span className="text-xs font-medium text-foreground truncate">{palette.label}</span>
+                  {isSelected && <Check className="w-3.5 h-3.5 text-primary ml-auto flex-shrink-0" />}
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            onClick={handleSavePalette}
+            disabled={saving || selectedPalette === (branding?.colorPalette ?? "navy-gold")}
+            className="w-full bg-primary text-primary-foreground font-semibold py-2.5 rounded-lg disabled:opacity-50 transition-opacity"
+            data-testid="button-save-palette"
+          >
+            {saving ? "Saving..." : "Save Palette"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

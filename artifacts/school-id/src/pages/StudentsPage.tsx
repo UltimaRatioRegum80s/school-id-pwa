@@ -61,10 +61,11 @@ export default function StudentsPage() {
       <PageHeader
         title="Students"
         subtitle={`${list.length} found`}
+        showLogo={true}
         action={
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`p-1.5 rounded-lg transition-colors ${showFilters ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
+            className={`p-1.5 rounded-lg transition-colors ${showFilters ? "bg-white/30 text-primary-foreground" : "text-primary-foreground/70 hover:text-primary-foreground hover:bg-white/10"}`}
             data-testid="button-toggle-filters"
           >
             <Filter className="w-4 h-4" />

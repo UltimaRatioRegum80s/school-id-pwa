@@ -877,6 +877,43 @@ export const UpdateSettingsResponse = zod.object({
 });
 
 /**
+ * @summary Get school branding
+ */
+export const GetSchoolBrandingResponse = zod.object({
+  logoUrl: zod.string().nullish(),
+  colorPalette: zod.string(),
+  schoolName: zod.string(),
+});
+
+/**
+ * @summary Update school branding (logo and/or palette)
+ */
+export const UpdateSchoolBrandingBody = zod.object({
+  colorPalette: zod.string().optional(),
+  logoObjectPath: zod.string().nullish(),
+});
+
+export const UpdateSchoolBrandingResponse = zod.object({
+  logoUrl: zod.string().nullish(),
+  colorPalette: zod.string(),
+  schoolName: zod.string(),
+});
+
+/**
+ * @summary Upload or replace the school logo
+ */
+export const UploadSchoolLogoBody = zod.object({
+  name: zod.string(),
+  size: zod.number(),
+  contentType: zod.string(),
+});
+
+export const UploadSchoolLogoResponse = zod.object({
+  uploadURL: zod.string(),
+  objectPath: zod.string(),
+});
+
+/**
  * @summary List staff/admin users
  */
 export const ListUsersResponseItem = zod.object({

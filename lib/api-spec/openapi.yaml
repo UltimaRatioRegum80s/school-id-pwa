@@ -24,6 +24,8 @@ tags:
     description: Behavior logging
   - name: settings
     description: School settings
+  - name: branding
+    description: School branding (logo and colour palette)
 
 paths:
   /healthz:
@@ -645,6 +647,63 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SchoolSettings"
+
+  /school/branding:
+    get:
+      operationId: getSchoolBranding
+      tags: [branding]
+      summary: Get school branding
+      responses:
+        "200":
+          description: School branding info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SchoolBranding"
+        "401":
+          description: Unauthorized
+    put:
+      operationId: updateSchoolBranding
+      tags: [branding]
+      summary: Update school branding (logo and/or palette)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSchoolBrandingBody"
+      responses:
+        "200":
+          description: Branding updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SchoolBranding"
+        "400":
+          description: Invalid palette name
+        "401":
+          description: Unauthorized
+
+  /school/branding/logo:
+    post:
+      operationId: uploadSchoolLogo
+      tags: [branding]
+      summary: Upload or replace the school logo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestUploadUrlBody"
+      responses:
+        "200":
+          description: Presigned upload URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestUploadUrlResponse"
+        "401":
+          description: Unauthorized
 
   /users:
     get:
@@ -1354,6 +1413,52 @@ components:
         - name
         - type
         - points
+
+    SchoolBranding:
+      type: object
+      properties:
+        logoUrl:
+          type: ["string", "null"]
+        colorPalette:
+          type: string
+        schoolName:
+          type: string
+      required:
+        - colorPalette
+        - schoolName
+
+    UpdateSchoolBrandingBody:
+      type: object
+      properties:
+        colorPalette:
+          type: string
+        logoObjectPath:
+          type: ["string", "null"]
+
+    RequestUploadUrlBody:
+      type: object
+      properties:
+        name:
+          type: string
+        size:
+          type: integer
+        contentType:
+          type: string
+      required:
+        - name
+        - size
+        - contentType
+
+    RequestUploadUrlResponse:
+      type: object
+      properties:
+        uploadURL:
+          type: string
+        objectPath:
+          type: string
+      required:
+        - uploadURL
+        - objectPath
 
     SchoolSettings:
       type: object

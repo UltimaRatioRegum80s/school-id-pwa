@@ -346,6 +346,30 @@ export interface CreateBehaviorCategoryBody {
   description?: string | null;
 }
 
+export interface SchoolBranding {
+  /** @nullable */
+  logoUrl?: string | null;
+  colorPalette: string;
+  schoolName: string;
+}
+
+export interface UpdateSchoolBrandingBody {
+  colorPalette?: string;
+  /** @nullable */
+  logoObjectPath?: string | null;
+}
+
+export interface RequestUploadUrlBody {
+  name: string;
+  size: number;
+  contentType: string;
+}
+
+export interface RequestUploadUrlResponse {
+  uploadURL: string;
+  objectPath: string;
+}
+
 export interface SchoolSettings {
   id: number;
   schoolName: string;

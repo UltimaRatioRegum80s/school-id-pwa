@@ -99,7 +99,7 @@ export default function DashboardPage() {
   if (isLoading) {
     return (
       <div className="flex flex-col min-h-screen bg-background pb-20">
-        <PageHeader title="Dashboard" subtitle="Live overview" />
+        <PageHeader title="Dashboard" subtitle="Live overview" showLogo={true} />
         <div className="flex items-center justify-center flex-1">
           <div className="text-center text-muted-foreground">
             <RefreshCw className="w-8 h-8 mx-auto mb-2 animate-spin" />
@@ -119,10 +119,11 @@ export default function DashboardPage() {
       <PageHeader
         title="Dashboard"
         subtitle={`Updated ${formatRelativeTime(d.lastUpdated)}`}
+        showLogo={true}
         action={
           <button
             onClick={() => refetch()}
-            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            className="p-1.5 rounded-lg text-primary-foreground/70 hover:text-primary-foreground hover:bg-white/10 transition-colors"
             data-testid="button-refresh-dashboard"
           >
             <RefreshCw className="w-4 h-4" />
