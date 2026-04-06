@@ -13,6 +13,9 @@ import ActivitiesPage from "@/pages/ActivitiesPage";
 import StudentsPage from "@/pages/StudentsPage";
 import AdminPage from "@/pages/AdminPage";
 import RegisterSchoolPage from "@/pages/RegisterSchoolPage";
+import JoinSchoolPage from "@/pages/JoinSchoolPage";
+import InviteRegisterPage from "@/pages/InviteRegisterPage";
+import ChangePasswordPage from "@/pages/ChangePasswordPage";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -25,13 +28,17 @@ const queryClient = new QueryClient({
 });
 
 function ProtectedApp() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
 
   return (
     <Switch>
       <Route path="/register" component={RegisterSchoolPage} />
+      <Route path="/join" component={JoinSchoolPage} />
+      <Route path="/join/:token" component={InviteRegisterPage} />
       {!isAuthenticated ? (
         <Route component={LoginPage} />
+      ) : user?.mustChangePassword ? (
+        <Route component={ChangePasswordPage} />
       ) : (
         <>
           <Route path="/">
@@ -50,9 +57,9 @@ function ProtectedApp() {
 }
 
 function AuthenticatedLayout() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
 
-  if (!isAuthenticated) return null;
+  if (!isAuthenticated || user?.mustChangePassword) return null;
 
   return (
     <>

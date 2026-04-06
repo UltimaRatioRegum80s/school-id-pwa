@@ -1,6 +1,7 @@
 export * from "./schools";
 export * from "./students";
 export * from "./users";
+export * from "./invite_tokens";
 export * from "./scan_events";
 export * from "./activities";
 export * from "./behavior_logs";

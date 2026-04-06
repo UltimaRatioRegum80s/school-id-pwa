@@ -25,7 +25,8 @@ A full school operations PWA (Progressive Web App) for staff with QR/barcode sca
 
 ## Database Schema
 Tables:
-- `users` - Staff accounts (role: admin/staff)
+- `users` - Staff accounts (role: admin/staff, status: active/pending/rejected, mustChangePassword: boolean)
+- `invite_tokens` - Invite link tokens (schoolId, token, expiresAt, usedAt, createdBy)
 - `students` - Student records with QR codes (`SCID-{studentId}` format)
 - `scan_events` - Scan history (gate_in, gate_out, class, event, assembly, activity, detention, club)
 - `activities` - Activities/events/clubs (status: upcoming/active/completed/cancelled)
@@ -34,6 +35,12 @@ Tables:
 - `behavior_logs` - Merit/demerit records
 - `behavior_categories` - Categories for behavior tracking
 - `school_settings` - School configuration (name, times, timezone)
+
+## Staff Onboarding Methods
+Three ways for staff to join a school:
+1. **Admin creates**: Admin enters first/last name + role. System auto-generates username (first initial + last name) and random temp password shown once. User must change password on first login.
+2. **Self-registration**: Staff visits /join, searches for school, submits their info. Account created as "pending". Admin approves/rejects in Staff Accounts panel. Rejected users see clear message on next login.
+3. **Invite link**: Admin generates invite link from Staff Accounts panel. Sharing `/join/:token` takes recipient to pre-filled form for their school. Account created as "active" immediately (no approval needed). Links can expire and be revoked.
 
 ## Student State Engine
 States: `not_arrived` | `on_campus` | `in_class` | `at_event` | `checked_out` | `unaccounted`
@@ -46,8 +53,20 @@ State transitions based on scan type:
 - No scans → not_arrived
 
 ## API Routes
-- `POST /api/auth/login` - JWT login
+- `POST /api/auth/login` - JWT login (returns mustChangePassword flag)
 - `GET /api/auth/me` - Current user
+- `POST /api/auth/change-password` - Change password (clears mustChangePassword flag)
+- `POST /api/auth/register-school` - Register new school
+- `GET /api/schools/public` - Public list of active schools (no auth)
+- `POST /api/auth/self-register` - Staff self-registration (creates pending user)
+- `POST /api/auth/invite-register` - Register via invite link (creates active user, returns JWT)
+- `GET /api/invites/:token/validate` - Validate invite token (public)
+- `GET /api/invites` - List active invite links (admin)
+- `POST /api/invites` - Create invite link (admin, optional expiresInDays)
+- `DELETE /api/invites/:id` - Revoke invite link (admin)
+- `GET /api/users` - List users (includes status and mustChangePassword)
+- `POST /api/users` - Create user (admin: auto-generates username+tempPassword, returns both)
+- `PATCH /api/users/:id/status` - Approve/reject pending user (admin)
 - `GET/POST /api/students` - List/create students
 - `POST /api/students/import` - Bulk import students (JSON rows array); returns `{ imported, failed: [{ row, studentId, reason }] }`
 - `GET /api/students/:id` - Student profile with today's timeline
@@ -63,8 +82,6 @@ State transitions based on scan type:
 - `GET/POST /api/behavior/logs` - Behavior logs
 - `GET/POST /api/behavior/categories` - Behavior categories
 - `GET/PATCH /api/settings` - School settings
-- `GET /api/users` - List users
-- `POST /api/users` - Create user
 
 ## Real-Time
 Socket.IO on path `/api/socket.io` emits:

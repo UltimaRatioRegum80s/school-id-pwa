@@ -1,8 +1,25 @@
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLogin } from "@workspace/api-client-react";
+import type { UserProfile } from "@workspace/api-client-react";
 import { School } from "lucide-react";
 import { Link } from "wouter";
+
+interface LoginErrorBody {
+  error?: string;
+  pending?: boolean;
+}
+
+async function parseLoginError(err: unknown): Promise<LoginErrorBody> {
+  try {
+    const response = (err as { response?: { json?: () => Promise<LoginErrorBody> } }).response;
+    if (response?.json) {
+      return await response.json();
+    }
+  } catch {
+  }
+  return {};
+}
 
 export default function LoginPage() {
   const { login, branding } = useAuth();
@@ -13,10 +30,17 @@ export default function LoginPage() {
   const loginMutation = useLogin({
     mutation: {
       onSuccess: (data) => {
-        login(data.token, data.user);
+        login(data.token, data.user as UserProfile & { mustChangePassword?: boolean });
       },
-      onError: () => {
-        setError("Invalid username or password");
+      onError: async (err: unknown) => {
+        const body = await parseLoginError(err);
+        if (body.pending) {
+          setError("Your account is awaiting approval from the school administrator.");
+        } else if (body.error) {
+          setError(body.error);
+        } else {
+          setError("Invalid username or password");
+        }
       },
     },
   });
@@ -114,15 +138,26 @@ export default function LoginPage() {
           Demo: admin / admin123
         </p>
 
-        <p className="text-center text-sm mt-3">
-          <Link
-            to="/register"
-            className="text-primary font-medium hover:underline"
-            data-testid="link-register-school"
-          >
-            Register a new school
-          </Link>
-        </p>
+        <div className="mt-4 space-y-2 text-center text-sm">
+          <p>
+            <Link
+              to="/join"
+              className="text-primary font-medium hover:underline"
+              data-testid="link-join-school"
+            >
+              Join your school
+            </Link>
+          </p>
+          <p>
+            <Link
+              to="/register"
+              className="text-muted-foreground hover:text-foreground hover:underline"
+              data-testid="link-register-school"
+            >
+              Register a new school
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );

@@ -8,7 +8,6 @@ import {
   useGetSettings,
   useUpdateSettings,
   useListUsers,
-  useCreateUser,
   useListBehaviorCategories,
   useCreateBehaviorCategory,
   useCreateStudent,
@@ -43,6 +42,10 @@ import {
   Download,
   FileText,
   Table,
+  Link2,
+  Copy,
+  Trash2,
+  Clock,
 } from "lucide-react";
 
 type AdminView =
@@ -388,10 +391,48 @@ function SettingsView({ onBack }: { onBack: () => void }) {
   );
 }
 
+interface StaffUser {
+  id: number;
+  username: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+  isActive: string;
+  status?: string;
+  schoolId: number;
+  createdAt: string;
+}
+
 function UsersView({ onBack, onCreateUser }: { onBack: () => void; onCreateUser: () => void }) {
+  const { token } = useAuth();
+  const queryClient = useQueryClient();
   const { data: users, isLoading } = useListUsers({
     query: { queryKey: getListUsersQueryKey() },
   });
+
+  const [approvingId, setApprovingId] = useState<number | null>(null);
+
+  const allUsers = (users ?? []) as StaffUser[];
+  const activeUsers = allUsers.filter((u) => !u.status || u.status === "active");
+  const pendingUsers = allUsers.filter((u) => u.status === "pending");
+  const rejectedUsers = allUsers.filter((u) => u.status === "rejected");
+
+  async function updateStatus(userId: number, status: string) {
+    setApprovingId(userId);
+    try {
+      await fetch(`${getApiUrl()}/users/${userId}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status }),
+      });
+      queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
+    } finally {
+      setApprovingId(null);
+    }
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-background pb-20">
@@ -411,62 +452,239 @@ function UsersView({ onBack, onCreateUser }: { onBack: () => void; onCreateUser:
         </div>
       </div>
 
-      <div className="max-w-lg mx-auto w-full px-4 py-4">
+      <div className="max-w-lg mx-auto w-full px-4 py-4 space-y-4">
         {isLoading ? (
           <div className="text-center py-8 text-muted-foreground text-sm">Loading...</div>
         ) : (
-          <div className="bg-card border border-border rounded-xl divide-y divide-border overflow-hidden" data-testid="list-staff-users">
-            {(users ?? []).map((u) => (
-              <div key={u.id} className="px-4 py-3 flex items-center gap-3" data-testid={`row-user-${u.id}`}>
-                <div className="w-9 h-9 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
-                  <span className="text-xs font-bold text-primary">
-                    {u.firstName[0]}{u.lastName[0]}
-                  </span>
+          <>
+            {pendingUsers.length > 0 && (
+              <div>
+                <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2" data-testid="heading-pending-requests">
+                  Pending Requests ({pendingUsers.length})
+                </h2>
+                <div className="bg-amber-50 border border-amber-200 rounded-xl divide-y divide-amber-100 overflow-hidden" data-testid="list-pending-users">
+                  {pendingUsers.map((u) => (
+                    <div key={u.id} className="px-4 py-3" data-testid={`row-pending-user-${u.id}`}>
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="w-9 h-9 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
+                          <span className="text-xs font-bold text-amber-700">
+                            {u.firstName[0]}{u.lastName[0]}
+                          </span>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-foreground">{u.firstName} {u.lastName}</p>
+                          <p className="text-xs text-muted-foreground">@{u.username}</p>
+                        </div>
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-800">
+                          pending
+                        </span>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => updateStatus(u.id, "active")}
+                          disabled={approvingId === u.id}
+                          className="flex-1 py-1.5 bg-green-600 text-white text-xs font-semibold rounded-lg disabled:opacity-50"
+                          data-testid={`button-approve-user-${u.id}`}
+                        >
+                          {approvingId === u.id ? "..." : "Approve"}
+                        </button>
+                        <button
+                          onClick={() => updateStatus(u.id, "rejected")}
+                          disabled={approvingId === u.id}
+                          className="flex-1 py-1.5 bg-red-100 text-red-700 text-xs font-semibold rounded-lg disabled:opacity-50"
+                          data-testid={`button-reject-user-${u.id}`}
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-foreground">
-                    {u.firstName} {u.lastName}
-                  </p>
-                  <p className="text-xs text-muted-foreground">@{u.username}</p>
-                </div>
-                <span
-                  className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                    u.role === "admin"
-                      ? "bg-purple-100 text-purple-800"
-                      : "bg-blue-100 text-blue-800"
-                  }`}
-                >
-                  {u.role}
-                </span>
               </div>
-            ))}
-          </div>
+            )}
+
+            <div>
+              {pendingUsers.length > 0 && (
+                <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                  Active Staff
+                </h2>
+              )}
+              <div className="bg-card border border-border rounded-xl divide-y divide-border overflow-hidden" data-testid="list-staff-users">
+                {activeUsers.length === 0 ? (
+                  <div className="px-4 py-8 text-center text-sm text-muted-foreground">No active staff yet.</div>
+                ) : (
+                  activeUsers.map((u) => (
+                    <div key={u.id} className="px-4 py-3 flex items-center gap-3" data-testid={`row-user-${u.id}`}>
+                      <div className="w-9 h-9 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                        <span className="text-xs font-bold text-primary">
+                          {u.firstName[0]}{u.lastName[0]}
+                        </span>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-foreground">
+                          {u.firstName} {u.lastName}
+                        </p>
+                        <p className="text-xs text-muted-foreground">@{u.username}</p>
+                      </div>
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          u.role === "admin"
+                            ? "bg-purple-100 text-purple-800"
+                            : "bg-blue-100 text-blue-800"
+                        }`}
+                      >
+                        {u.role}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {rejectedUsers.length > 0 && (
+              <div>
+                <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                  Rejected
+                </h2>
+                <div className="bg-card border border-border rounded-xl divide-y divide-border overflow-hidden" data-testid="list-rejected-users">
+                  {rejectedUsers.map((u) => (
+                    <div key={u.id} className="px-4 py-3 flex items-center gap-3" data-testid={`row-rejected-user-${u.id}`}>
+                      <div className="w-9 h-9 bg-muted rounded-full flex items-center justify-center flex-shrink-0">
+                        <span className="text-xs font-bold text-muted-foreground">
+                          {u.firstName[0]}{u.lastName[0]}
+                        </span>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-foreground">{u.firstName} {u.lastName}</p>
+                        <p className="text-xs text-muted-foreground">@{u.username}</p>
+                      </div>
+                      <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-800">
+                        rejected
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
         )}
+
+        <InviteLinkManager />
       </div>
     </div>
   );
 }
 
+interface CreatedUserResult {
+  id: number;
+  username: string;
+  tempPassword: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+}
+
 function CreateUserView({ onBack }: { onBack: () => void }) {
+  const { token } = useAuth();
   const queryClient = useQueryClient();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
   const [role, setRole] = useState("staff");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [created, setCreated] = useState<CreatedUserResult | null>(null);
+  const [copied, setCopied] = useState(false);
 
-  const createMutation = useCreateUser({
-    mutation: {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
-        onBack();
-      },
-    },
-  });
-
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    createMutation.mutate({ data: { firstName, lastName, username, password, role } });
+    setError("");
+    setLoading(true);
+    try {
+      const res = await fetch(`${getApiUrl()}/users`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ firstName, lastName, role }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Failed to create user. Please try again.");
+        return;
+      }
+      queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
+      setCreated(data);
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function copyCredentials() {
+    if (!created) return;
+    navigator.clipboard.writeText(`Username: ${created.username}\nPassword: ${created.tempPassword}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  if (created) {
+    return (
+      <div className="flex flex-col min-h-screen bg-background pb-20">
+        <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-0 z-40">
+          <div className="max-w-lg mx-auto flex items-center gap-3">
+            <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-muted transition-colors" data-testid="button-create-user-back">
+              <X className="w-4 h-4" />
+            </button>
+            <h1 className="text-base font-bold text-foreground">Account Created</h1>
+          </div>
+        </div>
+        <div className="max-w-lg mx-auto w-full px-4 py-4 space-y-4">
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center" data-testid="panel-created-user-info">
+            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <Check className="w-6 h-6 text-green-600" />
+            </div>
+            <p className="text-sm font-semibold text-foreground mb-1">
+              {created.firstName} {created.lastName}
+            </p>
+            <p className="text-xs text-muted-foreground mb-4">Account created successfully</p>
+
+            <div className="bg-white border border-green-200 rounded-lg p-3 text-left space-y-2" data-testid="panel-temp-credentials">
+              <div>
+                <p className="text-xs text-muted-foreground">Username</p>
+                <p className="text-sm font-mono font-semibold text-foreground" data-testid="text-created-username">{created.username}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Temporary Password</p>
+                <p className="text-sm font-mono font-semibold text-foreground" data-testid="text-created-password">{created.tempPassword}</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-amber-600 mt-3">
+              Share these credentials with {created.firstName}. They will be asked to change their password on first login.
+            </p>
+
+            <button
+              onClick={copyCredentials}
+              className="mt-3 flex items-center gap-2 mx-auto text-xs text-primary font-semibold"
+              data-testid="button-copy-credentials"
+            >
+              {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+              {copied ? "Copied!" : "Copy credentials"}
+            </button>
+          </div>
+
+          <button
+            onClick={onBack}
+            className="w-full bg-primary text-primary-foreground font-semibold py-2.5 rounded-lg"
+            data-testid="button-done-create-user"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -481,11 +699,16 @@ function CreateUserView({ onBack }: { onBack: () => void }) {
       </div>
 
       <form onSubmit={handleSubmit} className="max-w-lg mx-auto w-full px-4 py-4 space-y-4" data-testid="form-create-user">
-        {createMutation.isError && (
-          <div className="bg-destructive/10 border border-destructive/20 text-destructive text-sm px-4 py-3 rounded-lg" data-testid="text-create-user-error">
-            Failed to create user. Please try again.
+        {error && (
+          <div className="bg-destructive/10 border border-destructive/20 text-destructive text-sm px-4 py-3 rounded-lg flex items-center gap-2" data-testid="text-create-user-error">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            {error}
           </div>
         )}
+
+        <div className="bg-primary/5 border border-primary/20 rounded-lg px-4 py-3 text-sm text-muted-foreground">
+          A username and temporary password will be auto-generated. The staff member must change their password on first login.
+        </div>
 
         <div className="grid grid-cols-2 gap-3">
           <Field label="First Name">
@@ -511,28 +734,6 @@ function CreateUserView({ onBack }: { onBack: () => void }) {
             />
           </Field>
         </div>
-        <Field label="Username">
-          <input
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="sjohnson"
-            required
-            className="input-field"
-            data-testid="input-user-username"
-          />
-        </Field>
-        <Field label="Password">
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Temporary password"
-            required
-            className="input-field"
-            data-testid="input-user-password"
-          />
-        </Field>
 
         <div>
           <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
@@ -559,13 +760,176 @@ function CreateUserView({ onBack }: { onBack: () => void }) {
 
         <button
           type="submit"
-          disabled={createMutation.isPending}
+          disabled={loading}
           className="w-full bg-primary text-primary-foreground font-semibold py-2.5 rounded-lg disabled:opacity-50"
           data-testid="button-submit-create-user"
         >
-          {createMutation.isPending ? "Creating..." : "Create Account"}
+          {loading ? "Creating..." : "Create Account"}
         </button>
       </form>
+    </div>
+  );
+}
+
+interface Invite {
+  id: number;
+  token: string;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
+function InviteLinkManager() {
+  const { token } = useAuth();
+  const [invites, setInvites] = useState<Invite[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [expiresInDays, setExpiresInDays] = useState("");
+  const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [expanded, setExpanded] = useState(false);
+
+  async function loadInvites() {
+    setLoading(true);
+    try {
+      const res = await fetch(`${getApiUrl()}/invites`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setInvites(data);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function createInvite() {
+    setCreating(true);
+    try {
+      const body: Record<string, unknown> = {};
+      if (expiresInDays) body.expiresInDays = parseInt(expiresInDays, 10);
+
+      const res = await fetch(`${getApiUrl()}/invites`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      setInvites((prev) => [data, ...prev]);
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function revokeInvite(id: number) {
+    await fetch(`${getApiUrl()}/invites/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    setInvites((prev) => prev.filter((i) => i.id !== id));
+  }
+
+  function getInviteUrl(inviteToken: string): string {
+    const base = window.location.origin + import.meta.env.BASE_URL.replace(/\/$/, "");
+    return `${base}/join/${inviteToken}`;
+  }
+
+  function copyLink(invite: Invite) {
+    navigator.clipboard.writeText(getInviteUrl(invite.token));
+    setCopiedId(invite.id);
+    setTimeout(() => setCopiedId(null), 2000);
+  }
+
+  function toggleExpanded() {
+    if (!expanded) {
+      loadInvites();
+    }
+    setExpanded(!expanded);
+  }
+
+  return (
+    <div className="bg-card border border-border rounded-xl overflow-hidden" data-testid="panel-invite-links">
+      <button
+        onClick={toggleExpanded}
+        className="w-full px-4 py-3.5 flex items-center gap-3 text-left hover:bg-muted/30 transition-colors"
+        data-testid="button-toggle-invite-manager"
+      >
+        <div className="w-8 h-8 bg-muted rounded-lg flex items-center justify-center flex-shrink-0">
+          <Link2 className="w-4 h-4 text-teal-600" />
+        </div>
+        <div className="flex-1">
+          <p className="text-sm font-semibold text-foreground">Invite Links</p>
+          <p className="text-xs text-muted-foreground">Generate links to invite staff directly</p>
+        </div>
+        <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${expanded ? "rotate-90" : ""}`} />
+      </button>
+
+      {expanded && (
+        <div className="border-t border-border px-4 py-4 space-y-3">
+          <div className="flex gap-2 items-end">
+            <div className="flex-1">
+              <label className="block text-xs text-muted-foreground mb-1">Expires in (days, optional)</label>
+              <input
+                type="number"
+                value={expiresInDays}
+                onChange={(e) => setExpiresInDays(e.target.value)}
+                placeholder="Never"
+                min="1"
+                className="input-field text-sm"
+                data-testid="input-invite-expires"
+              />
+            </div>
+            <button
+              onClick={createInvite}
+              disabled={creating}
+              className="bg-primary text-primary-foreground text-xs font-semibold px-4 py-2.5 rounded-lg disabled:opacity-50 flex-shrink-0"
+              data-testid="button-generate-invite"
+            >
+              {creating ? "..." : "Generate Link"}
+            </button>
+          </div>
+
+          {loading ? (
+            <div className="text-center py-4 text-muted-foreground text-xs">Loading...</div>
+          ) : invites.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-2" data-testid="text-no-invites">
+              No active invite links. Generate one above.
+            </p>
+          ) : (
+            <div className="space-y-2" data-testid="list-invites">
+              {invites.map((invite) => (
+                <div key={invite.id} className="bg-muted/40 rounded-lg px-3 py-2.5 flex items-center gap-2" data-testid={`row-invite-${invite.id}`}>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-mono text-foreground truncate">{getInviteUrl(invite.token)}</p>
+                    {invite.expiresAt && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                        <Clock className="w-3 h-3" />
+                        Expires {new Date(invite.expiresAt).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => copyLink(invite)}
+                    className="p-1.5 hover:bg-muted rounded-md transition-colors text-primary"
+                    data-testid={`button-copy-invite-${invite.id}`}
+                    title="Copy link"
+                  >
+                    {copiedId === invite.id ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                  <button
+                    onClick={() => revokeInvite(invite.id)}
+                    className="p-1.5 hover:bg-muted rounded-md transition-colors text-destructive"
+                    data-testid={`button-revoke-invite-${invite.id}`}
+                    title="Revoke link"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

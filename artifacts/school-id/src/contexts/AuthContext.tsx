@@ -13,6 +13,7 @@ interface User {
   schoolId?: number;
   schoolCode?: string;
   schoolName?: string;
+  mustChangePassword?: boolean;
 }
 
 export interface BrandingInfo {
@@ -31,6 +32,7 @@ interface AuthContextValue {
   logout: () => void;
   refreshBranding: () => Promise<void>;
   isAuthenticated: boolean;
+  clearMustChangePassword: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -117,9 +119,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setBrandingLoaded(false);
   }
 
+  function clearMustChangePassword() {
+    if (!user) return;
+    const updated = { ...user, mustChangePassword: false };
+    localStorage.setItem("school-id-user", JSON.stringify(updated));
+    setUser(updated);
+  }
+
   return (
     <AuthContext.Provider
-      value={{ user, token, branding, login, logout, refreshBranding, isAuthenticated: !!token && !!user }}
+      value={{ user, token, branding, login, logout, refreshBranding, isAuthenticated: !!token && !!user, clearMustChangePassword }}
     >
       {children}
     </AuthContext.Provider>
