@@ -1181,6 +1181,8 @@ function AddStudentView({ onBack }: { onBack: () => void }) {
             {["8", "9", "10", "11", "12"].map((g) => (
               <option key={g} value={g}>Grade {g}</option>
             ))}
+            <option value="AS Level">AS Level</option>
+            <option value="A2 Level">A2 Level</option>
           </select>
         </Field>
 
@@ -1713,6 +1715,15 @@ function splitFullName(fullName: string): { firstName: string; lastName: string 
   return { firstName: first, lastName: last };
 }
 
+function normaliseGradeValue(raw: string): string {
+  const v = raw.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (["as", "aslevel", "aslvl", "alevel"].includes(v)) return "AS Level";
+  if (["a2", "a2level", "a2lvl"].includes(v)) return "A2 Level";
+  const numMatch = raw.trim().match(/^(?:grade\s*)?(\d+)$/i);
+  if (numMatch) return numMatch[1];
+  return raw.trim();
+}
+
 function normaliseRow(raw: Record<string, string>, rowIndex: number): ParsedRow {
   const studentId = fuzzyFind(raw, "studentId");
   let firstName = fuzzyFind(raw, "firstName");
@@ -1727,7 +1738,7 @@ function normaliseRow(raw: Record<string, string>, rowIndex: number): ParsedRow 
     }
   }
 
-  const grade = fuzzyFind(raw, "grade");
+  const grade = normaliseGradeValue(fuzzyFind(raw, "grade"));
   const className = fuzzyFind(raw, "className");
 
   const errors: string[] = [];
@@ -1741,7 +1752,7 @@ function normaliseRow(raw: Record<string, string>, rowIndex: number): ParsedRow 
 }
 
 function downloadTemplate() {
-  const csv = "studentId,firstName,lastName,grade,className\n2024001,Jane,Doe,Grade 10,10A\n";
+  const csv = "studentId,firstName,lastName,grade,className\n2024001,Jane,Doe,Grade 10,10A\n2024002,John,Smith,AS Level,AS1\n";
   const blob = new Blob([csv], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

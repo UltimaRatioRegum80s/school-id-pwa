@@ -177,7 +177,7 @@ function StudentCard({ student, branding }: { student: PrintCardStudent; brandin
               fontWeight: 700,
             }}
           >
-            {student.grade} &bull; {student.className}
+            {/^\d+$/.test(student.grade) ? `Grade ${student.grade}` : student.grade} &bull; {student.className}
           </div>
         </div>
 
@@ -233,10 +233,11 @@ export default function PrintCardsPage({ onBack }: { onBack: () => void }) {
   const availableGrades = useMemo(() => {
     if (!data?.students) return [];
     const gradeSet = new Set(data.students.map((s) => s.grade));
+    const GRADE_ORDER: Record<string, number> = { "AS Level": 13, "A2 Level": 14 };
     return Array.from(gradeSet).sort((a, b) => {
-      const numA = parseInt(a.replace(/\D/g, ""), 10);
-      const numB = parseInt(b.replace(/\D/g, ""), 10);
-      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+      const orderA = GRADE_ORDER[a] ?? parseInt(a.replace(/\D/g, ""), 10);
+      const orderB = GRADE_ORDER[b] ?? parseInt(b.replace(/\D/g, ""), 10);
+      if (!isNaN(orderA) && !isNaN(orderB)) return orderA - orderB;
       return a.localeCompare(b);
     });
   }, [data?.students]);
@@ -345,7 +346,7 @@ export default function PrintCardsPage({ onBack }: { onBack: () => void }) {
                     }`}
                     data-testid={`chip-grade-${grade}`}
                   >
-                    Grade {grade}
+                    {/^\d+$/.test(grade) ? `Grade ${grade}` : grade}
                   </button>
                 ))}
               </div>
