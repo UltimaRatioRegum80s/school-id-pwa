@@ -52,6 +52,7 @@ import type {
   SchoolSettings,
   Student,
   StudentProfile,
+  StudentQrCode,
   StudentWithState,
   UpdateActivityBody,
   UpdateAttendanceBody,
@@ -993,6 +994,177 @@ export function useLookupStudentByQr<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary List QR code history for a student
+ */
+export const getListStudentQrCodesUrl = (id: number) => {
+  return `/api/students/${id}/qr-codes`;
+};
+
+export const listStudentQrCodes = async (
+  id: number,
+  options?: RequestInit,
+): Promise<StudentQrCode[]> => {
+  return customFetch<StudentQrCode[]>(getListStudentQrCodesUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListStudentQrCodesQueryKey = (id: number) => {
+  return [`/api/students/${id}/qr-codes`] as const;
+};
+
+export const getListStudentQrCodesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listStudentQrCodes>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listStudentQrCodes>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListStudentQrCodesQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listStudentQrCodes>>
+  > = ({ signal }) => listStudentQrCodes(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listStudentQrCodes>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListStudentQrCodesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listStudentQrCodes>>
+>;
+export type ListStudentQrCodesQueryError = ErrorType<void>;
+
+/**
+ * @summary List QR code history for a student
+ */
+
+export function useListStudentQrCodes<
+  TData = Awaited<ReturnType<typeof listStudentQrCodes>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listStudentQrCodes>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListStudentQrCodesQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Regenerate a student's QR code
+ */
+export const getRegenerateStudentQrCodeUrl = (id: number) => {
+  return `/api/students/${id}/qr-codes/regenerate`;
+};
+
+export const regenerateStudentQrCode = async (
+  id: number,
+  options?: RequestInit,
+): Promise<StudentQrCode> => {
+  return customFetch<StudentQrCode>(getRegenerateStudentQrCodeUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getRegenerateStudentQrCodeMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof regenerateStudentQrCode>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof regenerateStudentQrCode>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["regenerateStudentQrCode"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof regenerateStudentQrCode>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return regenerateStudentQrCode(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RegenerateStudentQrCodeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof regenerateStudentQrCode>>
+>;
+
+export type RegenerateStudentQrCodeMutationError = ErrorType<void>;
+
+/**
+ * @summary Regenerate a student's QR code
+ */
+export const useRegenerateStudentQrCode = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof regenerateStudentQrCode>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof regenerateStudentQrCode>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getRegenerateStudentQrCodeMutationOptions(options));
+};
 
 /**
  * @summary Process a scan event

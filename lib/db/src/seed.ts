@@ -16,6 +16,7 @@ const {
   schoolsTable,
   usersTable,
   studentsTable,
+  studentQrCodesTable,
   scanEventsTable,
   activitiesTable,
   schoolSettingsTable,
@@ -131,6 +132,14 @@ async function seed() {
 
   const insertedStudents = await db.insert(studentsTable).values(students).returning();
   console.log(`Created ${insertedStudents.length} students`);
+
+  const qrCodeRecords = insertedStudents.map((s) => ({
+    studentId: s.id,
+    code: s.qrCode,
+    isActive: 1 as const,
+  }));
+  await db.insert(studentQrCodesTable).values(qrCodeRecords);
+  console.log(`Created ${qrCodeRecords.length} QR code records`);
 
   await db.insert(schoolSettingsTable).values({
     schoolId: demoSchool.id,

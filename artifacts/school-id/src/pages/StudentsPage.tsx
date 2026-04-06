@@ -5,10 +5,15 @@ import { formatRelativeTime, getScanTypeLabel, formatTime } from "@/lib/status";
 import {
   useListStudents,
   useGetStudent,
+  useListStudentQrCodes,
+  useRegenerateStudentQrCode,
   getListStudentsQueryKey,
   getGetStudentQueryKey,
+  getListStudentQrCodesQueryKey,
 } from "@workspace/api-client-react";
-import { Search, ChevronRight, X, User, Clock, MapPin, Filter } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Search, ChevronRight, X, User, Clock, MapPin, Filter, ChevronDown, ChevronUp, RefreshCw, QrCode } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 
 const STATES = [
   { value: "", label: "All" },
@@ -168,6 +173,104 @@ export default function StudentsPage() {
   );
 }
 
+function QrCodeSection({ studentId }: { studentId: number }) {
+  const queryClient = useQueryClient();
+  const [showHistory, setShowHistory] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+
+  const { data: qrCodes, isLoading } = useListStudentQrCodes(studentId, {
+    query: {
+      queryKey: getListStudentQrCodesQueryKey(studentId),
+    },
+  });
+
+  const { mutateAsync: regenerate } = useRegenerateStudentQrCode();
+
+  const activeCode = qrCodes?.find((c) => c.isActive === 1);
+  const historyCodes = qrCodes?.filter((c) => c.isActive === 0) ?? [];
+
+  async function handleRegenerate() {
+    setIsRegenerating(true);
+    try {
+      await regenerate({ id: studentId });
+      await queryClient.invalidateQueries({ queryKey: getListStudentQrCodesQueryKey(studentId) });
+      await queryClient.invalidateQueries({ queryKey: getGetStudentQueryKey(studentId) });
+    } finally {
+      setIsRegenerating(false);
+    }
+  }
+
+  return (
+    <div className="bg-card border border-border rounded-xl overflow-hidden" data-testid="panel-qr-code">
+      <div className="px-4 py-2.5 border-b border-border flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <QrCode className="w-4 h-4" />
+          QR Code
+        </h3>
+        <button
+          onClick={handleRegenerate}
+          disabled={isRegenerating}
+          className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          data-testid="button-regenerate-qr"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${isRegenerating ? "animate-spin" : ""}`} />
+          {isRegenerating ? "Regenerating..." : "Regenerate"}
+        </button>
+      </div>
+
+      <div className="px-4 py-4">
+        {isLoading ? (
+          <div className="flex justify-center py-4 text-muted-foreground text-sm">Loading...</div>
+        ) : activeCode ? (
+          <div className="flex flex-col items-center gap-3" data-testid="qr-code-image">
+            <div className="bg-white p-3 rounded-xl border border-border shadow-sm">
+              <QRCodeSVG
+                value={activeCode.code}
+                size={160}
+                level="M"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground font-mono text-center break-all px-2" data-testid="text-active-qr-code">
+              {activeCode.code}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Generated {formatRelativeTime(activeCode.createdAt)}
+            </p>
+          </div>
+        ) : (
+          <div className="text-center py-4 text-sm text-muted-foreground">
+            No active QR code
+          </div>
+        )}
+
+        {historyCodes.length > 0 && (
+          <div className="mt-4 border-t border-border pt-3">
+            <button
+              onClick={() => setShowHistory(!showHistory)}
+              className="flex items-center justify-between w-full text-xs text-muted-foreground hover:text-foreground transition-colors"
+              data-testid="button-toggle-qr-history"
+            >
+              <span>Previous codes ({historyCodes.length})</span>
+              {showHistory ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+
+            {showHistory && (
+              <div className="mt-2 space-y-2" data-testid="panel-qr-history">
+                {historyCodes.map((c) => (
+                  <div key={c.id} className="flex items-center justify-between py-1.5 px-2 bg-muted/40 rounded-lg" data-testid={`qr-history-item-${c.id}`}>
+                    <span className="text-xs font-mono text-muted-foreground truncate flex-1 mr-2">{c.code}</span>
+                    <span className="text-xs text-muted-foreground flex-shrink-0">{formatRelativeTime(c.createdAt)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function StudentProfileView({ id, onBack }: { id: number; onBack: () => void }) {
   const { data, isLoading } = useGetStudent(id, {
     query: {
@@ -249,6 +352,9 @@ function StudentProfileView({ id, onBack }: { id: number; onBack: () => void }) 
             </div>
           )}
         </div>
+
+        {/* QR Code section */}
+        <QrCodeSection studentId={id} />
 
         {/* Behavior summary */}
         {(s.behaviorSummary.totalMerits > 0 || s.behaviorSummary.totalDemerits > 0) && (

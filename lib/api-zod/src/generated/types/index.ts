@@ -50,6 +50,7 @@ export * from "./schoolSettings";
 export * from "./statusCount";
 export * from "./student";
 export * from "./studentProfile";
+export * from "./studentQrCode";
 export * from "./studentWithState";
 export * from "./updateActivityBody";
 export * from "./updateAttendanceBody";

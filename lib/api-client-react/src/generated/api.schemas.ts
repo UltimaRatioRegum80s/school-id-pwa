@@ -50,6 +50,14 @@ export interface CreateUserBody {
   role: string;
 }
 
+export interface StudentQrCode {
+  id: number;
+  studentId: number;
+  code: string;
+  isActive: number;
+  createdAt: string;
+}
+
 export interface Student {
   id: number;
   studentId: string;

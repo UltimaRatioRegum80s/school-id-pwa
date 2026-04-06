@@ -34,6 +34,7 @@ export const LoginResponse = zod.object({
     isActive: zod.string(),
     schoolId: zod.number(),
     createdAt: zod.string(),
+    mustChangePassword: zod.boolean().optional(),
   }),
 });
 
@@ -63,6 +64,7 @@ export const GetMeResponse = zod.object({
   isActive: zod.string(),
   schoolId: zod.number(),
   createdAt: zod.string(),
+  mustChangePassword: zod.boolean().optional(),
 });
 
 /**
@@ -274,6 +276,39 @@ export const LookupStudentByQrResponse = zod
       lastSeenLocation: zod.string().nullish(),
     }),
   );
+
+/**
+ * @summary List QR code history for a student
+ */
+export const ListStudentQrCodesParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListStudentQrCodesResponseItem = zod.object({
+  id: zod.number(),
+  studentId: zod.number(),
+  code: zod.string(),
+  isActive: zod.number(),
+  createdAt: zod.string(),
+});
+export const ListStudentQrCodesResponse = zod.array(
+  ListStudentQrCodesResponseItem,
+);
+
+/**
+ * @summary Regenerate a student's QR code
+ */
+export const RegenerateStudentQrCodeParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const RegenerateStudentQrCodeResponse = zod.object({
+  id: zod.number(),
+  studentId: zod.number(),
+  code: zod.string(),
+  isActive: zod.number(),
+  createdAt: zod.string(),
+});
 
 /**
  * @summary Process a scan event
@@ -951,6 +986,7 @@ export const ListUsersResponseItem = zod.object({
   isActive: zod.string(),
   schoolId: zod.number(),
   createdAt: zod.string(),
+  mustChangePassword: zod.boolean().optional(),
 });
 export const ListUsersResponse = zod.array(ListUsersResponseItem);
 

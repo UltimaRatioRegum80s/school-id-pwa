@@ -247,6 +247,50 @@ paths:
         "404":
           description: Not found
 
+  /students/{id}/qr-codes:
+    get:
+      operationId: listStudentQrCodes
+      tags: [students]
+      summary: List QR code history for a student
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of QR codes for the student
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StudentQrCode"
+        "404":
+          description: Not found
+
+  /students/{id}/qr-codes/regenerate:
+    post:
+      operationId: regenerateStudentQrCode
+      tags: [students]
+      summary: Regenerate a student's QR code
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: New active QR code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentQrCode"
+        "404":
+          description: Not found
+
   /scan:
     post:
       operationId: processScan
@@ -807,6 +851,8 @@ components:
           type: integer
         createdAt:
           type: string
+        mustChangePassword:
+          type: boolean
       required:
         - id
         - username
@@ -864,6 +910,26 @@ components:
         - firstName
         - lastName
         - role
+
+    StudentQrCode:
+      type: object
+      properties:
+        id:
+          type: integer
+        studentId:
+          type: integer
+        code:
+          type: string
+        isActive:
+          type: integer
+        createdAt:
+          type: string
+      required:
+        - id
+        - studentId
+        - code
+        - isActive
+        - createdAt
 
     Student:
       type: object

@@ -27,7 +27,8 @@ A full school operations PWA (Progressive Web App) for staff with QR/barcode sca
 Tables:
 - `users` - Staff accounts (role: admin/staff, status: active/pending/rejected, mustChangePassword: boolean)
 - `invite_tokens` - Invite link tokens (schoolId, token, expiresAt, usedAt, createdBy)
-- `students` - Student records with QR codes (`SCID-{studentId}` format)
+- `students` - Student records with QR codes (`SCID-{studentId}` format, qrCode field kept in sync with active code)
+- `student_qr_codes` - QR code history per student (one active at a time, isActive=1|0, tracks regenerations)
 - `scan_events` - Scan history (gate_in, gate_out, class, event, assembly, activity, detention, club)
 - `activities` - Activities/events/clubs (status: upcoming/active/completed/cancelled)
 - `activity_members` - Students enrolled in activities

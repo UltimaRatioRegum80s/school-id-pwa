@@ -1,5 +1,6 @@
 export * from "./schools";
 export * from "./students";
+export * from "./student_qr_codes";
 export * from "./users";
 export * from "./invite_tokens";
 export * from "./scan_events";
