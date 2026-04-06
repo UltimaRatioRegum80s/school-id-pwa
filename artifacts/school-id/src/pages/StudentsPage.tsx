@@ -173,7 +173,7 @@ export default function StudentsPage() {
   );
 }
 
-function QrCodeSection({ studentId }: { studentId: number }) {
+function QrCodeSection({ studentId, fallbackQrCode }: { studentId: number; fallbackQrCode?: string }) {
   const queryClient = useQueryClient();
   const [showHistory, setShowHistory] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
@@ -187,6 +187,7 @@ function QrCodeSection({ studentId }: { studentId: number }) {
   const { mutateAsync: regenerate } = useRegenerateStudentQrCode();
 
   const activeCode = qrCodes?.find((c) => c.isActive === 1);
+  const effectiveCode = activeCode?.code ?? fallbackQrCode;
   const historyCodes = qrCodes?.filter((c) => c.isActive === 0) ?? [];
 
   async function handleRegenerate() {
@@ -221,21 +222,23 @@ function QrCodeSection({ studentId }: { studentId: number }) {
       <div className="px-4 py-4">
         {isLoading ? (
           <div className="flex justify-center py-4 text-muted-foreground text-sm">Loading...</div>
-        ) : activeCode ? (
+        ) : effectiveCode ? (
           <div className="flex flex-col items-center gap-3" data-testid="qr-code-image">
             <div className="bg-white p-3 rounded-xl border border-border shadow-sm">
               <QRCodeSVG
-                value={activeCode.code}
+                value={effectiveCode}
                 size={160}
                 level="M"
               />
             </div>
             <p className="text-xs text-muted-foreground font-mono text-center break-all px-2" data-testid="text-active-qr-code">
-              {activeCode.code}
+              {effectiveCode}
             </p>
-            <p className="text-xs text-muted-foreground">
-              Generated {formatRelativeTime(activeCode.createdAt)}
-            </p>
+            {activeCode && (
+              <p className="text-xs text-muted-foreground">
+                Generated {formatRelativeTime(activeCode.createdAt)}
+              </p>
+            )}
           </div>
         ) : (
           <div className="text-center py-4 text-sm text-muted-foreground">
@@ -354,7 +357,7 @@ function StudentProfileView({ id, onBack }: { id: number; onBack: () => void }) 
         </div>
 
         {/* QR Code section */}
-        <QrCodeSection studentId={id} />
+        <QrCodeSection studentId={id} fallbackQrCode={s.qrCode} />
 
         {/* Behavior summary */}
         {(s.behaviorSummary.totalMerits > 0 || s.behaviorSummary.totalDemerits > 0) && (

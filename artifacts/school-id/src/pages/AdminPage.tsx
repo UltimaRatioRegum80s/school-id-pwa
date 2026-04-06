@@ -1,4 +1,5 @@
-import { useState, useRef } from "react";
+import { useState, useRef, lazy, Suspense } from "react";
+const PrintCardsPage = lazy(() => import("./PrintCardsPage"));
 import { useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
 import { useAuth } from "@/contexts/AuthContext";
@@ -46,6 +47,7 @@ import {
   Copy,
   Trash2,
   Clock,
+  CreditCard,
 } from "lucide-react";
 
 type AdminView =
@@ -56,6 +58,7 @@ type AdminView =
   | "behavior-categories"
   | "add-student"
   | "import-students"
+  | "print-cards"
   | "activity-management"
   | "create-activity"
   | "edit-activity"
@@ -76,6 +79,11 @@ export default function AdminPage() {
   if (view === "behavior-categories") return <BehaviorCategoriesView onBack={() => setView("main")} />;
   if (view === "add-student") return <AddStudentView onBack={() => setView("main")} />;
   if (view === "import-students") return <ImportStudentsView onBack={() => setView("main")} />;
+  if (view === "print-cards") return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen text-sm text-muted-foreground">Loading...</div>}>
+      <PrintCardsPage onBack={() => setView("main")} />
+    </Suspense>
+  );
   if (view === "activity-management") return (
     <ActivityManagementView
       onBack={() => setView("main")}
@@ -189,6 +197,13 @@ export default function AdminPage() {
                 description="Bulk import student data from a CSV, Excel, or Word file"
                 onClick={() => setView("import-students")}
                 testId="button-nav-import-csv"
+              />
+              <MenuRow
+                icon={<CreditCard className="w-4 h-4 text-teal-500" />}
+                label="Print ID Cards"
+                description="Print credit-card sized ID cards with QR codes by grade"
+                onClick={() => setView("print-cards")}
+                testId="button-nav-print-cards"
               />
             </div>
           </>

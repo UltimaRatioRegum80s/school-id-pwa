@@ -420,11 +420,45 @@ export interface ImportStudentsResult {
   failed: ImportFailure[];
 }
 
+export interface PrintCardStudent {
+  id: number;
+  studentId: string;
+  firstName: string;
+  lastName: string;
+  grade: string;
+  className: string;
+  qrCode: string;
+}
+
+export interface PrintCardBranding {
+  schoolName: string;
+  /** @nullable */
+  logoUrl?: string | null;
+  colorPalette: string;
+  schoolCode: string;
+}
+
+export interface PrintCardsResponse {
+  students: PrintCardStudent[];
+  branding: PrintCardBranding;
+}
+
 export type ListStudentsParams = {
   search?: string;
   grade?: string;
   className?: string;
   status?: string;
+};
+
+export type GetStudentsForPrintParams = {
+  /**
+   * Filter by grade (e.g. "8", "10")
+   */
+  grade?: string;
+  /**
+   * Filter by class name (e.g. "10A")
+   */
+  className?: string;
 };
 
 export type ListScanEventsParams = {

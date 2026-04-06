@@ -32,6 +32,7 @@ import type {
   FeedItem,
   GetDashboardFeedParams,
   GetDashboardSummaryParams,
+  GetStudentsForPrintParams,
   HealthStatus,
   ImportStudentsBody,
   ImportStudentsResult,
@@ -42,6 +43,7 @@ import type {
   LoginBody,
   LoginResponse,
   MarkAttendanceBody,
+  PrintCardsResponse,
   RegisterSchoolBody,
   RequestUploadUrlBody,
   RequestUploadUrlResponse,
@@ -562,6 +564,106 @@ export const useCreateStudent = <
 > => {
   return useMutation(getCreateStudentMutationOptions(options));
 };
+
+/**
+ * @summary Get students with branding for ID card printing
+ */
+export const getGetStudentsForPrintUrl = (
+  params?: GetStudentsForPrintParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/students/print?${stringifiedParams}`
+    : `/api/students/print`;
+};
+
+export const getStudentsForPrint = async (
+  params?: GetStudentsForPrintParams,
+  options?: RequestInit,
+): Promise<PrintCardsResponse> => {
+  return customFetch<PrintCardsResponse>(getGetStudentsForPrintUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetStudentsForPrintQueryKey = (
+  params?: GetStudentsForPrintParams,
+) => {
+  return [`/api/students/print`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetStudentsForPrintQueryOptions = <
+  TData = Awaited<ReturnType<typeof getStudentsForPrint>>,
+  TError = ErrorType<void>,
+>(
+  params?: GetStudentsForPrintParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getStudentsForPrint>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetStudentsForPrintQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getStudentsForPrint>>
+  > = ({ signal }) =>
+    getStudentsForPrint(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getStudentsForPrint>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetStudentsForPrintQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getStudentsForPrint>>
+>;
+export type GetStudentsForPrintQueryError = ErrorType<void>;
+
+/**
+ * @summary Get students with branding for ID card printing
+ */
+
+export function useGetStudentsForPrint<
+  TData = Awaited<ReturnType<typeof getStudentsForPrint>>,
+  TError = ErrorType<void>,
+>(
+  params?: GetStudentsForPrintParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getStudentsForPrint>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetStudentsForPrintQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Get a student with full profile

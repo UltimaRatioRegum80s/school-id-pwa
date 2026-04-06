@@ -113,6 +113,40 @@ export const CreateStudentBody = zod.object({
 });
 
 /**
+ * @summary Get students with branding for ID card printing
+ */
+export const GetStudentsForPrintQueryParams = zod.object({
+  grade: zod.coerce
+    .string()
+    .optional()
+    .describe('Filter by grade (e.g. \"8\", \"10\")'),
+  className: zod.coerce
+    .string()
+    .optional()
+    .describe('Filter by class name (e.g. \"10A\")'),
+});
+
+export const GetStudentsForPrintResponse = zod.object({
+  students: zod.array(
+    zod.object({
+      id: zod.number(),
+      studentId: zod.string(),
+      firstName: zod.string(),
+      lastName: zod.string(),
+      grade: zod.string(),
+      className: zod.string(),
+      qrCode: zod.string(),
+    }),
+  ),
+  branding: zod.object({
+    schoolName: zod.string(),
+    logoUrl: zod.string().nullish(),
+    colorPalette: zod.string(),
+    schoolCode: zod.string(),
+  }),
+});
+
+/**
  * @summary Get a student with full profile
  */
 export const GetStudentParams = zod.object({

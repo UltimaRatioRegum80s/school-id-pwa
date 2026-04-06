@@ -223,6 +223,47 @@ router.get("/students/lookup/:qrCode", requireAuth, async (req, res): Promise<vo
   res.json(formatStudent(student, todayEvents));
 });
 
+router.get("/students/print", requireAuth, async (req, res): Promise<void> => {
+  const { grade, className } = req.query as Record<string, string | undefined>;
+  const user = (req as Request & { user: JwtPayload }).user;
+
+  const [school] = await db
+    .select({ name: schoolsTable.name, code: schoolsTable.code, logoUrl: schoolsTable.logoUrl, colorPalette: schoolsTable.colorPalette })
+    .from(schoolsTable)
+    .where(eq(schoolsTable.id, user.schoolId));
+
+  let conditions: ReturnType<typeof eq>[] = [
+    eq(studentsTable.schoolId, user.schoolId),
+    eq(studentsTable.isActive, 1),
+  ];
+  if (grade) conditions.push(eq(studentsTable.grade, grade));
+  if (className) conditions.push(eq(studentsTable.className, className));
+
+  const students = await db
+    .select({
+      id: studentsTable.id,
+      studentId: studentsTable.studentId,
+      firstName: studentsTable.firstName,
+      lastName: studentsTable.lastName,
+      grade: studentsTable.grade,
+      className: studentsTable.className,
+      qrCode: studentsTable.qrCode,
+    })
+    .from(studentsTable)
+    .where(and(...conditions))
+    .orderBy(studentsTable.grade, studentsTable.className, studentsTable.lastName);
+
+  res.json({
+    students,
+    branding: {
+      schoolName: school?.name ?? "School",
+      logoUrl: school?.logoUrl ?? null,
+      colorPalette: school?.colorPalette ?? "blue",
+      schoolCode: school?.code ?? "SCH",
+    },
+  });
+});
+
 router.get("/students/:id", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
