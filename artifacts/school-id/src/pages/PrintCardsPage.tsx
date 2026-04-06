@@ -46,14 +46,14 @@ function SchoolLogoMark({ branding, size = 36 }: { branding: PrintCardBranding; 
         width: size,
         height: size,
         borderRadius: "50%",
-        background: color,
+        background: "#fff",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         flexShrink: 0,
       }}
     >
-      <span style={{ color: "#fff", fontWeight: 700, fontSize: size * 0.35 }}>
+      <span style={{ color: color, fontWeight: 700, fontSize: size * 0.35 }}>
         {initials}
       </span>
     </div>
@@ -84,7 +84,7 @@ function StudentCard({ student, branding }: { student: PrintCardStudent; brandin
       <div
         style={{
           background: color,
-          padding: "4px 8px",
+          padding: "6px 8px",
           display: "flex",
           alignItems: "center",
           gap: "6px",
@@ -113,47 +113,58 @@ function StudentCard({ student, branding }: { student: PrintCardStudent; brandin
           flex: 1,
           display: "flex",
           flexDirection: "row",
-          padding: "6px 8px",
           gap: "8px",
-          alignItems: "center",
+          alignItems: "flex-start",
           minHeight: 0,
         }}
       >
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            width: "3px",
+            alignSelf: "stretch",
+            background: color,
+            flexShrink: 0,
+          }}
+        />
+        <div style={{ flex: 1, minWidth: 0, padding: "6px 0 6px 0" }}>
           <p
             style={{
               margin: 0,
               fontSize: "11px",
               fontWeight: 800,
               color: "#111",
-              lineHeight: 1.2,
-              wordBreak: "break-word",
+              lineHeight: 1.15,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
             }}
           >
-            {student.firstName}
+            {student.firstName} {student.lastName}
           </p>
-          <p
-            style={{
-              margin: 0,
-              fontSize: "11px",
-              fontWeight: 800,
-              color: "#111",
-              lineHeight: 1.2,
-              wordBreak: "break-word",
-            }}
-          >
-            {student.lastName}
-          </p>
-          <p
-            style={{
-              margin: "4px 0 0",
-              fontSize: "7px",
-              color: "#666",
-              fontFamily: "monospace",
-            }}
-          >
-            {student.studentId}
-          </p>
+          <div style={{ marginTop: "4px", display: "flex", alignItems: "center", gap: "3px" }}>
+            <span
+              style={{
+                fontSize: "6px",
+                fontWeight: 600,
+                color: color,
+                textTransform: "uppercase",
+                letterSpacing: "0.03em",
+              }}
+            >
+              ID
+            </span>
+            <p
+              style={{
+                margin: 0,
+                fontSize: "8px",
+                color: "#444",
+                fontFamily: "monospace",
+                fontWeight: 600,
+              }}
+            >
+              {student.studentId}
+            </p>
+          </div>
           <div
             style={{
               marginTop: "4px",
@@ -166,7 +177,7 @@ function StudentCard({ student, branding }: { student: PrintCardStudent; brandin
               fontWeight: 700,
             }}
           >
-            Grade {student.grade} &bull; {student.className}
+            {student.grade} &bull; {student.className}
           </div>
         </div>
 
@@ -174,9 +185,11 @@ function StudentCard({ student, branding }: { student: PrintCardStudent; brandin
           style={{
             flexShrink: 0,
             background: "#fff",
-            border: "1px solid #e5e7eb",
+            border: `1.5px solid ${color}33`,
             borderRadius: "4px",
             padding: "3px",
+            alignSelf: "center",
+            marginRight: "8px",
           }}
         >
           <QRCodeSVG
@@ -196,7 +209,7 @@ function StudentCard({ student, branding }: { student: PrintCardStudent; brandin
           flexShrink: 0,
         }}
       >
-        <p style={{ margin: 0, fontSize: "5.5px", color: "#9ca3af", textAlign: "center" }}>
+        <p style={{ margin: 0, fontSize: "7px", color: "#9ca3af", textAlign: "center" }}>
           STUDENT IDENTIFICATION CARD &bull; {branding.schoolCode}
         </p>
       </div>
