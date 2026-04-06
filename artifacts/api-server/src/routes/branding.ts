@@ -17,11 +17,16 @@ const VALID_PALETTES = [
   "royal-purple-gold",
   "teal-white",
   "charcoal-orange",
+  "custom",
 ];
+
+const HEX_COLOR_REGEX = /^#[0-9A-Fa-f]{6}$/;
 
 const UpdateBrandingBody = z.object({
   colorPalette: z.string().optional(),
   logoObjectPath: z.string().nullable().optional(),
+  customPrimaryColor: z.string().nullable().optional(),
+  customAccentColor: z.string().nullable().optional(),
 });
 
 const RequestUploadUrlBody = z.object({
@@ -38,6 +43,8 @@ router.get("/school/branding", requireAuth, async (req, res): Promise<void> => {
       name: schoolsTable.name,
       logoUrl: schoolsTable.logoUrl,
       colorPalette: schoolsTable.colorPalette,
+      customPrimaryColor: schoolsTable.customPrimaryColor,
+      customAccentColor: schoolsTable.customAccentColor,
     })
     .from(schoolsTable)
     .where(eq(schoolsTable.id, user.schoolId));
@@ -51,6 +58,8 @@ router.get("/school/branding", requireAuth, async (req, res): Promise<void> => {
     schoolName: school.name,
     logoUrl: school.logoUrl ?? null,
     colorPalette: school.colorPalette,
+    customPrimaryColor: school.customPrimaryColor ?? null,
+    customAccentColor: school.customAccentColor ?? null,
   });
 });
 
@@ -63,7 +72,7 @@ router.put("/school/branding", requireAdmin, async (req, res): Promise<void> => 
     return;
   }
 
-  const { colorPalette, logoObjectPath } = parsed.data;
+  const { colorPalette, logoObjectPath, customPrimaryColor, customAccentColor } = parsed.data;
 
   if (colorPalette !== undefined && !VALID_PALETTES.includes(colorPalette)) {
     res.status(400).json({
@@ -72,7 +81,36 @@ router.put("/school/branding", requireAdmin, async (req, res): Promise<void> => 
     return;
   }
 
-  const updates: Partial<{ colorPalette: string; logoUrl: string | null }> = {};
+  if (customPrimaryColor !== undefined && customPrimaryColor !== null && !HEX_COLOR_REGEX.test(customPrimaryColor)) {
+    res.status(400).json({ error: "Invalid customPrimaryColor. Must be a 6-digit hex colour (e.g. #ff0000)." });
+    return;
+  }
+
+  if (customAccentColor !== undefined && customAccentColor !== null && !HEX_COLOR_REGEX.test(customAccentColor)) {
+    res.status(400).json({ error: "Invalid customAccentColor. Must be a 6-digit hex colour (e.g. #ff0000)." });
+    return;
+  }
+
+  if (colorPalette === "custom") {
+    const effectivePrimary = customPrimaryColor ?? null;
+    const effectiveAccent = customAccentColor ?? null;
+
+    if (!effectivePrimary || !HEX_COLOR_REGEX.test(effectivePrimary)) {
+      res.status(400).json({ error: "When using a custom palette, customPrimaryColor must be a valid 6-digit hex colour." });
+      return;
+    }
+    if (!effectiveAccent || !HEX_COLOR_REGEX.test(effectiveAccent)) {
+      res.status(400).json({ error: "When using a custom palette, customAccentColor must be a valid 6-digit hex colour." });
+      return;
+    }
+  }
+
+  const updates: Partial<{
+    colorPalette: string;
+    logoUrl: string | null;
+    customPrimaryColor: string | null;
+    customAccentColor: string | null;
+  }> = {};
 
   if (colorPalette !== undefined) {
     updates.colorPalette = colorPalette;
@@ -87,9 +125,23 @@ router.put("/school/branding", requireAdmin, async (req, res): Promise<void> => 
     }
   }
 
+  if (customPrimaryColor !== undefined) {
+    updates.customPrimaryColor = customPrimaryColor;
+  }
+
+  if (customAccentColor !== undefined) {
+    updates.customAccentColor = customAccentColor;
+  }
+
   if (Object.keys(updates).length === 0) {
     const [school] = await db
-      .select({ name: schoolsTable.name, logoUrl: schoolsTable.logoUrl, colorPalette: schoolsTable.colorPalette })
+      .select({
+        name: schoolsTable.name,
+        logoUrl: schoolsTable.logoUrl,
+        colorPalette: schoolsTable.colorPalette,
+        customPrimaryColor: schoolsTable.customPrimaryColor,
+        customAccentColor: schoolsTable.customAccentColor,
+      })
       .from(schoolsTable)
       .where(eq(schoolsTable.id, user.schoolId));
 
@@ -97,6 +149,8 @@ router.put("/school/branding", requireAdmin, async (req, res): Promise<void> => 
       schoolName: school?.name ?? "",
       logoUrl: school?.logoUrl ?? null,
       colorPalette: school?.colorPalette ?? "navy-gold",
+      customPrimaryColor: school?.customPrimaryColor ?? null,
+      customAccentColor: school?.customAccentColor ?? null,
     });
     return;
   }
@@ -109,6 +163,8 @@ router.put("/school/branding", requireAdmin, async (req, res): Promise<void> => 
       name: schoolsTable.name,
       logoUrl: schoolsTable.logoUrl,
       colorPalette: schoolsTable.colorPalette,
+      customPrimaryColor: schoolsTable.customPrimaryColor,
+      customAccentColor: schoolsTable.customAccentColor,
     });
 
   if (!updated) {
@@ -120,6 +176,8 @@ router.put("/school/branding", requireAdmin, async (req, res): Promise<void> => 
     schoolName: updated.name,
     logoUrl: updated.logoUrl ?? null,
     colorPalette: updated.colorPalette,
+    customPrimaryColor: updated.customPrimaryColor ?? null,
+    customAccentColor: updated.customAccentColor ?? null,
   });
 });
 

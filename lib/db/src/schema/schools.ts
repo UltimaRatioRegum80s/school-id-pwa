@@ -13,6 +13,8 @@ export const schoolsTable = pgTable("schools", {
   isActive: boolean("is_active").notNull().default(true),
   logoUrl: text("logo_url"),
   colorPalette: text("color_palette").notNull().default("navy-gold"),
+  customPrimaryColor: text("custom_primary_color"),
+  customAccentColor: text("custom_accent_color"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

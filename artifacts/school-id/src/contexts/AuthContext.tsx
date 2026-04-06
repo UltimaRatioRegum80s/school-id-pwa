@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
-import { applyPalette } from "@/lib/palettes";
+import { applyPalette, applyCustomPalette } from "@/lib/palettes";
 import { getApiUrl } from "@/lib/api";
 
 interface User {
@@ -19,6 +19,8 @@ export interface BrandingInfo {
   logoUrl: string | null;
   colorPalette: string;
   schoolName: string;
+  customPrimaryColor: string | null;
+  customAccentColor: string | null;
 }
 
 interface AuthContextValue {
@@ -60,19 +62,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  function applyBranding(data: BrandingInfo) {
+    if (data.colorPalette === "custom" && data.customPrimaryColor && data.customAccentColor) {
+      applyCustomPalette(data.customPrimaryColor, data.customAccentColor);
+    } else {
+      applyPalette(data.colorPalette);
+    }
+  }
+
   const refreshBranding = useCallback(async () => {
     if (!token) return;
     const data = await fetchBranding(token);
     if (data) {
       setBranding(data);
       localStorage.setItem("school-id-branding", JSON.stringify(data));
-      applyPalette(data.colorPalette);
+      applyBranding(data);
     }
   }, [token, fetchBranding]);
 
   useEffect(() => {
     if (branding) {
-      applyPalette(branding.colorPalette);
+      applyBranding(branding);
     }
   }, []);
 
@@ -83,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (data) {
           setBranding(data);
           localStorage.setItem("school-id-branding", JSON.stringify(data));
-          applyPalette(data.colorPalette);
+          applyBranding(data);
         }
       });
     }

@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
 import { useAuth } from "@/contexts/AuthContext";
-import { PALETTES, applyPalette } from "@/lib/palettes";
+import { PALETTES, applyPalette, applyCustomPalette } from "@/lib/palettes";
 import { getApiUrl } from "@/lib/api";
 import {
   useGetSettings,
@@ -1587,7 +1587,16 @@ function AppearanceView({ onBack }: { onBack: () => void }) {
   const [logoUploading, setLogoUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const activePalette = previewPalette ?? selectedPalette;
+  const [customPrimary, setCustomPrimary] = useState<string>(branding?.customPrimaryColor ?? "#1a56db");
+  const [customAccent, setCustomAccent] = useState<string>(branding?.customAccentColor ?? "#f59e0b");
+
+  function applyCurrentSelection(paletteName: string, primary: string, accent: string) {
+    if (paletteName === "custom") {
+      applyCustomPalette(primary, accent);
+    } else {
+      applyPalette(paletteName);
+    }
+  }
 
   function handlePaletteHover(paletteName: string) {
     applyPalette(paletteName);
@@ -1595,14 +1604,34 @@ function AppearanceView({ onBack }: { onBack: () => void }) {
   }
 
   function handlePaletteLeave() {
-    applyPalette(activePalette);
     setPreviewPalette(null);
+    applyCurrentSelection(selectedPalette, customPrimary, customAccent);
   }
 
   function handlePaletteSelect(paletteName: string) {
     setSelectedPalette(paletteName);
     applyPalette(paletteName);
     setPreviewPalette(null);
+  }
+
+  function handleCustomPrimaryChange(hex: string) {
+    setCustomPrimary(hex);
+    setSelectedPalette("custom");
+    setPreviewPalette(null);
+    applyCustomPalette(hex, customAccent);
+  }
+
+  function handleCustomAccentChange(hex: string) {
+    setCustomAccent(hex);
+    setSelectedPalette("custom");
+    setPreviewPalette(null);
+    applyCustomPalette(customPrimary, hex);
+  }
+
+  function handleSelectCustom() {
+    setSelectedPalette("custom");
+    setPreviewPalette(null);
+    applyCustomPalette(customPrimary, customAccent);
   }
 
   async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -1658,13 +1687,19 @@ function AppearanceView({ onBack }: { onBack: () => void }) {
     setSaving(true);
     setError("");
     try {
+      const body: Record<string, string | null> = { colorPalette: selectedPalette };
+      if (selectedPalette === "custom") {
+        body.customPrimaryColor = customPrimary;
+        body.customAccentColor = customAccent;
+      }
+
       const res = await fetch(`${getApiUrl()}/school/branding`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ colorPalette: selectedPalette }),
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) throw new Error("Failed to save");
@@ -1781,9 +1816,65 @@ function AppearanceView({ onBack }: { onBack: () => void }) {
             })}
           </div>
 
+          <div
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border-2 cursor-pointer transition-colors ${
+              selectedPalette === "custom"
+                ? "border-primary bg-primary/5"
+                : "border-border bg-muted/30 hover:border-primary/40"
+            }`}
+            onClick={handleSelectCustom}
+            data-testid="palette-option-custom"
+          >
+            <div className="flex gap-1 flex-shrink-0">
+              <div className="w-5 h-5 rounded-md border border-border/50" style={{ background: customPrimary }} />
+              <div className="w-5 h-5 rounded-md border border-border/50" style={{ background: customAccent }} />
+            </div>
+            <span className="text-xs font-medium text-foreground flex-1">Custom Colours</span>
+            {selectedPalette === "custom" && <Check className="w-3.5 h-3.5 text-primary flex-shrink-0" />}
+          </div>
+
+          {selectedPalette === "custom" && (
+            <div className="bg-muted/30 border border-border rounded-lg p-3 space-y-3" data-testid="custom-colour-picker">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex-1">
+                  <label className="text-xs font-medium text-foreground block mb-1">Primary Colour</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={customPrimary}
+                      onChange={(e) => handleCustomPrimaryChange(e.target.value)}
+                      className="w-8 h-8 rounded cursor-pointer border border-border bg-transparent p-0.5"
+                      data-testid="input-custom-primary"
+                    />
+                    <span className="text-xs text-muted-foreground font-mono uppercase">{customPrimary}</span>
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs font-medium text-foreground block mb-1">Accent Colour</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={customAccent}
+                      onChange={(e) => handleCustomAccentChange(e.target.value)}
+                      className="w-8 h-8 rounded cursor-pointer border border-border bg-transparent p-0.5"
+                      data-testid="input-custom-accent"
+                    />
+                    <span className="text-xs text-muted-foreground font-mono uppercase">{customAccent}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <button
             onClick={handleSavePalette}
-            disabled={saving || selectedPalette === (branding?.colorPalette ?? "navy-gold")}
+            disabled={
+              saving ||
+              (selectedPalette === (branding?.colorPalette ?? "navy-gold") &&
+                (selectedPalette !== "custom" ||
+                  (customPrimary === (branding?.customPrimaryColor ?? "#1a56db") &&
+                    customAccent === (branding?.customAccentColor ?? "#f59e0b"))))
+            }
             className="w-full bg-primary text-primary-foreground font-semibold py-2.5 rounded-lg disabled:opacity-50 transition-opacity"
             data-testid="button-save-palette"
           >
