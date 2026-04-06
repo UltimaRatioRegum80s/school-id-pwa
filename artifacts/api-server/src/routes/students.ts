@@ -1,9 +1,11 @@
 import { Router, type IRouter } from "express";
 import { eq, ilike, and, or, sql, desc } from "drizzle-orm";
-import { db, studentsTable, scanEventsTable } from "@workspace/db";
+import { db, studentsTable, scanEventsTable, schoolsTable } from "@workspace/db";
 import { CreateStudentBody, UpdateStudentBody } from "@workspace/api-zod";
 import { computeStudentState } from "../lib/state-engine";
 import { requireAuth } from "../lib/auth";
+import type { Request } from "express";
+import type { JwtPayload } from "../lib/auth";
 
 const router: IRouter = Router();
 
@@ -35,8 +37,9 @@ function todayStart(): Date {
 
 router.get("/students", requireAuth, async (req, res): Promise<void> => {
   const { search, grade, className, status } = req.query as Record<string, string | undefined>;
+  const user = (req as Request & { user: JwtPayload }).user;
 
-  let conditions: ReturnType<typeof eq>[] = [];
+  let conditions: ReturnType<typeof eq>[] = [eq(studentsTable.schoolId, user.schoolId)];
   if (grade) conditions.push(eq(studentsTable.grade, grade));
   if (className) conditions.push(eq(studentsTable.className, className));
 
@@ -55,10 +58,8 @@ router.get("/students", requireAuth, async (req, res): Promise<void> => {
           )
         )
       );
-  } else if (conditions.length > 0) {
-    students = await db.select().from(studentsTable).where(and(...conditions));
   } else {
-    students = await db.select().from(studentsTable);
+    students = await db.select().from(studentsTable).where(and(...conditions));
   }
 
   const todayStartDate = todayStart();
@@ -69,7 +70,12 @@ router.get("/students", requireAuth, async (req, res): Promise<void> => {
     todayEvents = await db
       .select()
       .from(scanEventsTable)
-      .where(sql`${scanEventsTable.createdAt} >= ${todayStartDate} AND ${scanEventsTable.studentId} = ANY(${sql.raw(`ARRAY[${allStudentIds.join(",")}]::integer[]`)})`)
+      .where(
+        and(
+          eq(scanEventsTable.schoolId, user.schoolId),
+          sql`${scanEventsTable.createdAt} >= ${todayStartDate} AND ${scanEventsTable.studentId} = ANY(${sql.raw(`ARRAY[${allStudentIds.join(",")}]::integer[]`)})`
+        )
+      )
       .orderBy(desc(scanEventsTable.createdAt));
   }
 
@@ -89,13 +95,21 @@ router.post("/students", requireAuth, async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const user = (req as Request & { user: JwtPayload }).user;
 
+  const [school] = await db
+    .select({ code: schoolsTable.code })
+    .from(schoolsTable)
+    .where(eq(schoolsTable.id, user.schoolId));
+
+  const schoolCode = school?.code ?? "SCH";
   const { studentId, firstName, lastName, grade, className, photoUrl } = parsed.data;
-  const qrCode = `SCID-${studentId}`;
+  const scopedStudentId = `${schoolCode}-${studentId}`;
+  const qrCode = `SCID-${schoolCode}-${studentId}`;
 
   const [student] = await db
     .insert(studentsTable)
-    .values({ studentId, firstName, lastName, grade, className, photoUrl: photoUrl ?? null, qrCode })
+    .values({ schoolId: user.schoolId, studentId: scopedStudentId, firstName, lastName, grade, className, photoUrl: photoUrl ?? null, qrCode })
     .returning();
 
   res.status(201).json(formatStudent(student));
@@ -103,11 +117,17 @@ router.post("/students", requireAuth, async (req, res): Promise<void> => {
 
 router.get("/students/lookup/:qrCode", requireAuth, async (req, res): Promise<void> => {
   const rawQr = Array.isArray(req.params.qrCode) ? req.params.qrCode[0] : req.params.qrCode;
+  const user = (req as Request & { user: JwtPayload }).user;
 
   const [student] = await db
     .select()
     .from(studentsTable)
-    .where(or(eq(studentsTable.qrCode, rawQr), eq(studentsTable.studentId, rawQr)));
+    .where(
+      and(
+        eq(studentsTable.schoolId, user.schoolId),
+        or(eq(studentsTable.qrCode, rawQr), eq(studentsTable.studentId, rawQr))
+      )
+    );
 
   if (!student) {
     res.status(404).json({ error: "Student not found" });
@@ -119,6 +139,7 @@ router.get("/students/lookup/:qrCode", requireAuth, async (req, res): Promise<vo
     .from(scanEventsTable)
     .where(
       and(
+        eq(scanEventsTable.schoolId, user.schoolId),
         eq(scanEventsTable.studentId, student.id),
         sql`${scanEventsTable.createdAt} >= ${todayStart()}`
       )
@@ -135,11 +156,12 @@ router.get("/students/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(400).json({ error: "Invalid ID" });
     return;
   }
+  const user = (req as Request & { user: JwtPayload }).user;
 
   const [student] = await db
     .select()
     .from(studentsTable)
-    .where(eq(studentsTable.id, id));
+    .where(and(eq(studentsTable.id, id), eq(studentsTable.schoolId, user.schoolId)));
 
   if (!student) {
     res.status(404).json({ error: "Student not found" });
@@ -151,6 +173,7 @@ router.get("/students/:id", requireAuth, async (req, res): Promise<void> => {
     .from(scanEventsTable)
     .where(
       and(
+        eq(scanEventsTable.schoolId, user.schoolId),
         eq(scanEventsTable.studentId, id),
         sql`${scanEventsTable.createdAt} >= ${todayStart()}`
       )
@@ -160,7 +183,7 @@ router.get("/students/:id", requireAuth, async (req, res): Promise<void> => {
   const { state, lastSeenAt, lastSeenLocation } = computeStudentState(todayEvents);
 
   const behaviorLogs = await db.execute(
-    sql`SELECT bl.*, bc.name as category_name FROM behavior_logs bl LEFT JOIN behavior_categories bc ON bl.category_id = bc.id WHERE bl.student_id = ${id} ORDER BY bl.created_at DESC LIMIT 10`
+    sql`SELECT bl.*, bc.name as category_name FROM behavior_logs bl LEFT JOIN behavior_categories bc ON bl.category_id = bc.id WHERE bl.student_id = ${id} AND bl.school_id = ${user.schoolId} ORDER BY bl.created_at DESC LIMIT 10`
   );
 
   const totalMerits = (behaviorLogs.rows as Array<{ type: string; points: number }>)
@@ -211,6 +234,7 @@ router.patch("/students/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(400).json({ error: "Invalid ID" });
     return;
   }
+  const user = (req as Request & { user: JwtPayload }).user;
 
   const parsed = UpdateStudentBody.safeParse(req.body);
   if (!parsed.success) {
@@ -221,7 +245,7 @@ router.patch("/students/:id", requireAuth, async (req, res): Promise<void> => {
   const [student] = await db
     .update(studentsTable)
     .set(parsed.data)
-    .where(eq(studentsTable.id, id))
+    .where(and(eq(studentsTable.id, id), eq(studentsTable.schoolId, user.schoolId)))
     .returning();
 
   if (!student) {
@@ -239,10 +263,11 @@ router.delete("/students/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(400).json({ error: "Invalid ID" });
     return;
   }
+  const user = (req as Request & { user: JwtPayload }).user;
 
   const [student] = await db
     .delete(studentsTable)
-    .where(eq(studentsTable.id, id))
+    .where(and(eq(studentsTable.id, id), eq(studentsTable.schoolId, user.schoolId)))
     .returning();
 
   if (!student) {

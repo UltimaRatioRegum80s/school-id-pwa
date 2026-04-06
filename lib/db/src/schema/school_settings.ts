@@ -1,9 +1,11 @@
-import { pgTable, text, serial, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { schoolsTable } from "./schools";
 
 export const schoolSettingsTable = pgTable("school_settings", {
   id: serial("id").primaryKey(),
+  schoolId: integer("school_id").notNull().references(() => schoolsTable.id),
   schoolName: text("school_name").notNull().default("Springfield Academy"),
   startTime: text("start_time").notNull().default("07:30"),
   endTime: text("end_time").notNull().default("14:30"),

@@ -4,6 +4,8 @@ import { eq, and, sql } from "drizzle-orm";
 import { db, activitiesTable, activityAttendanceTable, studentsTable, scanEventsTable } from "@workspace/db";
 import { CreateActivityBody, UpdateActivityBody, MarkAttendanceBody, UpdateAttendanceBody } from "@workspace/api-zod";
 import { computeStudentState } from "../lib/state-engine";
+import type { Request } from "express";
+import type { JwtPayload } from "../lib/auth";
 
 const router: IRouter = Router();
 
@@ -30,8 +32,12 @@ function formatActivity(a: typeof activitiesTable.$inferSelect) {
 
 router.get("/activities", requireAuth, async (req, res): Promise<void> => {
   const { activityType, status, date } = req.query as Record<string, string | undefined>;
+  const user = (req as Request & { user: JwtPayload }).user;
 
-  let activities = await db.select().from(activitiesTable);
+  let activities = await db
+    .select()
+    .from(activitiesTable)
+    .where(eq(activitiesTable.schoolId, user.schoolId));
 
   if (activityType) {
     activities = activities.filter((a) => a.activityType === activityType);
@@ -40,7 +46,10 @@ router.get("/activities", requireAuth, async (req, res): Promise<void> => {
     activities = activities.filter((a) => a.status === status);
   }
 
-  const attendanceAll = await db.select().from(activityAttendanceTable);
+  const attendanceAll = await db
+    .select()
+    .from(activityAttendanceTable)
+    .where(eq(activityAttendanceTable.schoolId, user.schoolId));
 
   const result = activities.map((a) => {
     const attendance = attendanceAll.filter((att) => att.activityId === a.id);
@@ -63,11 +72,13 @@ router.post("/activities", requireAuth, async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const user = (req as Request & { user: JwtPayload }).user;
 
   const [activity] = await db
     .insert(activitiesTable)
     .values({
       ...parsed.data,
+      schoolId: user.schoolId,
       startTime: new Date(parsed.data.startTime),
       endTime: parsed.data.endTime ? new Date(parsed.data.endTime) : null,
       status: parsed.data.status ?? "upcoming",
@@ -84,11 +95,12 @@ router.get("/activities/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(400).json({ error: "Invalid ID" });
     return;
   }
+  const user = (req as Request & { user: JwtPayload }).user;
 
   const [activity] = await db
     .select()
     .from(activitiesTable)
-    .where(eq(activitiesTable.id, id));
+    .where(and(eq(activitiesTable.id, id), eq(activitiesTable.schoolId, user.schoolId)));
 
   if (!activity) {
     res.status(404).json({ error: "Activity not found" });
@@ -98,7 +110,12 @@ router.get("/activities/:id", requireAuth, async (req, res): Promise<void> => {
   const attendance = await db
     .select()
     .from(activityAttendanceTable)
-    .where(eq(activityAttendanceTable.activityId, id));
+    .where(
+      and(
+        eq(activityAttendanceTable.activityId, id),
+        eq(activityAttendanceTable.schoolId, user.schoolId)
+      )
+    );
 
   const todayEventsForActivity = await db
     .select()
@@ -106,6 +123,7 @@ router.get("/activities/:id", requireAuth, async (req, res): Promise<void> => {
     .where(
       and(
         eq(scanEventsTable.activityId, id),
+        eq(scanEventsTable.schoolId, user.schoolId),
         sql`${scanEventsTable.createdAt} >= ${todayStart()}`
       )
     );
@@ -114,11 +132,20 @@ router.get("/activities/:id", requireAuth, async (req, res): Promise<void> => {
     todayEventsForActivity.map((e) => e.studentId)
   );
 
-  const allStudents = await db.select().from(studentsTable);
+  const allStudents = await db
+    .select()
+    .from(studentsTable)
+    .where(eq(studentsTable.schoolId, user.schoolId));
+
   const todayAllEvents = await db
     .select()
     .from(scanEventsTable)
-    .where(sql`${scanEventsTable.createdAt} >= ${todayStart()}`);
+    .where(
+      and(
+        eq(scanEventsTable.schoolId, user.schoolId),
+        sql`${scanEventsTable.createdAt} >= ${todayStart()}`
+      )
+    );
 
   const eventsByStudent: Record<number, typeof scanEventsTable.$inferSelect[]> = {};
   for (const e of todayAllEvents) {
@@ -175,6 +202,7 @@ router.patch("/activities/:id", requireAuth, async (req, res): Promise<void> => 
     res.status(400).json({ error: "Invalid ID" });
     return;
   }
+  const user = (req as Request & { user: JwtPayload }).user;
 
   const parsed = UpdateActivityBody.safeParse(req.body);
   if (!parsed.success) {
@@ -195,7 +223,7 @@ router.patch("/activities/:id", requireAuth, async (req, res): Promise<void> => 
   const [activity] = await db
     .update(activitiesTable)
     .set(updateData)
-    .where(eq(activitiesTable.id, id))
+    .where(and(eq(activitiesTable.id, id), eq(activitiesTable.schoolId, user.schoolId)))
     .returning();
 
   if (!activity) {
@@ -213,10 +241,11 @@ router.delete("/activities/:id", requireAuth, async (req, res): Promise<void> =>
     res.status(400).json({ error: "Invalid ID" });
     return;
   }
+  const user = (req as Request & { user: JwtPayload }).user;
 
   const [activity] = await db
     .delete(activitiesTable)
-    .where(eq(activitiesTable.id, id))
+    .where(and(eq(activitiesTable.id, id), eq(activitiesTable.schoolId, user.schoolId)))
     .returning();
 
   if (!activity) {
@@ -234,11 +263,17 @@ router.get("/activities/:id/attendance", requireAuth, async (req, res): Promise<
     res.status(400).json({ error: "Invalid ID" });
     return;
   }
+  const user = (req as Request & { user: JwtPayload }).user;
 
   const attendance = await db
     .select()
     .from(activityAttendanceTable)
-    .where(eq(activityAttendanceTable.activityId, id));
+    .where(
+      and(
+        eq(activityAttendanceTable.activityId, id),
+        eq(activityAttendanceTable.schoolId, user.schoolId)
+      )
+    );
 
   const studentIds = [...new Set(attendance.map((a) => a.studentId))];
   const studentNames: Record<number, string> = {};
@@ -246,8 +281,10 @@ router.get("/activities/:id/attendance", requireAuth, async (req, res): Promise<
     const students = await db
       .select({ id: studentsTable.id, firstName: studentsTable.firstName, lastName: studentsTable.lastName })
       .from(studentsTable)
-      .where(sql`${studentsTable.id} = ANY(${sql.raw(`ARRAY[${studentIds.join(",")}]::integer[]`)})`)
-    ;
+      .where(and(
+        eq(studentsTable.schoolId, user.schoolId),
+        sql`${studentsTable.id} = ANY(${sql.raw(`ARRAY[${studentIds.join(",")}]::integer[]`)})`
+      ));
     for (const s of students) {
       studentNames[s.id] = `${s.firstName} ${s.lastName}`;
     }
@@ -272,6 +309,7 @@ router.post("/activities/:id/attendance", requireAuth, async (req, res): Promise
     res.status(400).json({ error: "Invalid activity ID" });
     return;
   }
+  const user = (req as Request & { user: JwtPayload }).user;
 
   const parsed = MarkAttendanceBody.safeParse(req.body);
   if (!parsed.success) {
@@ -279,7 +317,10 @@ router.post("/activities/:id/attendance", requireAuth, async (req, res): Promise
     return;
   }
 
-  const [activity] = await db.select().from(activitiesTable).where(eq(activitiesTable.id, activityId));
+  const [activity] = await db
+    .select()
+    .from(activitiesTable)
+    .where(and(eq(activitiesTable.id, activityId), eq(activitiesTable.schoolId, user.schoolId)));
   if (!activity) {
     res.status(404).json({ error: "Activity not found" });
     return;
@@ -287,22 +328,38 @@ router.post("/activities/:id/attendance", requireAuth, async (req, res): Promise
 
   const { studentId, status } = parsed.data;
 
+  const [studentBelongsToSchool] = await db
+    .select({ id: studentsTable.id })
+    .from(studentsTable)
+    .where(and(eq(studentsTable.id, studentId), eq(studentsTable.schoolId, user.schoolId)));
+
+  if (!studentBelongsToSchool) {
+    res.status(404).json({ error: "Student not found" });
+    return;
+  }
+
   const [existing] = await db
     .select()
     .from(activityAttendanceTable)
-    .where(and(eq(activityAttendanceTable.activityId, activityId), eq(activityAttendanceTable.studentId, studentId)));
+    .where(
+      and(
+        eq(activityAttendanceTable.activityId, activityId),
+        eq(activityAttendanceTable.studentId, studentId),
+        eq(activityAttendanceTable.schoolId, user.schoolId)
+      )
+    );
 
   let record;
   if (existing) {
     [record] = await db
       .update(activityAttendanceTable)
       .set({ status, markedAt: new Date() })
-      .where(eq(activityAttendanceTable.id, existing.id))
+      .where(and(eq(activityAttendanceTable.id, existing.id), eq(activityAttendanceTable.schoolId, user.schoolId)))
       .returning();
   } else {
     [record] = await db
       .insert(activityAttendanceTable)
-      .values({ activityId, studentId, status })
+      .values({ schoolId: user.schoolId, activityId, studentId, status })
       .returning();
   }
 
@@ -324,6 +381,7 @@ router.patch("/activities/:id/attendance/:attendanceId", requireAuth, async (req
     res.status(400).json({ error: "Invalid ID" });
     return;
   }
+  const user = (req as Request & { user: JwtPayload }).user;
 
   const parsedUpdate = UpdateAttendanceBody.safeParse(req.body);
   if (!parsedUpdate.success) {
@@ -335,7 +393,13 @@ router.patch("/activities/:id/attendance/:attendanceId", requireAuth, async (req
   const [existing] = await db
     .select()
     .from(activityAttendanceTable)
-    .where(and(eq(activityAttendanceTable.id, attendanceId), eq(activityAttendanceTable.activityId, activityId)));
+    .where(
+      and(
+        eq(activityAttendanceTable.id, attendanceId),
+        eq(activityAttendanceTable.activityId, activityId),
+        eq(activityAttendanceTable.schoolId, user.schoolId)
+      )
+    );
 
   if (!existing) {
     res.status(404).json({ error: "Attendance record not found" });
@@ -345,7 +409,7 @@ router.patch("/activities/:id/attendance/:attendanceId", requireAuth, async (req
   const [updated] = await db
     .update(activityAttendanceTable)
     .set({ status, markedAt: new Date() })
-    .where(eq(activityAttendanceTable.id, attendanceId))
+    .where(and(eq(activityAttendanceTable.id, attendanceId), eq(activityAttendanceTable.schoolId, user.schoolId)))
     .returning();
 
   res.json({

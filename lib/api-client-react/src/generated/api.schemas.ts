@@ -21,12 +21,24 @@ export interface UserProfile {
   lastName: string;
   role: string;
   isActive: string;
+  schoolId: number;
   createdAt: string;
 }
 
 export interface LoginResponse {
   token: string;
   user: UserProfile;
+}
+
+export interface RegisterSchoolBody {
+  schoolName: string;
+  schoolSlug: string;
+  schoolCode: string;
+  adminUsername: string;
+  adminPassword: string;
+  adminFirstName: string;
+  adminLastName: string;
+  contactEmail?: string;
 }
 
 export interface CreateUserBody {

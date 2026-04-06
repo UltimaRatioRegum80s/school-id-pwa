@@ -13,6 +13,7 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const db = drizzle(pool, { schema });
 
 const {
+  schoolsTable,
   usersTable,
   studentsTable,
   scanEventsTable,
@@ -33,12 +34,25 @@ async function seed() {
   await db.delete(schema.behaviorCategoriesTable);
   await db.delete(schema.usersTable);
   await db.delete(schema.schoolSettingsTable);
+  await db.delete(schema.schoolsTable);
+
+  const [demoSchool] = await db.insert(schoolsTable).values({
+    name: "Westbrook Academy",
+    slug: "westbrook-academy",
+    code: "DEMO",
+    contactEmail: "admin@westbrook.edu",
+    plan: "free",
+    isActive: true,
+  }).returning();
+
+  console.log(`School created: ${demoSchool.name} (code: ${demoSchool.code})`);
 
   const adminHash = await bcrypt.hash("admin123", 10);
   const staffHash = await bcrypt.hash("staff123", 10);
 
   const [admin] = await db.insert(usersTable).values([
     {
+      schoolId: demoSchool.id,
       username: "admin",
       passwordHash: adminHash,
       firstName: "Principal",
@@ -46,6 +60,7 @@ async function seed() {
       role: "admin",
     },
     {
+      schoolId: demoSchool.id,
       username: "staff1",
       passwordHash: staffHash,
       firstName: "Sarah",
@@ -53,6 +68,7 @@ async function seed() {
       role: "staff",
     },
     {
+      schoolId: demoSchool.id,
       username: "staff2",
       passwordHash: staffHash,
       firstName: "Mike",
@@ -99,12 +115,13 @@ async function seed() {
         const lastName = lastNames[(studentCounter * 3 + i) % lastNames.length];
         studentCounter++;
         students.push({
-          studentId: `STU${studentCounter}`,
+          schoolId: demoSchool.id,
+          studentId: `DEMO-STU${studentCounter}`,
           firstName,
           lastName,
           grade,
           className,
-          qrCode: `SCID-STU${studentCounter}`,
+          qrCode: `SCID-DEMO-STU${studentCounter}`,
           photoUrl: null as string | null,
         });
       }
@@ -115,6 +132,7 @@ async function seed() {
   console.log(`Created ${insertedStudents.length} students`);
 
   await db.insert(schoolSettingsTable).values({
+    schoolId: demoSchool.id,
     schoolName: "Westbrook Academy",
     startTime: "07:30",
     endTime: "14:30",
@@ -123,26 +141,24 @@ async function seed() {
   });
 
   await db.insert(behaviorCategoriesTable).values([
-    { name: "Academic Excellence", type: "merit", points: 5, description: "Outstanding academic performance" },
-    { name: "Good Citizenship", type: "merit", points: 3, description: "Helping others and community" },
-    { name: "Punctuality", type: "merit", points: 2, description: "Always on time" },
-    { name: "Late Arrival", type: "demerit", points: 2, description: "Arrived late without valid reason" },
-    { name: "Uniform Violation", type: "demerit", points: 1, description: "Not wearing correct uniform" },
-    { name: "Disruptive Behavior", type: "demerit", points: 3, description: "Disrupting class" },
+    { schoolId: demoSchool.id, name: "Academic Excellence", type: "merit", points: 5, description: "Outstanding academic performance" },
+    { schoolId: demoSchool.id, name: "Good Citizenship", type: "merit", points: 3, description: "Helping others and community" },
+    { schoolId: demoSchool.id, name: "Punctuality", type: "merit", points: 2, description: "Always on time" },
+    { schoolId: demoSchool.id, name: "Late Arrival", type: "demerit", points: 2, description: "Arrived late without valid reason" },
+    { schoolId: demoSchool.id, name: "Uniform Violation", type: "demerit", points: 1, description: "Not wearing correct uniform" },
+    { schoolId: demoSchool.id, name: "Disruptive Behavior", type: "demerit", points: 3, description: "Disrupting class" },
   ]);
 
   const now = new Date();
   const today7am = new Date(now);
   today7am.setHours(7, 0, 0, 0);
 
-  const scanTypes = ["gate_in", "class", "gate_in", "gate_in", "class", "gate_in"];
-  const locations = ["Main Gate", "Block A - Room 101", "Main Gate", "Side Gate", "Block B - Room 205", "Main Gate"];
-
   const halfStudents = insertedStudents.slice(0, Math.floor(insertedStudents.length * 0.75));
   const scanEvents = halfStudents.map((s, i) => {
     const minutesAfterOpen = Math.floor(Math.random() * 45);
     const scanTime = new Date(today7am.getTime() + minutesAfterOpen * 60000 + i * 1000);
     return {
+      schoolId: demoSchool.id,
       studentId: s.id,
       scanType: "gate_in" as const,
       location: "Main Gate",
@@ -157,6 +173,7 @@ async function seed() {
   }
 
   const assembly = await db.insert(activitiesTable).values({
+    schoolId: demoSchool.id,
     name: "Morning Assembly",
     activityType: "assembly",
     description: "Daily morning assembly for all students",
@@ -166,7 +183,8 @@ async function seed() {
     status: "active",
   }).returning();
 
-  const sports = await db.insert(activitiesTable).values({
+  await db.insert(activitiesTable).values({
+    schoolId: demoSchool.id,
     name: "Inter-House Sports",
     activityType: "event",
     description: "Annual inter-house sports competition",
@@ -174,9 +192,10 @@ async function seed() {
     startTime: new Date(now.getTime() + 2 * 60 * 60000),
     endTime: new Date(now.getTime() + 5 * 60 * 60000),
     status: "upcoming",
-  }).returning();
+  });
 
   await db.insert(activitiesTable).values({
+    schoolId: demoSchool.id,
     name: "Science Club",
     activityType: "club",
     description: "Weekly science club meeting",
@@ -192,6 +211,8 @@ async function seed() {
   console.log("  Admin: admin / admin123");
   console.log("  Staff: staff1 / staff123");
   console.log("  Staff: staff2 / staff123");
+  console.log(`\nDemo school code: ${demoSchool.code}`);
+  console.log(`Demo QR format: SCID-DEMO-STU####`);
 
   await pool.end();
 }

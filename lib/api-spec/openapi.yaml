@@ -61,6 +61,27 @@ paths:
         "401":
           description: Invalid credentials
 
+  /auth/register-school:
+    post:
+      operationId: registerSchool
+      tags: [auth]
+      summary: Register a new school and admin user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterSchoolBody"
+      responses:
+        "201":
+          description: School and admin created, token returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "409":
+          description: Slug, code, or username already taken
+
   /auth/me:
     get:
       operationId: getMe
@@ -704,6 +725,8 @@ components:
           type: string
         isActive:
           type: string
+        schoolId:
+          type: integer
         createdAt:
           type: string
       required:
@@ -713,7 +736,36 @@ components:
         - lastName
         - role
         - isActive
+        - schoolId
         - createdAt
+
+    RegisterSchoolBody:
+      type: object
+      properties:
+        schoolName:
+          type: string
+        schoolSlug:
+          type: string
+        schoolCode:
+          type: string
+        adminUsername:
+          type: string
+        adminPassword:
+          type: string
+        adminFirstName:
+          type: string
+        adminLastName:
+          type: string
+        contactEmail:
+          type: string
+      required:
+        - schoolName
+        - schoolSlug
+        - schoolCode
+        - adminUsername
+        - adminPassword
+        - adminFirstName
+        - adminLastName
 
     CreateUserBody:
       type: object

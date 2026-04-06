@@ -1,10 +1,12 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, or } from "drizzle-orm";
 import { db, studentsTable, scanEventsTable } from "@workspace/db";
 import { ProcessScanBody } from "@workspace/api-zod";
 import { computeStudentState, generateWarnings, formatScanType } from "../lib/state-engine";
 import { broadcastStateChange, broadcastDashboardUpdate } from "../lib/socket";
 import { requireAuth } from "../lib/auth";
+import type { Request } from "express";
+import type { JwtPayload } from "../lib/auth";
 
 const router: IRouter = Router();
 
@@ -14,20 +16,54 @@ function todayStart(): Date {
   return d;
 }
 
+/**
+ * Resolve QR code input to candidate lookup values.
+ * Supports:
+ *   - New namespaced format: SCID-[CODE]-STU#### → also try stripping the code prefix
+ *   - Legacy format: SCID-STU#### → also try matching qrCode directly
+ *   - Raw studentId: DEMO-STU1001 → match studentId directly
+ * Returns an array of values to try matching against qrCode OR studentId.
+ */
+function resolveQrCandidates(input: string): string[] {
+  const candidates = new Set<string>([input]);
+
+  const namespacedMatch = input.match(/^SCID-([A-Z]+)-(.+)$/);
+  if (namespacedMatch) {
+    const [, , rest] = namespacedMatch;
+    candidates.add(`SCID-${rest}`);
+    candidates.add(rest);
+  }
+
+  const legacyMatch = input.match(/^SCID-(.+)$/);
+  if (legacyMatch && !namespacedMatch) {
+    candidates.add(legacyMatch[1]);
+  }
+
+  return Array.from(candidates);
+}
+
 router.post("/scan", requireAuth, async (req, res): Promise<void> => {
   const parsed = ProcessScanBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const user = (req as Request & { user: JwtPayload }).user;
 
   const { qrCode, scanType, location, activityId, notes } = parsed.data;
+  const candidates = resolveQrCandidates(qrCode);
+
+  const qrConditions = candidates.map(c => eq(studentsTable.qrCode, c));
+  const idConditions = candidates.map(c => eq(studentsTable.studentId, c));
 
   const [student] = await db
     .select()
     .from(studentsTable)
     .where(
-      sql`${studentsTable.qrCode} = ${qrCode} OR ${studentsTable.studentId} = ${qrCode}`
+      and(
+        eq(studentsTable.schoolId, user.schoolId),
+        or(...qrConditions, ...idConditions)
+      )
     );
 
   if (!student) {
@@ -40,6 +76,7 @@ router.post("/scan", requireAuth, async (req, res): Promise<void> => {
     .from(scanEventsTable)
     .where(
       and(
+        eq(scanEventsTable.schoolId, user.schoolId),
         eq(scanEventsTable.studentId, student.id),
         sql`${scanEventsTable.createdAt} >= ${todayStart()}`
       )
@@ -51,6 +88,7 @@ router.post("/scan", requireAuth, async (req, res): Promise<void> => {
   const [scanEvent] = await db
     .insert(scanEventsTable)
     .values({
+      schoolId: user.schoolId,
       studentId: student.id,
       scanType,
       location: location ?? null,
@@ -70,8 +108,9 @@ router.post("/scan", requireAuth, async (req, res): Promise<void> => {
     newState: state,
     scanType,
     message: `${studentName} ${formatScanType(scanType)}`,
+    schoolId: user.schoolId,
   });
-  broadcastDashboardUpdate();
+  broadcastDashboardUpdate(user.schoolId);
 
   res.json({
     scanEvent: {
@@ -108,8 +147,9 @@ router.post("/scan", requireAuth, async (req, res): Promise<void> => {
 router.get("/scan/events", requireAuth, async (req, res): Promise<void> => {
   const { studentId, date, limit } = req.query as Record<string, string | undefined>;
   const lim = limit ? parseInt(limit, 10) : 50;
+  const user = (req as Request & { user: JwtPayload }).user;
 
-  const conditions = [];
+  const conditions = [eq(scanEventsTable.schoolId, user.schoolId)];
 
   if (studentId) {
     const sid = parseInt(studentId, 10);
@@ -124,18 +164,12 @@ router.get("/scan/events", requireAuth, async (req, res): Promise<void> => {
     conditions.push(sql`${scanEventsTable.createdAt} >= ${d} AND ${scanEventsTable.createdAt} <= ${end}`);
   }
 
-  const events = conditions.length > 0
-    ? await db
-        .select()
-        .from(scanEventsTable)
-        .where(and(...conditions))
-        .orderBy(desc(scanEventsTable.createdAt))
-        .limit(lim)
-    : await db
-        .select()
-        .from(scanEventsTable)
-        .orderBy(desc(scanEventsTable.createdAt))
-        .limit(lim);
+  const events = await db
+    .select()
+    .from(scanEventsTable)
+    .where(and(...conditions))
+    .orderBy(desc(scanEventsTable.createdAt))
+    .limit(lim);
 
   const studentIds = [...new Set(events.map((e) => e.studentId))];
   let studentsMap: Record<number, { firstName: string; lastName: string }> = {};
@@ -143,8 +177,10 @@ router.get("/scan/events", requireAuth, async (req, res): Promise<void> => {
     const students = await db
       .select({ id: studentsTable.id, firstName: studentsTable.firstName, lastName: studentsTable.lastName })
       .from(studentsTable)
-      .where(sql`${studentsTable.id} = ANY(${sql.raw(`ARRAY[${studentIds.join(",")}]::integer[]`)})`)
-    ;
+      .where(and(
+        eq(studentsTable.schoolId, user.schoolId),
+        sql`${studentsTable.id} = ANY(${sql.raw(`ARRAY[${studentIds.join(",")}]::integer[]`)})`
+      ));
     studentsMap = Object.fromEntries(students.map((s) => [s.id, s]));
   }
 

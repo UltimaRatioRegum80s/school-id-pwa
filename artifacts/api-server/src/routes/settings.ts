@@ -3,17 +3,24 @@ import { requireAuth } from "../lib/auth";
 import { eq } from "drizzle-orm";
 import { db, schoolSettingsTable } from "@workspace/db";
 import { UpdateSettingsBody } from "@workspace/api-zod";
+import type { Request } from "express";
+import type { JwtPayload } from "../lib/auth";
 
 const router: IRouter = Router();
 
-router.get("/settings", requireAuth, async (_req, res): Promise<void> => {
-  let [settings] = await db.select().from(schoolSettingsTable).limit(1);
+router.get("/settings", requireAuth, async (req, res): Promise<void> => {
+  const user = (req as Request & { user: JwtPayload }).user;
+  let [settings] = await db
+    .select()
+    .from(schoolSettingsTable)
+    .where(eq(schoolSettingsTable.schoolId, user.schoolId));
 
   if (!settings) {
     [settings] = await db
       .insert(schoolSettingsTable)
       .values({
-        schoolName: "Springfield Academy",
+        schoolId: user.schoolId,
+        schoolName: "My School",
         startTime: "07:30",
         endTime: "14:30",
         lateThresholdMinutes: "15",
@@ -39,14 +46,19 @@ router.patch("/settings", requireAuth, async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const user = (req as Request & { user: JwtPayload }).user;
 
-  let [settings] = await db.select().from(schoolSettingsTable).limit(1);
+  let [settings] = await db
+    .select()
+    .from(schoolSettingsTable)
+    .where(eq(schoolSettingsTable.schoolId, user.schoolId));
 
   if (!settings) {
     [settings] = await db
       .insert(schoolSettingsTable)
       .values({
-        schoolName: "Springfield Academy",
+        schoolId: user.schoolId,
+        schoolName: "My School",
         startTime: "07:30",
         endTime: "14:30",
         lateThresholdMinutes: "15",
@@ -58,7 +70,7 @@ router.patch("/settings", requireAuth, async (req, res): Promise<void> => {
   const [updated] = await db
     .update(schoolSettingsTable)
     .set(parsed.data)
-    .where(eq(schoolSettingsTable.id, settings.id))
+    .where(eq(schoolSettingsTable.schoolId, user.schoolId))
     .returning();
 
   res.json({

@@ -3,9 +3,11 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { studentsTable } from "./students";
 import { usersTable } from "./users";
+import { schoolsTable } from "./schools";
 
 export const scanEventsTable = pgTable("scan_events", {
   id: serial("id").primaryKey(),
+  schoolId: integer("school_id").notNull().references(() => schoolsTable.id),
   studentId: integer("student_id").notNull().references(() => studentsTable.id),
   scannedById: integer("scanned_by_id").references(() => usersTable.id),
   scanType: text("scan_type").notNull(),

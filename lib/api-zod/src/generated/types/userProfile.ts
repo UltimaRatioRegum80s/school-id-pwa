@@ -13,5 +13,6 @@ export interface UserProfile {
   lastName: string;
   role: string;
   isActive: string;
+  schoolId: number;
   createdAt: string;
 }

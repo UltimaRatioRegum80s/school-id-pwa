@@ -3,9 +3,11 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { studentsTable } from "./students";
 import { usersTable } from "./users";
+import { schoolsTable } from "./schools";
 
 export const behaviorCategoriesTable = pgTable("behavior_categories", {
   id: serial("id").primaryKey(),
+  schoolId: integer("school_id").notNull().references(() => schoolsTable.id),
   name: text("name").notNull(),
   type: text("type").notNull(),
   points: integer("points").notNull().default(1),
@@ -15,6 +17,7 @@ export const behaviorCategoriesTable = pgTable("behavior_categories", {
 
 export const behaviorLogsTable = pgTable("behavior_logs", {
   id: serial("id").primaryKey(),
+  schoolId: integer("school_id").notNull().references(() => schoolsTable.id),
   studentId: integer("student_id").notNull().references(() => studentsTable.id),
   categoryId: integer("category_id").references(() => behaviorCategoriesTable.id),
   type: text("type").notNull(),

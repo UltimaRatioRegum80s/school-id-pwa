@@ -32,8 +32,23 @@ export const LoginResponse = zod.object({
     lastName: zod.string(),
     role: zod.string(),
     isActive: zod.string(),
+    schoolId: zod.number(),
     createdAt: zod.string(),
   }),
+});
+
+/**
+ * @summary Register a new school and admin user
+ */
+export const RegisterSchoolBody = zod.object({
+  schoolName: zod.string(),
+  schoolSlug: zod.string(),
+  schoolCode: zod.string(),
+  adminUsername: zod.string(),
+  adminPassword: zod.string(),
+  adminFirstName: zod.string(),
+  adminLastName: zod.string(),
+  contactEmail: zod.string().optional(),
 });
 
 /**
@@ -46,6 +61,7 @@ export const GetMeResponse = zod.object({
   lastName: zod.string(),
   role: zod.string(),
   isActive: zod.string(),
+  schoolId: zod.number(),
   createdAt: zod.string(),
 });
 
@@ -870,6 +886,7 @@ export const ListUsersResponseItem = zod.object({
   lastName: zod.string(),
   role: zod.string(),
   isActive: zod.string(),
+  schoolId: zod.number(),
   createdAt: zod.string(),
 });
 export const ListUsersResponse = zod.array(ListUsersResponseItem);

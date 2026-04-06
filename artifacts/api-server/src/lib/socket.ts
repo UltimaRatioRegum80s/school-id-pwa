@@ -42,7 +42,15 @@ export function initSocketIO(httpServer: HttpServer): SocketIOServer {
   });
 
   io.on("connection", (socket) => {
-    logger.info({ socketId: socket.id }, "Socket connected");
+    const user = (socket as typeof socket & { user: ReturnType<typeof verifyToken> }).user;
+    if (user && user.schoolId) {
+      const room = `school:${user.schoolId}`;
+      socket.join(room);
+      logger.info({ socketId: socket.id, room }, "Socket connected and joined school room");
+    } else {
+      logger.info({ socketId: socket.id }, "Socket connected");
+    }
+
     socket.on("disconnect", () => {
       logger.info({ socketId: socket.id }, "Socket disconnected");
     });
@@ -62,14 +70,16 @@ export function broadcastStateChange(data: {
   newState: string;
   scanType: string;
   message: string;
+  schoolId: number;
 }): void {
   if (io) {
-    io.emit("state_changed", data);
+    const { schoolId, ...payload } = data;
+    io.to(`school:${schoolId}`).emit("state_changed", payload);
   }
 }
 
-export function broadcastDashboardUpdate(): void {
+export function broadcastDashboardUpdate(schoolId: number): void {
   if (io) {
-    io.emit("dashboard_update", { timestamp: new Date().toISOString() });
+    io.to(`school:${schoolId}`).emit("dashboard_update", { timestamp: new Date().toISOString() });
   }
 }

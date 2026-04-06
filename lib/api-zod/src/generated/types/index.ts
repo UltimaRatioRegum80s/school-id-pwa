@@ -34,6 +34,7 @@ export * from "./listStudentsParams";
 export * from "./loginBody";
 export * from "./loginResponse";
 export * from "./markAttendanceBody";
+export * from "./registerSchoolBody";
 export * from "./scanBody";
 export * from "./scanEvent";
 export * from "./scanResult";

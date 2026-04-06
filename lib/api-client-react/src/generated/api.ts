@@ -40,6 +40,7 @@ import type {
   LoginBody,
   LoginResponse,
   MarkAttendanceBody,
+  RegisterSchoolBody,
   ScanBody,
   ScanEvent,
   ScanResult,
@@ -224,6 +225,92 @@ export const useLogin = <
   TContext
 > => {
   return useMutation(getLoginMutationOptions(options));
+};
+
+/**
+ * @summary Register a new school and admin user
+ */
+export const getRegisterSchoolUrl = () => {
+  return `/api/auth/register-school`;
+};
+
+export const registerSchool = async (
+  registerSchoolBody: RegisterSchoolBody,
+  options?: RequestInit,
+): Promise<LoginResponse> => {
+  return customFetch<LoginResponse>(getRegisterSchoolUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(registerSchoolBody),
+  });
+};
+
+export const getRegisterSchoolMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof registerSchool>>,
+    TError,
+    { data: BodyType<RegisterSchoolBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof registerSchool>>,
+  TError,
+  { data: BodyType<RegisterSchoolBody> },
+  TContext
+> => {
+  const mutationKey = ["registerSchool"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof registerSchool>>,
+    { data: BodyType<RegisterSchoolBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return registerSchool(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RegisterSchoolMutationResult = NonNullable<
+  Awaited<ReturnType<typeof registerSchool>>
+>;
+export type RegisterSchoolMutationBody = BodyType<RegisterSchoolBody>;
+export type RegisterSchoolMutationError = ErrorType<void>;
+
+/**
+ * @summary Register a new school and admin user
+ */
+export const useRegisterSchool = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof registerSchool>>,
+    TError,
+    { data: BodyType<RegisterSchoolBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof registerSchool>>,
+  TError,
+  { data: BodyType<RegisterSchoolBody> },
+  TContext
+> => {
+  return useMutation(getRegisterSchoolMutationOptions(options));
 };
 
 /**

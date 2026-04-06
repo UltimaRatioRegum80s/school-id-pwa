@@ -1,13 +1,19 @@
 import { Router, type IRouter } from "express";
 import { requireAuth } from "../lib/auth";
-import { eq, desc } from "drizzle-orm";
-import { db, behaviorLogsTable, behaviorCategoriesTable } from "@workspace/db";
+import { eq, desc, and } from "drizzle-orm";
+import { db, behaviorLogsTable, behaviorCategoriesTable, studentsTable } from "@workspace/db";
 import { CreateBehaviorLogBody, CreateBehaviorCategoryBody, UpdateBehaviorLogBody } from "@workspace/api-zod";
+import type { Request } from "express";
+import type { JwtPayload } from "../lib/auth";
 
 const router: IRouter = Router();
 
-router.get("/behavior/categories", requireAuth, async (_req, res): Promise<void> => {
-  const categories = await db.select().from(behaviorCategoriesTable);
+router.get("/behavior/categories", requireAuth, async (req, res): Promise<void> => {
+  const user = (req as Request & { user: JwtPayload }).user;
+  const categories = await db
+    .select()
+    .from(behaviorCategoriesTable)
+    .where(eq(behaviorCategoriesTable.schoolId, user.schoolId));
   res.json(
     categories.map((c) => ({
       id: c.id,
@@ -26,10 +32,11 @@ router.post("/behavior/categories", requireAuth, async (req, res): Promise<void>
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const user = (req as Request & { user: JwtPayload }).user;
 
   const [category] = await db
     .insert(behaviorCategoriesTable)
-    .values(parsed.data)
+    .values({ ...parsed.data, schoolId: user.schoolId })
     .returning();
 
   res.status(201).json({
@@ -45,6 +52,7 @@ router.post("/behavior/categories", requireAuth, async (req, res): Promise<void>
 router.get("/behavior/logs", requireAuth, async (req, res): Promise<void> => {
   const { studentId, type, limit } = req.query as Record<string, string | undefined>;
   const lim = limit ? parseInt(limit, 10) : 50;
+  const user = (req as Request & { user: JwtPayload }).user;
 
   let logs;
   if (studentId) {
@@ -52,13 +60,14 @@ router.get("/behavior/logs", requireAuth, async (req, res): Promise<void> => {
     logs = await db
       .select()
       .from(behaviorLogsTable)
-      .where(eq(behaviorLogsTable.studentId, sid))
+      .where(and(eq(behaviorLogsTable.schoolId, user.schoolId), eq(behaviorLogsTable.studentId, sid)))
       .orderBy(desc(behaviorLogsTable.createdAt))
       .limit(lim);
   } else {
     logs = await db
       .select()
       .from(behaviorLogsTable)
+      .where(eq(behaviorLogsTable.schoolId, user.schoolId))
       .orderBy(desc(behaviorLogsTable.createdAt))
       .limit(lim);
   }
@@ -74,7 +83,7 @@ router.get("/behavior/logs", requireAuth, async (req, res): Promise<void> => {
       const [cat] = await db
         .select({ id: behaviorCategoriesTable.id, name: behaviorCategoriesTable.name })
         .from(behaviorCategoriesTable)
-        .where(eq(behaviorCategoriesTable.id, cid));
+        .where(and(eq(behaviorCategoriesTable.id, cid), eq(behaviorCategoriesTable.schoolId, user.schoolId)));
       if (cat) categoryNames[cat.id] = cat.name;
     }
   }
@@ -100,10 +109,34 @@ router.post("/behavior/logs", requireAuth, async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const user = (req as Request & { user: JwtPayload }).user;
+
+  const [studentOwned] = await db
+    .select({ id: studentsTable.id })
+    .from(studentsTable)
+    .where(and(eq(studentsTable.id, parsed.data.studentId), eq(studentsTable.schoolId, user.schoolId)));
+
+  if (!studentOwned) {
+    res.status(404).json({ error: "Student not found" });
+    return;
+  }
+
+  if (parsed.data.categoryId != null) {
+    const [categoryOwned] = await db
+      .select({ id: behaviorCategoriesTable.id })
+      .from(behaviorCategoriesTable)
+      .where(and(eq(behaviorCategoriesTable.id, parsed.data.categoryId), eq(behaviorCategoriesTable.schoolId, user.schoolId)));
+
+    if (!categoryOwned) {
+      res.status(404).json({ error: "Behavior category not found" });
+      return;
+    }
+  }
 
   const [log] = await db
     .insert(behaviorLogsTable)
     .values({
+      schoolId: user.schoolId,
       studentId: parsed.data.studentId,
       categoryId: parsed.data.categoryId ?? null,
       type: parsed.data.type,
@@ -132,6 +165,7 @@ router.patch("/behavior/logs/:id", requireAuth, async (req, res): Promise<void> 
     res.status(400).json({ error: "Invalid log ID" });
     return;
   }
+  const user = (req as Request & { user: JwtPayload }).user;
 
   const parsed = UpdateBehaviorLogBody.safeParse(req.body);
   if (!parsed.success) {
@@ -142,7 +176,7 @@ router.patch("/behavior/logs/:id", requireAuth, async (req, res): Promise<void> 
   const [existing] = await db
     .select()
     .from(behaviorLogsTable)
-    .where(eq(behaviorLogsTable.id, id));
+    .where(and(eq(behaviorLogsTable.id, id), eq(behaviorLogsTable.schoolId, user.schoolId)));
 
   if (!existing) {
     res.status(404).json({ error: "Behavior log not found" });
@@ -158,7 +192,7 @@ router.patch("/behavior/logs/:id", requireAuth, async (req, res): Promise<void> 
   const [updated] = await db
     .update(behaviorLogsTable)
     .set(updates)
-    .where(eq(behaviorLogsTable.id, id))
+    .where(and(eq(behaviorLogsTable.id, id), eq(behaviorLogsTable.schoolId, user.schoolId)))
     .returning();
 
   res.json({
@@ -180,18 +214,19 @@ router.delete("/behavior/logs/:id", requireAuth, async (req, res): Promise<void>
     res.status(400).json({ error: "Invalid log ID" });
     return;
   }
+  const user = (req as Request & { user: JwtPayload }).user;
 
   const [existing] = await db
     .select()
     .from(behaviorLogsTable)
-    .where(eq(behaviorLogsTable.id, id));
+    .where(and(eq(behaviorLogsTable.id, id), eq(behaviorLogsTable.schoolId, user.schoolId)));
 
   if (!existing) {
     res.status(404).json({ error: "Behavior log not found" });
     return;
   }
 
-  await db.delete(behaviorLogsTable).where(eq(behaviorLogsTable.id, id));
+  await db.delete(behaviorLogsTable).where(and(eq(behaviorLogsTable.id, id), eq(behaviorLogsTable.schoolId, user.schoolId)));
   res.status(204).send();
 });
 

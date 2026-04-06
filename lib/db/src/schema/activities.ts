@@ -2,9 +2,11 @@ import { pgTable, text, serial, timestamp, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
+import { schoolsTable } from "./schools";
 
 export const activitiesTable = pgTable("activities", {
   id: serial("id").primaryKey(),
+  schoolId: integer("school_id").notNull().references(() => schoolsTable.id),
   name: text("name").notNull(),
   activityType: text("activity_type").notNull(),
   description: text("description"),
@@ -18,6 +20,7 @@ export const activitiesTable = pgTable("activities", {
 
 export const activityMembersTable = pgTable("activity_members", {
   id: serial("id").primaryKey(),
+  schoolId: integer("school_id").notNull().references(() => schoolsTable.id),
   activityId: integer("activity_id").notNull().references(() => activitiesTable.id),
   studentId: integer("student_id").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -25,6 +28,7 @@ export const activityMembersTable = pgTable("activity_members", {
 
 export const activityAttendanceTable = pgTable("activity_attendance", {
   id: serial("id").primaryKey(),
+  schoolId: integer("school_id").notNull().references(() => schoolsTable.id),
   activityId: integer("activity_id").notNull().references(() => activitiesTable.id),
   studentId: integer("student_id").notNull(),
   status: text("status").notNull().default("present"),

@@ -1,8 +1,10 @@
 import { Router, type IRouter } from "express";
 import { requireAuth } from "../lib/auth";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, sql, and } from "drizzle-orm";
 import { db, studentsTable, scanEventsTable, schoolSettingsTable } from "@workspace/db";
 import { computeStudentState, isLateArrival, formatScanType } from "../lib/state-engine";
+import type { Request } from "express";
+import type { JwtPayload } from "../lib/auth";
 
 const router: IRouter = Router();
 
@@ -38,13 +40,19 @@ function formatStudentWithState(
 router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> => {
   const { grade, className } = req.query as { grade?: string; className?: string };
   const todayStartDate = todayStart();
+  const user = (req as Request & { user: JwtPayload }).user;
 
-  const [settingsRow] = await db.select().from(schoolSettingsTable).limit(1);
+  const [settingsRow] = await db
+    .select()
+    .from(schoolSettingsTable)
+    .where(eq(schoolSettingsTable.schoolId, user.schoolId));
   const schoolStartTime = settingsRow?.startTime ?? "07:30";
 
-  const allActiveStudents = await db.select().from(studentsTable).where(eq(studentsTable.isActive, 1));
+  const allActiveStudents = await db
+    .select()
+    .from(studentsTable)
+    .where(and(eq(studentsTable.isActive, 1), eq(studentsTable.schoolId, user.schoolId)));
 
-  // Build availableClassesByGrade from all students (unfiltered)
   const availableClassesByGrade: Record<string, string[]> = {};
   for (const s of allActiveStudents) {
     if (!availableClassesByGrade[s.grade]) availableClassesByGrade[s.grade] = [];
@@ -63,7 +71,12 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
   const todayEvents = await db
     .select()
     .from(scanEventsTable)
-    .where(sql`${scanEventsTable.createdAt} >= ${todayStartDate}`)
+    .where(
+      and(
+        eq(scanEventsTable.schoolId, user.schoolId),
+        sql`${scanEventsTable.createdAt} >= ${todayStartDate}`
+      )
+    )
     .orderBy(scanEventsTable.createdAt);
 
   const eventsByStudent: Record<number, typeof scanEventsTable.$inferSelect[]> = {};
@@ -128,18 +141,21 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
       .map((s) => formatStudentWithState(s.student, s.events)),
   };
 
-  // Build student name lookup (filtered scope)
   const studentNameMap: Record<number, string> = {};
   for (const s of students) {
     studentNameMap[s.id] = `${s.firstName} ${s.lastName}`;
   }
 
-  // Fetch recent feed events, filtered to the active student scope
   const filteredStudentIds = students.map((s) => s.id);
   const allRecentEvents = await db
     .select()
     .from(scanEventsTable)
-    .where(sql`${scanEventsTable.createdAt} >= ${todayStartDate}`)
+    .where(
+      and(
+        eq(scanEventsTable.schoolId, user.schoolId),
+        sql`${scanEventsTable.createdAt} >= ${todayStartDate}`
+      )
+    )
     .orderBy(desc(scanEventsTable.createdAt))
     .limit(200);
 
@@ -169,11 +185,17 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
 router.get("/dashboard/feed", requireAuth, async (req, res): Promise<void> => {
   const lim = req.query.limit ? parseInt(req.query.limit as string, 10) : 30;
   const todayStartDate = todayStart();
+  const user = (req as Request & { user: JwtPayload }).user;
 
   const events = await db
     .select()
     .from(scanEventsTable)
-    .where(sql`${scanEventsTable.createdAt} >= ${todayStartDate}`)
+    .where(
+      and(
+        eq(scanEventsTable.schoolId, user.schoolId),
+        sql`${scanEventsTable.createdAt} >= ${todayStartDate}`
+      )
+    )
     .orderBy(desc(scanEventsTable.createdAt))
     .limit(lim);
 
@@ -184,8 +206,10 @@ router.get("/dashboard/feed", requireAuth, async (req, res): Promise<void> => {
     const students = await db
       .select({ id: studentsTable.id, firstName: studentsTable.firstName, lastName: studentsTable.lastName })
       .from(studentsTable)
-      .where(sql`${studentsTable.id} = ANY(${sql.raw(`ARRAY[${studentIds.join(",")}]::integer[]`)})`)
-    ;
+      .where(and(
+        eq(studentsTable.schoolId, user.schoolId),
+        sql`${studentsTable.id} = ANY(${sql.raw(`ARRAY[${studentIds.join(",")}]::integer[]`)})`
+      ));
     for (const s of students) {
       studentNames[s.id] = `${s.firstName} ${s.lastName}`;
     }

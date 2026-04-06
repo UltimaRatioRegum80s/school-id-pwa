@@ -1,3 +1,4 @@
+export * from "./schools";
 export * from "./students";
 export * from "./users";
 export * from "./scan_events";
