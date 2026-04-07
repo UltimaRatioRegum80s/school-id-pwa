@@ -56,7 +56,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await fetch(`${getApiUrl()}/school/branding`, {
         headers: { Authorization: `Bearer ${currentToken}` },
       });
-      if (!res.ok) return null;
+      if (!res.ok) {
+        if (res.status === 401) {
+          window.dispatchEvent(new CustomEvent("auth:unauthorized"));
+        }
+        return null;
+      }
       const data: BrandingInfo = await res.json();
       return data;
     } catch {
@@ -86,6 +91,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (branding) {
       applyBranding(branding);
     }
+  }, []);
+
+  useEffect(() => {
+    function handleUnauthorized() {
+      localStorage.removeItem("school-id-token");
+      localStorage.removeItem("school-id-user");
+      localStorage.removeItem("school-id-branding");
+      setToken(null);
+      setUser(null);
+      setBranding(null);
+      setBrandingLoaded(false);
+    }
+    window.addEventListener("auth:unauthorized", handleUnauthorized);
+    return () => window.removeEventListener("auth:unauthorized", handleUnauthorized);
   }, []);
 
   useEffect(() => {
