@@ -103,38 +103,40 @@ export default function AdminPage() {
   const schoolCode = user?.schoolCode;
 
   return (
-    <div className="flex flex-col min-h-screen bg-background pb-20">
+    <div className="flex flex-col min-h-screen bg-background pb-20 md:pb-6">
       <PageHeader title="Admin" subtitle={`${user?.role === "admin" ? "Administrator" : "Staff"}`} showLogo={true} />
 
-      <div className="max-w-lg mx-auto w-full px-4 py-4 space-y-4">
-        {/* School identity banner */}
-        {schoolDisplayName && (
-          <div className="bg-primary/5 border border-primary/20 rounded-xl px-4 py-3 flex items-center gap-3" data-testid="panel-school-identity">
-            <Building2 className="w-5 h-5 text-primary flex-shrink-0" />
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-foreground truncate" data-testid="text-school-name">
-                {schoolDisplayName}
-              </p>
-              {schoolCode && (
-                <p className="text-xs text-muted-foreground font-mono">{schoolCode}</p>
-              )}
+      <div className="max-w-lg md:max-w-4xl mx-auto w-full px-4 md:px-6 py-4 space-y-4">
+        {/* Top row: school identity + profile */}
+        <div className="md:grid md:grid-cols-2 md:gap-4 space-y-4 md:space-y-0">
+          {schoolDisplayName && (
+            <div className="bg-primary/5 border border-primary/20 rounded-xl px-4 py-3 flex items-center gap-3" data-testid="panel-school-identity">
+              <Building2 className="w-5 h-5 text-primary flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-foreground truncate" data-testid="text-school-name">
+                  {schoolDisplayName}
+                </p>
+                {schoolCode && (
+                  <p className="text-xs text-muted-foreground font-mono">{schoolCode}</p>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Profile card */}
-        <div className="bg-card border border-border rounded-xl p-4" data-testid="panel-admin-profile">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-              <span className="text-base font-bold text-primary">
-                {user?.firstName[0]}{user?.lastName[0]}
-              </span>
-            </div>
-            <div className="flex-1">
-              <p className="font-semibold text-foreground" data-testid="text-admin-name">
-                {user?.firstName} {user?.lastName}
-              </p>
-              <p className="text-xs text-muted-foreground">{user?.username} · {user?.role}</p>
+          {/* Profile card */}
+          <div className="bg-card border border-border rounded-xl p-4" data-testid="panel-admin-profile">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
+                <span className="text-base font-bold text-primary">
+                  {user?.firstName[0]}{user?.lastName[0]}
+                </span>
+              </div>
+              <div className="flex-1">
+                <p className="font-semibold text-foreground" data-testid="text-admin-name">
+                  {user?.firstName} {user?.lastName}
+                </p>
+                <p className="text-xs text-muted-foreground">{user?.username} · {user?.role}</p>
+              </div>
             </div>
           </div>
         </div>
@@ -142,69 +144,74 @@ export default function AdminPage() {
         {/* Admin-only section */}
         {user?.role === "admin" && (
           <>
-            <div className="bg-card border border-border rounded-xl divide-y divide-border overflow-hidden">
-              <MenuRow
-                icon={<Building2 className="w-4 h-4 text-blue-500" />}
-                label="School Settings"
-                description="Configure school name, times, and timezone"
-                onClick={() => setView("settings")}
-                testId="button-nav-school-settings"
-              />
-              <MenuRow
-                icon={<Palette className="w-4 h-4 text-pink-500" />}
-                label="Appearance"
-                description="Logo and colour palette for your school"
-                onClick={() => setView("appearance")}
-                testId="button-nav-appearance"
-              />
-              <MenuRow
-                icon={<Users className="w-4 h-4 text-purple-500" />}
-                label="Staff Accounts"
-                description="Manage staff users and permissions"
-                onClick={() => setView("users")}
-                testId="button-nav-staff-accounts"
-              />
-              <MenuRow
-                icon={<Star className="w-4 h-4 text-yellow-500" />}
-                label="Behavior Categories"
-                description="Configure merit and demerit categories"
-                onClick={() => setView("behavior-categories")}
-                testId="button-nav-behavior-categories"
-              />
-            </div>
+            {/* Desktop: 2-column card grid for menu items */}
+            <div className="md:grid md:grid-cols-2 md:gap-4 space-y-4 md:space-y-0">
+              <div className="bg-card border border-border rounded-xl divide-y divide-border overflow-hidden">
+                <MenuRow
+                  icon={<Building2 className="w-4 h-4 text-blue-500" />}
+                  label="School Settings"
+                  description="Configure school name, times, and timezone"
+                  onClick={() => setView("settings")}
+                  testId="button-nav-school-settings"
+                />
+                <MenuRow
+                  icon={<Palette className="w-4 h-4 text-pink-500" />}
+                  label="Appearance"
+                  description="Logo and colour palette for your school"
+                  onClick={() => setView("appearance")}
+                  testId="button-nav-appearance"
+                />
+                <MenuRow
+                  icon={<Users className="w-4 h-4 text-purple-500" />}
+                  label="Staff Accounts"
+                  description="Manage staff users and permissions"
+                  onClick={() => setView("users")}
+                  testId="button-nav-staff-accounts"
+                />
+                <MenuRow
+                  icon={<Star className="w-4 h-4 text-yellow-500" />}
+                  label="Behavior Categories"
+                  description="Configure merit and demerit categories"
+                  onClick={() => setView("behavior-categories")}
+                  testId="button-nav-behavior-categories"
+                />
+              </div>
 
-            <div className="bg-card border border-border rounded-xl divide-y divide-border overflow-hidden">
-              <MenuRow
-                icon={<CalendarRange className="w-4 h-4 text-orange-500" />}
-                label="Activity Management"
-                description="Create and edit assemblies, events, clubs, detention"
-                onClick={() => setView("activity-management")}
-                testId="button-nav-activity-management"
-              />
-            </div>
+              <div className="space-y-4 md:space-y-4">
+                <div className="bg-card border border-border rounded-xl divide-y divide-border overflow-hidden">
+                  <MenuRow
+                    icon={<CalendarRange className="w-4 h-4 text-orange-500" />}
+                    label="Activity Management"
+                    description="Create and edit assemblies, events, clubs, detention"
+                    onClick={() => setView("activity-management")}
+                    testId="button-nav-activity-management"
+                  />
+                </div>
 
-            <div className="bg-card border border-border rounded-xl divide-y divide-border overflow-hidden">
-              <MenuRow
-                icon={<UserPlus className="w-4 h-4 text-green-500" />}
-                label="Add Student"
-                description="Manually enroll a new student"
-                onClick={() => setView("add-student")}
-                testId="button-nav-add-student"
-              />
-              <MenuRow
-                icon={<Upload className="w-4 h-4 text-indigo-500" />}
-                label="Import Students (CSV)"
-                description="Bulk import student data from a CSV, Excel, or Word file"
-                onClick={() => setView("import-students")}
-                testId="button-nav-import-csv"
-              />
-              <MenuRow
-                icon={<CreditCard className="w-4 h-4 text-teal-500" />}
-                label="Print ID Cards"
-                description="Print credit-card sized ID cards with QR codes by grade"
-                onClick={() => setView("print-cards")}
-                testId="button-nav-print-cards"
-              />
+                <div className="bg-card border border-border rounded-xl divide-y divide-border overflow-hidden">
+                  <MenuRow
+                    icon={<UserPlus className="w-4 h-4 text-green-500" />}
+                    label="Add Student"
+                    description="Manually enroll a new student"
+                    onClick={() => setView("add-student")}
+                    testId="button-nav-add-student"
+                  />
+                  <MenuRow
+                    icon={<Upload className="w-4 h-4 text-indigo-500" />}
+                    label="Import Students (CSV)"
+                    description="Bulk import student data from a CSV, Excel, or Word file"
+                    onClick={() => setView("import-students")}
+                    testId="button-nav-import-csv"
+                  />
+                  <MenuRow
+                    icon={<CreditCard className="w-4 h-4 text-teal-500" />}
+                    label="Print ID Cards"
+                    description="Print credit-card sized ID cards with QR codes by grade"
+                    onClick={() => setView("print-cards")}
+                    testId="button-nav-print-cards"
+                  />
+                </div>
+              </div>
             </div>
           </>
         )}

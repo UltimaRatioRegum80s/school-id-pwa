@@ -98,7 +98,7 @@ export default function DashboardPage() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col min-h-screen bg-background pb-20">
+      <div className="flex flex-col min-h-screen bg-background pb-20 md:pb-6">
         <PageHeader title="Dashboard" subtitle="Live overview" showLogo={true} />
         <div className="flex items-center justify-center flex-1">
           <div className="text-center text-muted-foreground">
@@ -114,8 +114,182 @@ export default function DashboardPage() {
 
   const d = data;
 
+  const filterSection = (
+    <div data-testid="panel-filter-chips">
+      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+        <FilterChip
+          label="All Grades"
+          active={gradeFilter === null}
+          onClick={() => { setGradeFilter(null); setClassFilter(null); }}
+          testId="chip-grade-all"
+        />
+        {GRADES.map((g) => (
+          <FilterChip
+            key={g}
+            label={`Gr ${g}`}
+            active={gradeFilter === g}
+            onClick={() => handleGradeChip(g)}
+            testId={`chip-grade-${g}`}
+          />
+        ))}
+      </div>
+      {gradeFilter && classOptions.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto pb-1 mt-2 scrollbar-hide" data-testid="panel-class-chips">
+          {classOptions.map((c) => (
+            <FilterChip
+              key={c}
+              label={c}
+              active={classFilter === c}
+              onClick={() => handleClassChip(c)}
+              testId={`chip-class-${c}`}
+            />
+          ))}
+        </div>
+      )}
+      {(gradeFilter || classFilter) && (
+        <button
+          className="mt-2 text-xs text-muted-foreground flex items-center gap-1 hover:text-foreground transition-colors"
+          onClick={() => { setGradeFilter(null); setClassFilter(null); }}
+          data-testid="button-clear-filters"
+        >
+          <X className="w-3 h-3" />
+          Clear filter
+        </button>
+      )}
+    </div>
+  );
+
+  const exceptionsSection = (
+    <>
+      {d.exceptions.unaccountedStudents.length > 0 && (
+        <ExceptionCard
+          title="Unaccounted Students"
+          students={d.exceptions.unaccountedStudents}
+          color="red"
+        />
+      )}
+      {d.exceptions.lateArrivals.length > 0 && (
+        <ExceptionCard
+          title="Late Arrivals"
+          students={d.exceptions.lateArrivals}
+          color="yellow"
+        />
+      )}
+      {d.exceptions.missingFromClass.length > 0 && (
+        <ExceptionCard
+          title="Missing From Class"
+          students={d.exceptions.missingFromClass}
+          color="yellow"
+        />
+      )}
+    </>
+  );
+
+  const kpiSection = (
+    <div className="grid grid-cols-3 gap-3" data-testid="grid-kpis">
+      <KpiCard
+        label="Total"
+        value={d.kpis.total}
+        total={d.kpis.total}
+        icon={<Users className="w-4 h-4 text-primary" />}
+        showPct={false}
+        testId="kpi-total"
+      />
+      <KpiCard
+        label="Present"
+        value={d.kpis.present}
+        total={d.kpis.total}
+        icon={<CheckCircle className="w-4 h-4 text-green-500" />}
+        testId="kpi-present"
+      />
+      <KpiCard
+        label="Not Arrived"
+        value={d.kpis.absent}
+        total={d.kpis.total}
+        icon={<Clock className="w-4 h-4 text-slate-400" />}
+        testId="kpi-absent"
+      />
+      <KpiCard
+        label="Late"
+        value={d.kpis.late}
+        total={d.kpis.total}
+        icon={<TrendingUp className="w-4 h-4 text-yellow-500" />}
+        testId="kpi-late"
+      />
+      <KpiCard
+        label="Checked Out"
+        value={d.kpis.checkedOut}
+        total={d.kpis.total}
+        icon={<LogOut className="w-4 h-4 text-slate-500" />}
+        testId="kpi-checked-out"
+      />
+      <KpiCard
+        label="Unaccounted"
+        value={d.kpis.unaccounted}
+        total={d.kpis.total}
+        icon={<AlertTriangle className="w-4 h-4 text-red-500" />}
+        testId="kpi-unaccounted"
+      />
+    </div>
+  );
+
+  const statusSection = (
+    <div className="bg-card border border-border rounded-xl p-4" data-testid="panel-status-breakdown">
+      <h3 className="text-sm font-semibold text-foreground mb-3">Status Breakdown</h3>
+      <div className="space-y-2">
+        {d.statusDistribution.map(({ state, count }) => {
+          const pct = d.kpis.total > 0 ? (count / d.kpis.total) * 100 : 0;
+          return (
+            <div key={state} className="flex items-center gap-3" data-testid={`status-row-${state}`}>
+              <span className="text-xs text-muted-foreground w-24 flex-shrink-0">
+                {getStateLabel(state)}
+              </span>
+              <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${pct}%`,
+                    backgroundColor: STATE_COLORS[state] ?? "#94a3b8",
+                  }}
+                />
+              </div>
+              <span className="text-xs font-semibold text-foreground w-6 text-right">
+                {count}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  const feedSection = (
+    <div className="bg-card border border-border rounded-xl p-4" data-testid="panel-recent-feed">
+      <h3 className="text-sm font-semibold text-foreground mb-3">Recent Activity</h3>
+      {d.recentFeed.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-4">No activity today yet</p>
+      ) : (
+        <div className="space-y-0 divide-y divide-border">
+          {d.recentFeed.slice(0, 10).map((item) => (
+            <div key={item.id} className="py-2.5 flex items-start gap-3" data-testid={`feed-item-${item.id}`}>
+              <div className="w-7 h-7 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Users className="w-3.5 h-3.5 text-primary" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm text-foreground leading-tight">{item.message}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {formatRelativeTime(item.createdAt)}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   return (
-    <div className="flex flex-col min-h-screen bg-background pb-20">
+    <div className="flex flex-col min-h-screen bg-background pb-20 md:pb-6">
       <PageHeader
         title="Dashboard"
         subtitle={`Updated ${formatRelativeTime(d.lastUpdated)}`}
@@ -131,174 +305,40 @@ export default function DashboardPage() {
         }
       />
 
-      <div className="max-w-lg mx-auto w-full px-4 py-4 space-y-4">
-        {/* Grade / Class filter chips */}
-        <div data-testid="panel-filter-chips">
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-            <FilterChip
-              label="All Grades"
-              active={gradeFilter === null}
-              onClick={() => { setGradeFilter(null); setClassFilter(null); }}
-              testId="chip-grade-all"
-            />
-            {GRADES.map((g) => (
-              <FilterChip
-                key={g}
-                label={`Gr ${g}`}
-                active={gradeFilter === g}
-                onClick={() => handleGradeChip(g)}
-                testId={`chip-grade-${g}`}
-              />
-            ))}
-          </div>
-          {gradeFilter && classOptions.length > 0 && (
-            <div className="flex gap-2 overflow-x-auto pb-1 mt-2 scrollbar-hide" data-testid="panel-class-chips">
-              {classOptions.map((c) => (
-                <FilterChip
-                  key={c}
-                  label={c}
-                  active={classFilter === c}
-                  onClick={() => handleClassChip(c)}
-                  testId={`chip-class-${c}`}
-                />
-              ))}
+      {/* Mobile: single column */}
+      <div className="md:hidden max-w-lg mx-auto w-full px-4 py-4 space-y-4">
+        {filterSection}
+        {exceptionsSection}
+        {kpiSection}
+        {statusSection}
+        {feedSection}
+      </div>
+
+      {/* Desktop: two-column layout */}
+      <div className="hidden md:grid md:grid-cols-[400px,1fr] md:gap-6 px-6 py-5 flex-1">
+        {/* Left column: filters + exceptions */}
+        <div className="space-y-4 min-w-0">
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Filters</h2>
+          {filterSection}
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider pt-2">Alerts</h2>
+          {d.exceptions.unaccountedStudents.length === 0 &&
+           d.exceptions.lateArrivals.length === 0 &&
+           d.exceptions.missingFromClass.length === 0 ? (
+            <div className="bg-card border border-border rounded-xl p-4 text-center text-sm text-muted-foreground">
+              No active alerts
             </div>
-          )}
-          {(gradeFilter || classFilter) && (
-            <button
-              className="mt-2 text-xs text-muted-foreground flex items-center gap-1 hover:text-foreground transition-colors"
-              onClick={() => { setGradeFilter(null); setClassFilter(null); }}
-              data-testid="button-clear-filters"
-            >
-              <X className="w-3 h-3" />
-              Clear filter
-            </button>
-          )}
-        </div>
-
-        {/* Exceptions first — most urgent */}
-        {d.exceptions.unaccountedStudents.length > 0 && (
-          <ExceptionCard
-            title="Unaccounted Students"
-            students={d.exceptions.unaccountedStudents}
-            color="red"
-          />
-        )}
-
-        {d.exceptions.lateArrivals.length > 0 && (
-          <ExceptionCard
-            title="Late Arrivals"
-            students={d.exceptions.lateArrivals}
-            color="yellow"
-          />
-        )}
-
-        {d.exceptions.missingFromClass.length > 0 && (
-          <ExceptionCard
-            title="Missing From Class"
-            students={d.exceptions.missingFromClass}
-            color="yellow"
-          />
-        )}
-
-        {/* KPI Grid — 6 cards: Total, Present, Absent, Late, Checked Out, Unaccounted */}
-        <div className="grid grid-cols-3 gap-3" data-testid="grid-kpis">
-          <KpiCard
-            label="Total"
-            value={d.kpis.total}
-            total={d.kpis.total}
-            icon={<Users className="w-4 h-4 text-primary" />}
-            showPct={false}
-            testId="kpi-total"
-          />
-          <KpiCard
-            label="Present"
-            value={d.kpis.present}
-            total={d.kpis.total}
-            icon={<CheckCircle className="w-4 h-4 text-green-500" />}
-            testId="kpi-present"
-          />
-          <KpiCard
-            label="Not Arrived"
-            value={d.kpis.absent}
-            total={d.kpis.total}
-            icon={<Clock className="w-4 h-4 text-slate-400" />}
-            testId="kpi-absent"
-          />
-          <KpiCard
-            label="Late"
-            value={d.kpis.late}
-            total={d.kpis.total}
-            icon={<TrendingUp className="w-4 h-4 text-yellow-500" />}
-            testId="kpi-late"
-          />
-          <KpiCard
-            label="Checked Out"
-            value={d.kpis.checkedOut}
-            total={d.kpis.total}
-            icon={<LogOut className="w-4 h-4 text-slate-500" />}
-            testId="kpi-checked-out"
-          />
-          <KpiCard
-            label="Unaccounted"
-            value={d.kpis.unaccounted}
-            total={d.kpis.total}
-            icon={<AlertTriangle className="w-4 h-4 text-red-500" />}
-            testId="kpi-unaccounted"
-          />
-        </div>
-
-        {/* Status breakdown */}
-        <div className="bg-card border border-border rounded-xl p-4" data-testid="panel-status-breakdown">
-          <h3 className="text-sm font-semibold text-foreground mb-3">Status Breakdown</h3>
-          <div className="space-y-2">
-            {d.statusDistribution.map(({ state, count }) => {
-              const pct = d.kpis.total > 0 ? (count / d.kpis.total) * 100 : 0;
-              return (
-                <div key={state} className="flex items-center gap-3" data-testid={`status-row-${state}`}>
-                  <span className="text-xs text-muted-foreground w-24 flex-shrink-0">
-                    {getStateLabel(state)}
-                  </span>
-                  <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-500"
-                      style={{
-                        width: `${pct}%`,
-                        backgroundColor: STATE_COLORS[state] ?? "#94a3b8",
-                      }}
-                    />
-                  </div>
-                  <span className="text-xs font-semibold text-foreground w-6 text-right">
-                    {count}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Recent Feed */}
-        <div className="bg-card border border-border rounded-xl p-4" data-testid="panel-recent-feed">
-          <h3 className="text-sm font-semibold text-foreground mb-3">Recent Activity</h3>
-          {d.recentFeed.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">No activity today yet</p>
           ) : (
-            <div className="space-y-0 divide-y divide-border">
-              {d.recentFeed.slice(0, 10).map((item) => (
-                <div key={item.id} className="py-2.5 flex items-start gap-3" data-testid={`feed-item-${item.id}`}>
-                  <div className="w-7 h-7 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <Users className="w-3.5 h-3.5 text-primary" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-foreground leading-tight">{item.message}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {formatRelativeTime(item.createdAt)}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
+            exceptionsSection
           )}
+        </div>
+
+        {/* Right column: KPIs + status + feed */}
+        <div className="space-y-4 min-w-0">
+          {kpiSection}
+          <div className="grid grid-cols-2 gap-4">
+            {statusSection}
+            {feedSection}
+          </div>
         </div>
       </div>
     </div>
@@ -348,12 +388,12 @@ function KpiCard({
 }) {
   const pct = total > 0 ? Math.round((value / total) * 100) : 0;
   return (
-    <div className="bg-card border border-border rounded-xl p-3" data-testid={testId}>
+    <div className="bg-card border border-border rounded-xl p-3 md:p-4" data-testid={testId}>
       <div className="flex items-center justify-between mb-1.5">
         {icon}
         {showPct && <span className="text-[10px] text-muted-foreground">{pct}%</span>}
       </div>
-      <p className="text-xl font-bold text-foreground leading-none">{value}</p>
+      <p className="text-xl md:text-2xl font-bold text-foreground leading-none">{value}</p>
       <p className="text-[10px] text-muted-foreground mt-1 leading-tight">{label}</p>
     </div>
   );

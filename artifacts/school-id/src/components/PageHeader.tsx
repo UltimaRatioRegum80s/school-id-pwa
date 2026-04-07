@@ -23,7 +23,7 @@ export function PageHeader({ title, subtitle, action, onBack, showLogo = false }
 
   return (
     <header className="bg-primary text-primary-foreground px-4 pt-4 pb-3 sticky top-0 z-40">
-      <div className="max-w-lg mx-auto flex items-start justify-between gap-2">
+      <div className="max-w-lg md:max-w-none mx-auto flex items-start justify-between gap-2">
         <div className="flex items-start gap-2 min-w-0 flex-1">
           {onBack && (
             <button

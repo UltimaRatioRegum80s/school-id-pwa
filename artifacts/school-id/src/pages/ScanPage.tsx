@@ -130,127 +130,138 @@ export default function ScanPage() {
     });
   }
 
+  const cameraPanel = cameraActive ? (
+    <div data-testid="panel-camera-placeholder">
+      <QrScanner
+        active={cameraActive}
+        onScan={handleQrScan}
+        onStop={() => setCameraActive(false)}
+      />
+    </div>
+  ) : (
+    <div
+      className="bg-slate-900 rounded-2xl overflow-hidden relative cursor-pointer group"
+      style={{ aspectRatio: "4/3" }}
+      data-testid="panel-camera-placeholder"
+      onClick={() => setCameraActive(true)}
+    >
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+        <div className="w-16 h-16 rounded-full bg-white/10 group-hover:bg-white/20 transition-colors flex items-center justify-center">
+          <Camera className="w-8 h-8 text-white" />
+        </div>
+        <p className="text-white/80 text-sm font-semibold">Tap to scan QR code</p>
+        <p className="text-slate-400 text-xs text-center px-6">
+          Or use the input below to enter a Student ID manually
+        </p>
+      </div>
+      <div className="absolute top-6 left-6 w-8 h-8 border-t-2 border-l-2 border-white/30 rounded-tl" />
+      <div className="absolute top-6 right-6 w-8 h-8 border-t-2 border-r-2 border-white/30 rounded-tr" />
+      <div className="absolute bottom-6 left-6 w-8 h-8 border-b-2 border-l-2 border-white/30 rounded-bl" />
+      <div className="absolute bottom-6 right-6 w-8 h-8 border-b-2 border-r-2 border-white/30 rounded-br" />
+    </div>
+  );
+
+  const controlsPanel = (
+    <div className="space-y-4">
+      {/* Scan Type + Location row */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+            Scan Type
+          </label>
+          <div className="relative">
+            <select
+              value={scanType}
+              onChange={(e) => setScanType(e.target.value)}
+              className="w-full appearance-none bg-card border border-border rounded-lg px-3 py-2.5 text-sm text-foreground font-medium pr-8 focus:outline-none focus:ring-2 focus:ring-ring"
+              data-testid="select-scan-type"
+            >
+              {SCAN_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+            Location
+          </label>
+          <input
+            type="text"
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            placeholder="Main Gate"
+            className="w-full bg-card border border-border rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            data-testid="input-location"
+          />
+        </div>
+      </div>
+
+      {/* Manual Input */}
+      <div>
+        <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+          Enter Student ID or QR Code
+        </label>
+        <form onSubmit={handleManualSubmit} className="flex gap-2">
+          <input
+            ref={inputRef}
+            type="text"
+            value={manualInput}
+            onChange={(e) => setManualInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                processScan(manualInput);
+              }
+            }}
+            placeholder="Scan QR or type ID..."
+            className="flex-1 bg-card border border-border rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            disabled={scanMutation.isPending}
+            autoComplete="off"
+            data-testid="input-qr-code"
+          />
+          <button
+            type="submit"
+            disabled={scanMutation.isPending || !manualInput.trim()}
+            className="bg-primary text-primary-foreground px-4 py-2.5 rounded-lg text-sm font-semibold disabled:opacity-50 transition-opacity flex-shrink-0"
+            data-testid="button-scan-submit"
+          >
+            {scanMutation.isPending ? "..." : "Go"}
+          </button>
+        </form>
+
+        {scanMutation.isError && (
+          <div
+            className="mt-3 flex items-center gap-2 text-destructive text-sm bg-destructive/10 border border-destructive/20 px-3 py-2 rounded-lg"
+            data-testid="text-scan-error"
+          >
+            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+            Scan failed. Check the student ID and try again.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   return (
-    <div className="flex flex-col min-h-screen bg-background pb-20">
+    <div className="flex flex-col min-h-screen bg-background pb-20 md:pb-6">
       <PageHeader
         title="Scan"
         subtitle={`Mode: ${getScanTypeLabel(scanType)}`}
         showLogo={true}
       />
 
-      <div className="max-w-lg mx-auto w-full px-4 py-4 space-y-4">
-        {/* Camera / QR Scanner */}
-        {cameraActive ? (
-          <div data-testid="panel-camera-placeholder">
-            <QrScanner
-              active={cameraActive}
-              onScan={handleQrScan}
-              onStop={() => setCameraActive(false)}
-            />
-          </div>
-        ) : (
-          <div
-            className="bg-slate-900 rounded-2xl overflow-hidden relative cursor-pointer group"
-            style={{ aspectRatio: "4/3" }}
-            data-testid="panel-camera-placeholder"
-            onClick={() => setCameraActive(true)}
-          >
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-              <div className="w-16 h-16 rounded-full bg-white/10 group-hover:bg-white/20 transition-colors flex items-center justify-center">
-                <Camera className="w-8 h-8 text-white" />
-              </div>
-              <p className="text-white/80 text-sm font-semibold">Tap to scan QR code</p>
-              <p className="text-slate-400 text-xs text-center px-6">
-                Or use the input below to enter a Student ID manually
-              </p>
-            </div>
-            {/* Corner guides */}
-            <div className="absolute top-6 left-6 w-8 h-8 border-t-2 border-l-2 border-white/30 rounded-tl" />
-            <div className="absolute top-6 right-6 w-8 h-8 border-t-2 border-r-2 border-white/30 rounded-tr" />
-            <div className="absolute bottom-6 left-6 w-8 h-8 border-b-2 border-l-2 border-white/30 rounded-bl" />
-            <div className="absolute bottom-6 right-6 w-8 h-8 border-b-2 border-r-2 border-white/30 rounded-br" />
-          </div>
-        )}
+      {/* Mobile: single column */}
+      <div className="md:hidden max-w-lg mx-auto w-full px-4 py-4 space-y-4">
+        {cameraPanel}
+        {controlsPanel}
+      </div>
 
-        {/* Scan Type + Location row */}
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-              Scan Type
-            </label>
-            <div className="relative">
-              <select
-                value={scanType}
-                onChange={(e) => setScanType(e.target.value)}
-                className="w-full appearance-none bg-card border border-border rounded-lg px-3 py-2.5 text-sm text-foreground font-medium pr-8 focus:outline-none focus:ring-2 focus:ring-ring"
-                data-testid="select-scan-type"
-              >
-                {SCAN_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-              Location
-            </label>
-            <input
-              type="text"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              placeholder="Main Gate"
-              className="w-full bg-card border border-border rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              data-testid="input-location"
-            />
-          </div>
-        </div>
-
-        {/* Manual Input */}
-        <div>
-          <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-            Enter Student ID or QR Code
-          </label>
-          <form onSubmit={handleManualSubmit} className="flex gap-2">
-            <input
-              ref={inputRef}
-              type="text"
-              value={manualInput}
-              onChange={(e) => setManualInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  processScan(manualInput);
-                }
-              }}
-              placeholder="Scan QR or type ID..."
-              className="flex-1 bg-card border border-border rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              disabled={scanMutation.isPending}
-              autoComplete="off"
-              data-testid="input-qr-code"
-            />
-            <button
-              type="submit"
-              disabled={scanMutation.isPending || !manualInput.trim()}
-              className="bg-primary text-primary-foreground px-4 py-2.5 rounded-lg text-sm font-semibold disabled:opacity-50 transition-opacity flex-shrink-0"
-              data-testid="button-scan-submit"
-            >
-              {scanMutation.isPending ? "..." : "Go"}
-            </button>
-          </form>
-
-          {scanMutation.isError && (
-            <div
-              className="mt-3 flex items-center gap-2 text-destructive text-sm bg-destructive/10 border border-destructive/20 px-3 py-2 rounded-lg"
-              data-testid="text-scan-error"
-            >
-              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-              Scan failed. Check the student ID and try again.
-            </div>
-          )}
-        </div>
-
+      {/* Desktop: two-column layout */}
+      <div className="hidden md:grid md:grid-cols-2 md:gap-6 px-6 py-5">
+        <div>{cameraPanel}</div>
+        <div>{controlsPanel}</div>
       </div>
 
       {/* Bottom Sheet overlay */}

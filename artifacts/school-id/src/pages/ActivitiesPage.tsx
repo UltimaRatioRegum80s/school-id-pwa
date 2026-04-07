@@ -86,7 +86,7 @@ export default function ActivitiesPage() {
   const past = today.filter((a) => a.status === "completed" || a.status === "cancelled");
 
   return (
-    <div className="flex flex-col min-h-screen bg-background pb-20">
+    <div className="flex flex-col min-h-screen bg-background pb-20 md:pb-6">
       <PageHeader
         title="Activities"
         subtitle={`${active.length} active`}
@@ -103,7 +103,7 @@ export default function ActivitiesPage() {
       />
 
       {/* Type filter tabs */}
-      <div className="max-w-lg mx-auto w-full px-4 pt-3 pb-1">
+      <div className="max-w-lg md:max-w-5xl mx-auto w-full px-4 md:px-6 pt-3 pb-1">
         <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
           {TYPE_TABS.map((tab) => (
             <button
@@ -122,7 +122,7 @@ export default function ActivitiesPage() {
         </div>
       </div>
 
-      <div className="max-w-lg mx-auto w-full px-4 py-3 space-y-4">
+      <div className="max-w-lg md:max-w-5xl mx-auto w-full px-4 md:px-6 py-3 space-y-4">
         {isLoading && (
           <div className="text-center py-8 text-muted-foreground text-sm">Loading...</div>
         )}
@@ -170,7 +170,7 @@ function Section({ title, count, children }: { title: string; count: number; chi
         <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{title}</h3>
         <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">{count}</span>
       </div>
-      <div className="space-y-2">{children}</div>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">{children}</div>
     </div>
   );
 }

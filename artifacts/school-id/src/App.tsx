@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { BottomNav } from "@/components/BottomNav";
+import { DesktopSidebar } from "@/components/DesktopSidebar";
 import { IosInstallPrompt } from "@/components/IosInstallPrompt";
 import LoginPage from "@/pages/LoginPage";
 import ScanPage from "@/pages/ScanPage";
@@ -56,16 +57,21 @@ function ProtectedApp() {
   );
 }
 
-function AuthenticatedLayout() {
+function AppShell() {
   const { isAuthenticated, user } = useAuth();
-
-  if (!isAuthenticated || user?.mustChangePassword) return null;
+  const authenticated = isAuthenticated && !user?.mustChangePassword;
 
   return (
-    <>
-      <BottomNav />
-      <IosInstallPrompt />
-    </>
+    <div className={`flex flex-col min-h-screen bg-background${authenticated ? " md:pl-56" : ""}`}>
+      <ProtectedApp />
+      {authenticated && (
+        <>
+          <DesktopSidebar />
+          <BottomNav />
+          <IosInstallPrompt />
+        </>
+      )}
+    </div>
   );
 }
 
@@ -75,10 +81,7 @@ function App() {
       <TooltipProvider>
         <AuthProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <div className="flex flex-col min-h-screen bg-background">
-              <ProtectedApp />
-              <AuthenticatedLayout />
-            </div>
+            <AppShell />
           </WouterRouter>
         </AuthProvider>
         <Toaster />

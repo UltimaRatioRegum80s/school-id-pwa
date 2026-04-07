@@ -13,7 +13,7 @@ export function BottomNav() {
   const [location, navigate] = useLocation();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border safe-bottom">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border safe-bottom md:hidden">
       <div className="max-w-lg mx-auto flex">
         {tabs.map(({ path, icon: Icon, label }) => {
           const active = location === path || location.startsWith(path + "/");
