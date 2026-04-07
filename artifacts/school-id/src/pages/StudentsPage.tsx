@@ -11,6 +11,7 @@ import {
   getGetStudentQueryKey,
   getListStudentQrCodesQueryKey,
 } from "@workspace/api-client-react";
+import type { StudentProfile, StudentWithState } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Search, ChevronRight, X, User, Clock, MapPin, Filter, ChevronDown, ChevronUp, RefreshCw, QrCode } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -193,7 +194,7 @@ function StudentListRows({
   selectedId,
   onSelect,
 }: {
-  list: ReturnType<typeof useListStudents>["data"] extends (infer T)[] | undefined ? T[] : never;
+  list: StudentWithState[];
   isLoading: boolean;
   selectedId: number | null;
   onSelect: (id: number) => void;
@@ -260,7 +261,7 @@ function StudentProfilePanel({ id, onClose }: { id: number; onClose: () => void 
     );
   }
 
-  return <StudentProfileContent data={data} id={id} onClose={onClose} />;
+  return <StudentProfileContent data={data} id={id} />;
 }
 
 function StudentProfileView({ id, onBack }: { id: number; onBack: () => void }) {
@@ -297,7 +298,7 @@ function StudentProfileView({ id, onBack }: { id: number; onBack: () => void }) 
         </div>
       </div>
       <div className="max-w-lg mx-auto w-full pb-4">
-        <StudentProfileContent data={data} id={id} onClose={onBack} />
+        <StudentProfileContent data={data} id={id} />
       </div>
     </div>
   );
@@ -306,11 +307,9 @@ function StudentProfileView({ id, onBack }: { id: number; onBack: () => void }) 
 function StudentProfileContent({
   data: s,
   id,
-  onClose: _onClose,
 }: {
-  data: NonNullable<ReturnType<typeof useGetStudent>["data"]>;
+  data: StudentProfile;
   id: number;
-  onClose: () => void;
 }) {
   return (
     <div className="px-4 py-4 space-y-4">
