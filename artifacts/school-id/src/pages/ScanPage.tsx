@@ -261,24 +261,54 @@ export default function ScanPage() {
       {/* Desktop: two-column layout */}
       <div className="hidden md:grid md:grid-cols-2 md:gap-6 px-6 py-5">
         <div>{cameraPanel}</div>
-        <div>{controlsPanel}</div>
+        <div className="space-y-4">
+          {controlsPanel}
+          {/* Desktop inline result card */}
+          {result && sheetOpen && (
+            <div className="bg-card border border-border rounded-xl overflow-hidden" data-testid="panel-scan-result">
+              <div className="px-5 py-3.5 border-b border-border flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-5 h-5 text-green-500" />
+                  <span className="font-semibold text-foreground">Scan Successful</span>
+                </div>
+                <button
+                  onClick={dismissSheet}
+                  className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  data-testid="button-dismiss-result"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="px-5 py-4">
+                <ScanResultContent
+                  result={result}
+                  behaviorMessage={behaviorMessage}
+                  scanMutation={scanMutation}
+                  behaviorMutation={behaviorMutation}
+                  onQuickScan={handleQuickScan}
+                  onBehavior={handleBehavior}
+                />
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Bottom Sheet overlay */}
+      {/* Bottom Sheet overlay - mobile only */}
       {(sheetOpen || result) && (
         <>
           {/* Backdrop */}
           <div
-            className={`fixed inset-0 bg-black/50 z-40 transition-opacity duration-300 ${sheetOpen ? "opacity-100" : "opacity-0"}`}
+            className={`md:hidden fixed inset-0 bg-black/50 z-40 transition-opacity duration-300 ${sheetOpen ? "opacity-100" : "opacity-0"}`}
             onClick={dismissSheet}
             data-testid="overlay-scan-result"
           />
 
           {/* Bottom Sheet */}
           <div
-            className={`fixed bottom-0 left-0 right-0 z-50 bg-card rounded-t-2xl shadow-2xl transition-transform duration-300 ease-out ${sheetOpen ? "translate-y-0" : "translate-y-full"}`}
+            className={`md:hidden fixed bottom-0 left-0 right-0 z-50 bg-card rounded-t-2xl shadow-2xl transition-transform duration-300 ease-out ${sheetOpen ? "translate-y-0" : "translate-y-full"}`}
             style={{ maxHeight: "85vh", overflowY: "auto" }}
-            data-testid="panel-scan-result"
+            data-testid="panel-scan-result-mobile"
           >
             {/* Handle */}
             <div className="flex justify-center pt-3 pb-1">
@@ -302,134 +332,157 @@ export default function ScanPage() {
               </div>
 
               {result && (
-                <>
-                  {/* Warning banners */}
-                  {result.warnings.length > 0 && (
-                    <div className="space-y-2 mb-4">
-                      {result.warnings.map((w, i) => (
-                        <div
-                          key={i}
-                          className="flex items-center gap-2 text-yellow-800 text-xs bg-yellow-50 border border-yellow-200 px-3 py-2 rounded-lg"
-                          data-testid={`text-scan-warning-${i}`}
-                        >
-                          <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-                          {w}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Student card */}
-                  <div className="flex items-center gap-4 mb-4 p-3 bg-muted/50 rounded-xl">
-                    <div className="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
-                      {result.student.photoUrl ? (
-                        <img
-                          src={result.student.photoUrl}
-                          alt=""
-                          className="w-14 h-14 rounded-full object-cover"
-                        />
-                      ) : (
-                        <span className="text-xl font-bold text-primary">
-                          {result.student.firstName[0]}{result.student.lastName[0]}
-                        </span>
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-bold text-foreground text-base leading-tight" data-testid="text-scanned-student-name">
-                        {result.student.firstName} {result.student.lastName}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {result.student.studentId} · Grade {result.student.grade} · {result.student.className}
-                      </p>
-                      <div className="mt-1.5">
-                        <StatusBadge state={result.student.currentState} />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Scan details */}
-                  <div className="grid grid-cols-3 gap-2 text-center mb-4">
-                    <div className="bg-muted/50 rounded-lg py-2 px-1">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Type</p>
-                      <p className="text-xs font-semibold text-foreground mt-0.5">{getScanTypeLabel(result.scanEvent.scanType)}</p>
-                    </div>
-                    <div className="bg-muted/50 rounded-lg py-2 px-1">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Location</p>
-                      <p className="text-xs font-semibold text-foreground mt-0.5 truncate">{result.scanEvent.location ?? "—"}</p>
-                    </div>
-                    <div className="bg-muted/50 rounded-lg py-2 px-1">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Time</p>
-                      <p className="text-xs font-semibold text-foreground mt-0.5">{formatTime(result.scanEvent.createdAt)}</p>
-                    </div>
-                  </div>
-
-                  {/* Contextual action buttons */}
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                    Quick Actions
-                  </p>
-                  <div className="grid grid-cols-3 gap-2 mb-3">
-                    <ActionButton
-                      label="Check In"
-                      icon={<LogIn className="w-4 h-4" />}
-                      colorClass="bg-green-50 border-green-200 text-green-800 hover:bg-green-100"
-                      onClick={() => handleQuickScan("gate_in")}
-                      disabled={scanMutation.isPending}
-                      testId="button-quick-check-in"
-                    />
-                    <ActionButton
-                      label="Check Out"
-                      icon={<LogOut className="w-4 h-4" />}
-                      colorClass="bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
-                      onClick={() => handleQuickScan("gate_out")}
-                      disabled={scanMutation.isPending}
-                      testId="button-quick-check-out"
-                    />
-                    <ActionButton
-                      label="Class"
-                      icon={<BookOpen className="w-4 h-4" />}
-                      colorClass="bg-blue-50 border-blue-200 text-blue-800 hover:bg-blue-100"
-                      onClick={() => handleQuickScan("class")}
-                      disabled={scanMutation.isPending}
-                      testId="button-quick-class"
-                    />
-                    <ActionButton
-                      label="Event"
-                      icon={<CalendarDays className="w-4 h-4" />}
-                      colorClass="bg-yellow-50 border-yellow-200 text-yellow-800 hover:bg-yellow-100"
-                      onClick={() => handleQuickScan("event")}
-                      disabled={scanMutation.isPending}
-                      testId="button-quick-event"
-                    />
-                    <ActionButton
-                      label="Merit"
-                      icon={<ThumbsUp className="w-4 h-4" />}
-                      colorClass="bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100"
-                      onClick={() => handleBehavior("merit")}
-                      disabled={behaviorMutation.isPending}
-                      testId="button-quick-merit"
-                    />
-                    <ActionButton
-                      label="Demerit"
-                      icon={<ThumbsDown className="w-4 h-4" />}
-                      colorClass="bg-red-50 border-red-200 text-red-800 hover:bg-red-100"
-                      onClick={() => handleBehavior("demerit")}
-                      disabled={behaviorMutation.isPending}
-                      testId="button-quick-demerit"
-                    />
-                  </div>
-
-                  {behaviorMessage && (
-                    <p className="text-xs text-green-700 text-center font-medium py-1" data-testid="text-behavior-message">
-                      {behaviorMessage}
-                    </p>
-                  )}
-                </>
+                <ScanResultContent
+                  result={result}
+                  behaviorMessage={behaviorMessage}
+                  scanMutation={scanMutation}
+                  behaviorMutation={behaviorMutation}
+                  onQuickScan={handleQuickScan}
+                  onBehavior={handleBehavior}
+                />
               )}
             </div>
           </div>
         </>
       )}
     </div>
+  );
+}
+
+function ScanResultContent({
+  result,
+  behaviorMessage,
+  scanMutation,
+  behaviorMutation,
+  onQuickScan,
+  onBehavior,
+}: {
+  result: ScanResult;
+  behaviorMessage: string | null;
+  scanMutation: { isPending: boolean };
+  behaviorMutation: { isPending: boolean };
+  onQuickScan: (type: string) => void;
+  onBehavior: (type: "merit" | "demerit") => void;
+}) {
+  return (
+    <>
+      {/* Warning banners */}
+      {result.warnings.length > 0 && (
+        <div className="space-y-2 mb-4">
+          {result.warnings.map((w, i) => (
+            <div
+              key={i}
+              className="flex items-center gap-2 text-yellow-800 text-xs bg-yellow-50 border border-yellow-200 px-3 py-2 rounded-lg"
+              data-testid={`text-scan-warning-${i}`}
+            >
+              <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+              {w}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Student card */}
+      <div className="flex items-center gap-4 mb-4 p-3 bg-muted/50 rounded-xl">
+        <div className="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+          {result.student.photoUrl ? (
+            <img src={result.student.photoUrl} alt="" className="w-14 h-14 rounded-full object-cover" />
+          ) : (
+            <span className="text-xl font-bold text-primary">
+              {result.student.firstName[0]}{result.student.lastName[0]}
+            </span>
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="font-bold text-foreground text-base leading-tight" data-testid="text-scanned-student-name">
+            {result.student.firstName} {result.student.lastName}
+          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {result.student.studentId} · Grade {result.student.grade} · {result.student.className}
+          </p>
+          <div className="mt-1.5">
+            <StatusBadge state={result.student.currentState} />
+          </div>
+        </div>
+      </div>
+
+      {/* Scan details */}
+      <div className="grid grid-cols-3 gap-2 text-center mb-4">
+        <div className="bg-muted/50 rounded-lg py-2 px-1">
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Type</p>
+          <p className="text-xs font-semibold text-foreground mt-0.5">{getScanTypeLabel(result.scanEvent.scanType)}</p>
+        </div>
+        <div className="bg-muted/50 rounded-lg py-2 px-1">
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Location</p>
+          <p className="text-xs font-semibold text-foreground mt-0.5 truncate">{result.scanEvent.location ?? "—"}</p>
+        </div>
+        <div className="bg-muted/50 rounded-lg py-2 px-1">
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Time</p>
+          <p className="text-xs font-semibold text-foreground mt-0.5">{formatTime(result.scanEvent.createdAt)}</p>
+        </div>
+      </div>
+
+      {/* Quick actions */}
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+        Quick Actions
+      </p>
+      <div className="grid grid-cols-3 gap-2 mb-3">
+        <ActionButton
+          label="Check In"
+          icon={<LogIn className="w-4 h-4" />}
+          colorClass="bg-green-50 border-green-200 text-green-800 hover:bg-green-100"
+          onClick={() => onQuickScan("gate_in")}
+          disabled={scanMutation.isPending}
+          testId="button-quick-check-in"
+        />
+        <ActionButton
+          label="Check Out"
+          icon={<LogOut className="w-4 h-4" />}
+          colorClass="bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+          onClick={() => onQuickScan("gate_out")}
+          disabled={scanMutation.isPending}
+          testId="button-quick-check-out"
+        />
+        <ActionButton
+          label="Class"
+          icon={<BookOpen className="w-4 h-4" />}
+          colorClass="bg-blue-50 border-blue-200 text-blue-800 hover:bg-blue-100"
+          onClick={() => onQuickScan("class")}
+          disabled={scanMutation.isPending}
+          testId="button-quick-class"
+        />
+        <ActionButton
+          label="Event"
+          icon={<CalendarDays className="w-4 h-4" />}
+          colorClass="bg-yellow-50 border-yellow-200 text-yellow-800 hover:bg-yellow-100"
+          onClick={() => onQuickScan("event")}
+          disabled={scanMutation.isPending}
+          testId="button-quick-event"
+        />
+        <ActionButton
+          label="Merit"
+          icon={<ThumbsUp className="w-4 h-4" />}
+          colorClass="bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100"
+          onClick={() => onBehavior("merit")}
+          disabled={behaviorMutation.isPending}
+          testId="button-quick-merit"
+        />
+        <ActionButton
+          label="Demerit"
+          icon={<ThumbsDown className="w-4 h-4" />}
+          colorClass="bg-red-50 border-red-200 text-red-800 hover:bg-red-100"
+          onClick={() => onBehavior("demerit")}
+          disabled={behaviorMutation.isPending}
+          testId="button-quick-demerit"
+        />
+      </div>
+
+      {behaviorMessage && (
+        <p className="text-xs text-green-700 text-center font-medium py-1" data-testid="text-behavior-message">
+          {behaviorMessage}
+        </p>
+      )}
+    </>
   );
 }
 

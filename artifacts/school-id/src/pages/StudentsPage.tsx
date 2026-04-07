@@ -62,116 +62,15 @@ export default function StudentsPage() {
     </button>
   );
 
-  const searchAndFilters = (
-    <>
-      <div className="px-4 pt-3 sticky top-[64px] z-30 bg-background pb-2">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search name or student ID..."
-            className="w-full pl-9 pr-4 py-2.5 bg-card border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            data-testid="input-student-search"
-          />
-          {search && (
-            <button
-              onClick={() => setSearch("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-              data-testid="button-clear-search"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-
-        {showFilters && (
-          <div className="flex gap-2 mt-2">
-            <select
-              value={grade}
-              onChange={(e) => setGrade(e.target.value)}
-              className="flex-1 bg-card border border-border rounded-lg px-2 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              data-testid="select-grade-filter"
-            >
-              {GRADES.map((g) => (
-                <option key={g} value={g}>{g ? `Grade ${g}` : "All Grades"}</option>
-              ))}
-            </select>
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              className="flex-1 bg-card border border-border rounded-lg px-2 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              data-testid="select-status-filter"
-            >
-              {STATES.map((s) => (
-                <option key={s.value} value={s.value}>{s.label}</option>
-              ))}
-            </select>
-          </div>
-        )}
-      </div>
-    </>
-  );
-
-  const studentList = (
-    <div className="px-4 py-2 flex-1">
-      {isLoading ? (
-        <div className="text-center py-8 text-muted-foreground text-sm">Loading...</div>
-      ) : list.length === 0 ? (
-        <div className="text-center py-16 text-muted-foreground">
-          <User className="w-10 h-10 mx-auto mb-3 opacity-30" />
-          <p className="text-sm">No students found</p>
-        </div>
-      ) : (
-        <div className="bg-card border border-border rounded-xl divide-y divide-border overflow-hidden">
-          {list.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => setSelectedId(s.id)}
-              className={`w-full px-4 py-3 flex items-center gap-3 hover:bg-muted/30 transition-colors text-left ${selectedId === s.id ? "bg-primary/5 border-l-2 border-l-primary" : ""}`}
-              data-testid={`row-student-${s.id}`}
-            >
-              <div className="w-9 h-9 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
-                {s.photoUrl ? (
-                  <img src={s.photoUrl} alt="" className="w-9 h-9 rounded-full object-cover" />
-                ) : (
-                  <span className="text-xs font-bold text-primary">
-                    {s.firstName[0]}{s.lastName[0]}
-                  </span>
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-foreground" data-testid={`text-student-name-${s.id}`}>
-                  {s.firstName} {s.lastName}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {s.studentId} · Gr {s.grade} · {s.className}
-                </p>
-              </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <StatusBadge state={s.currentState} />
-                <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-
   return (
     <>
-      {/* ── MOBILE ── (hidden on md+): either list view OR profile view, never both */}
+      {/* ── MOBILE (< md) ── */}
       <div className="md:hidden flex flex-col min-h-screen bg-background pb-20">
         {selectedId ? (
-          /* Mobile: full-screen profile replaces the list (StudentProfileView has its own header) */
-          <StudentProfileView
-            id={selectedId}
-            onBack={() => setSelectedId(null)}
-          />
+          /* Mobile: profile replaces list entirely — StudentProfileView has its own header */
+          <StudentProfileView id={selectedId} onBack={() => setSelectedId(null)} />
         ) : (
-          /* Mobile: list page with PageHeader */
+          /* Mobile: list page */
           <>
             <PageHeader
               title="Students"
@@ -179,13 +78,33 @@ export default function StudentsPage() {
               showLogo={true}
               action={filterAction}
             />
-            {searchAndFilters}
-            {studentList}
+            <div className="max-w-lg mx-auto w-full">
+              <div className="px-4 pt-3 sticky top-[64px] z-30 bg-background pb-2">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search name or student ID..."
+                    className="w-full pl-9 pr-4 py-2.5 bg-card border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    data-testid="input-student-search"
+                  />
+                  {search && (
+                    <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" data-testid="button-clear-search">
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+                {showFilters && <MobileFilters grade={grade} setGrade={setGrade} status={status} setStatus={setStatus} />}
+              </div>
+              <StudentListRows list={list} isLoading={isLoading} selectedId={selectedId} onSelect={setSelectedId} />
+            </div>
           </>
         )}
       </div>
 
-      {/* ── DESKTOP ── (hidden below md): master-detail split always visible */}
+      {/* ── DESKTOP (≥ md) ── master-detail split */}
       <div className="hidden md:flex flex-col min-h-screen bg-background pb-6">
         <PageHeader
           title="Students"
@@ -195,13 +114,31 @@ export default function StudentsPage() {
         />
 
         <div className="flex flex-1 overflow-hidden">
-          {/* Left column: search + student list */}
+          {/* Left: search + student list (fixed 380px) */}
           <div className="flex flex-col w-[380px] flex-none border-r border-border overflow-y-auto">
-            {searchAndFilters}
-            {studentList}
+            <div className="px-4 pt-3 sticky top-0 z-10 bg-background pb-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search name or student ID..."
+                  className="w-full pl-9 pr-4 py-2.5 bg-card border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  data-testid="input-student-search"
+                />
+                {search && (
+                  <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" data-testid="button-clear-search">
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+              {showFilters && <MobileFilters grade={grade} setGrade={setGrade} status={status} setStatus={setStatus} />}
+            </div>
+            <StudentListRows list={list} isLoading={isLoading} selectedId={selectedId} onSelect={setSelectedId} />
           </div>
 
-          {/* Right column: profile panel or empty state */}
+          {/* Right: profile panel or empty state */}
           <div className="flex flex-col flex-1 overflow-y-auto bg-background">
             {selectedId ? (
               <StudentProfilePanel id={selectedId} onClose={() => setSelectedId(null)} />
@@ -218,12 +155,101 @@ export default function StudentsPage() {
   );
 }
 
+function MobileFilters({
+  grade, setGrade, status, setStatus,
+}: {
+  grade: string; setGrade: (g: string) => void;
+  status: string; setStatus: (s: string) => void;
+}) {
+  return (
+    <div className="flex gap-2 mt-2">
+      <select
+        value={grade}
+        onChange={(e) => setGrade(e.target.value)}
+        className="flex-1 bg-card border border-border rounded-lg px-2 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        data-testid="select-grade-filter"
+      >
+        {GRADES.map((g) => (
+          <option key={g} value={g}>{g ? `Grade ${g}` : "All Grades"}</option>
+        ))}
+      </select>
+      <select
+        value={status}
+        onChange={(e) => setStatus(e.target.value)}
+        className="flex-1 bg-card border border-border rounded-lg px-2 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        data-testid="select-status-filter"
+      >
+        {STATES.map((s) => (
+          <option key={s.value} value={s.value}>{s.label}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function StudentListRows({
+  list,
+  isLoading,
+  selectedId,
+  onSelect,
+}: {
+  list: ReturnType<typeof useListStudents>["data"] extends (infer T)[] | undefined ? T[] : never;
+  isLoading: boolean;
+  selectedId: number | null;
+  onSelect: (id: number) => void;
+}) {
+  if (isLoading) {
+    return <div className="text-center py-8 text-muted-foreground text-sm px-4">Loading...</div>;
+  }
+  if (list.length === 0) {
+    return (
+      <div className="text-center py-16 text-muted-foreground px-4">
+        <User className="w-10 h-10 mx-auto mb-3 opacity-30" />
+        <p className="text-sm">No students found</p>
+      </div>
+    );
+  }
+  return (
+    <div className="px-4 py-2">
+      <div className="bg-card border border-border rounded-xl divide-y divide-border overflow-hidden">
+        {list.map((s) => (
+          <button
+            key={s.id}
+            onClick={() => onSelect(s.id)}
+            className={`w-full px-4 py-3 flex items-center gap-3 hover:bg-muted/30 transition-colors text-left ${selectedId === s.id ? "bg-primary/5 border-l-2 border-l-primary" : ""}`}
+            data-testid={`row-student-${s.id}`}
+          >
+            <div className="w-9 h-9 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+              {s.photoUrl ? (
+                <img src={s.photoUrl} alt="" className="w-9 h-9 rounded-full object-cover" />
+              ) : (
+                <span className="text-xs font-bold text-primary">
+                  {s.firstName[0]}{s.lastName[0]}
+                </span>
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-foreground" data-testid={`text-student-name-${s.id}`}>
+                {s.firstName} {s.lastName}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {s.studentId} · Gr {s.grade} · {s.className}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <StatusBadge state={s.currentState} />
+              <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function StudentProfilePanel({ id, onClose }: { id: number; onClose: () => void }) {
   const { data, isLoading } = useGetStudent(id, {
-    query: {
-      queryKey: getGetStudentQueryKey(id),
-      refetchInterval: 15000,
-    },
+    query: { queryKey: getGetStudentQueryKey(id), refetchInterval: 15000 },
   });
 
   if (isLoading || !data) {
@@ -239,15 +265,12 @@ function StudentProfilePanel({ id, onClose }: { id: number; onClose: () => void 
 
 function StudentProfileView({ id, onBack }: { id: number; onBack: () => void }) {
   const { data, isLoading } = useGetStudent(id, {
-    query: {
-      queryKey: getGetStudentQueryKey(id),
-      refetchInterval: 15000,
-    },
+    query: { queryKey: getGetStudentQueryKey(id), refetchInterval: 15000 },
   });
 
   if (isLoading || !data) {
     return (
-      <div className="flex flex-col min-h-[60vh]">
+      <div className="flex flex-col">
         <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-0 z-40">
           <div className="max-w-lg mx-auto flex items-center gap-3">
             <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-muted transition-colors" data-testid="button-profile-back">
@@ -256,7 +279,7 @@ function StudentProfileView({ id, onBack }: { id: number; onBack: () => void }) 
             <h1 className="text-base font-bold text-foreground flex-1">Student Profile</h1>
           </div>
         </div>
-        <div className="flex items-center justify-center flex-1 text-muted-foreground text-sm">
+        <div className="flex items-center justify-center py-16 text-muted-foreground text-sm">
           Loading...
         </div>
       </div>
@@ -308,12 +331,8 @@ function StudentProfileContent({
             </h2>
             <p className="text-sm text-muted-foreground">{s.studentId}</p>
             <div className="flex flex-wrap gap-2 mt-2">
-              <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">
-                Grade {s.grade}
-              </span>
-              <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">
-                {s.className}
-              </span>
+              <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">Grade {s.grade}</span>
+              <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">{s.className}</span>
             </div>
             <div className="mt-2" data-testid="status-profile">
               <StatusBadge state={s.currentState} />
@@ -324,16 +343,10 @@ function StudentProfileContent({
         {(s.lastSeenAt || s.lastSeenLocation) && (
           <div className="mt-3 pt-3 border-t border-border flex items-center gap-4 text-xs text-muted-foreground">
             {s.lastSeenAt && (
-              <span className="flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5" />
-                {formatRelativeTime(s.lastSeenAt)}
-              </span>
+              <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{formatRelativeTime(s.lastSeenAt)}</span>
             )}
             {s.lastSeenLocation && (
-              <span className="flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5" />
-                {s.lastSeenLocation}
-              </span>
+              <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{s.lastSeenLocation}</span>
             )}
           </div>
         )}
@@ -359,31 +372,22 @@ function StudentProfileContent({
           <h3 className="text-sm font-semibold text-foreground">Today's Timeline</h3>
         </div>
         {s.todayTimeline.length === 0 ? (
-          <div className="px-4 py-6 text-center text-sm text-muted-foreground">
-            No activity recorded today
-          </div>
+          <div className="px-4 py-6 text-center text-sm text-muted-foreground">No activity recorded today</div>
         ) : (
           <div className="divide-y divide-border">
             {s.todayTimeline.map((event, i) => (
               <div key={event.id} className="px-4 py-3 flex items-start gap-3" data-testid={`timeline-event-${event.id}`}>
                 <div className="flex flex-col items-center">
                   <div className="w-2 h-2 rounded-full bg-primary mt-1.5 flex-shrink-0" />
-                  {i < s.todayTimeline.length - 1 && (
-                    <div className="w-0.5 h-full bg-border mt-1 flex-grow" />
-                  )}
+                  {i < s.todayTimeline.length - 1 && <div className="w-0.5 h-full bg-border mt-1 flex-grow" />}
                 </div>
                 <div className="min-w-0 flex-1 pb-1">
-                  <p className="text-sm font-medium text-foreground">
-                    {getScanTypeLabel(event.scanType)}
-                  </p>
+                  <p className="text-sm font-medium text-foreground">{getScanTypeLabel(event.scanType)}</p>
                   <div className="flex items-center gap-3 mt-0.5">
-                    <span className="text-xs text-muted-foreground">
-                      {formatTime(event.createdAt)}
-                    </span>
+                    <span className="text-xs text-muted-foreground">{formatTime(event.createdAt)}</span>
                     {event.location && (
                       <span className="text-xs text-muted-foreground flex items-center gap-1">
-                        <MapPin className="w-3 h-3" />
-                        {event.location}
+                        <MapPin className="w-3 h-3" />{event.location}
                       </span>
                     )}
                   </div>
@@ -404,9 +408,7 @@ function StudentProfileContent({
               <div key={log.id} className="px-4 py-3 flex items-center justify-between" data-testid={`behavior-log-${log.id}`}>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-foreground capitalize">{log.type}</p>
-                  {log.note && (
-                    <p className="text-xs text-muted-foreground truncate">{log.note}</p>
-                  )}
+                  {log.note && <p className="text-xs text-muted-foreground truncate">{log.note}</p>}
                   <p className="text-xs text-muted-foreground">{formatRelativeTime(log.createdAt)}</p>
                 </div>
                 <span className={`text-sm font-bold ml-3 flex-shrink-0 ${log.type === "merit" ? "text-green-600" : "text-red-600"}`}>
@@ -427,9 +429,7 @@ function QrCodeSection({ studentId, fallbackQrCode }: { studentId: number; fallb
   const [isRegenerating, setIsRegenerating] = useState(false);
 
   const { data: qrCodes, isLoading } = useListStudentQrCodes(studentId, {
-    query: {
-      queryKey: getListStudentQrCodesQueryKey(studentId),
-    },
+    query: { queryKey: getListStudentQrCodesQueryKey(studentId) },
   });
 
   const { mutateAsync: regenerate } = useRegenerateStudentQrCode();
@@ -473,25 +473,17 @@ function QrCodeSection({ studentId, fallbackQrCode }: { studentId: number; fallb
         ) : effectiveCode ? (
           <div className="flex flex-col items-center gap-3" data-testid="qr-code-image">
             <div className="bg-white p-3 rounded-xl border border-border shadow-sm">
-              <QRCodeSVG
-                value={effectiveCode}
-                size={160}
-                level="M"
-              />
+              <QRCodeSVG value={effectiveCode} size={160} level="M" />
             </div>
             <p className="text-xs text-muted-foreground font-mono text-center break-all px-2" data-testid="text-active-qr-code">
               {effectiveCode}
             </p>
             {activeCode && (
-              <p className="text-xs text-muted-foreground">
-                Generated {formatRelativeTime(activeCode.createdAt)}
-              </p>
+              <p className="text-xs text-muted-foreground">Generated {formatRelativeTime(activeCode.createdAt)}</p>
             )}
           </div>
         ) : (
-          <div className="text-center py-4 text-sm text-muted-foreground">
-            No active QR code
-          </div>
+          <div className="text-center py-4 text-sm text-muted-foreground">No active QR code</div>
         )}
 
         {historyCodes.length > 0 && (
