@@ -37,20 +37,21 @@ export default function DashboardPage() {
   const [gradeFilter, setGradeFilter] = useState<string | null>(null);
   const [classFilter, setClassFilter] = useState<string | null>(null);
 
-  const filterParams = useMemo(
-    () =>
-      gradeFilter || classFilter
-        ? {
-            ...(gradeFilter ? { grade: gradeFilter } : {}),
-            ...(classFilter ? { className: classFilter } : {}),
-          }
-        : undefined,
+  const filterKey = useMemo(
+    () => JSON.stringify({ grade: gradeFilter ?? null, className: classFilter ?? null }),
     [gradeFilter, classFilter]
   );
 
+  const filterParams = useMemo(() => {
+    const p: { grade?: string; className?: string } = {};
+    if (gradeFilter) p.grade = gradeFilter;
+    if (classFilter) p.className = classFilter;
+    return Object.keys(p).length > 0 ? p : undefined;
+  }, [filterKey]);
+
   const queryKey = useMemo(
     () => getGetDashboardSummaryQueryKey(filterParams),
-    [filterParams]
+    [filterKey]
   );
 
   const queryKeyRef = useRef(queryKey);
@@ -437,16 +438,14 @@ function StudentSummarySection({
           bgClass="bg-yellow-100 dark:bg-yellow-900/30"
           testId="summary-group-late"
         />
-        {kpis.unaccounted > 0 && (
-          <StudentSummaryGroup
-            label="Unaccounted"
-            totalCount={kpis.unaccounted}
-            students={studentsByState.unaccounted}
-            colorClass="text-red-700 dark:text-red-400"
-            bgClass="bg-red-100 dark:bg-red-900/30"
-            testId="summary-group-unaccounted"
-          />
-        )}
+        <StudentSummaryGroup
+          label="Unaccounted"
+          totalCount={kpis.unaccounted}
+          students={studentsByState.unaccounted}
+          colorClass="text-red-700 dark:text-red-400"
+          bgClass="bg-red-100 dark:bg-red-900/30"
+          testId="summary-group-unaccounted"
+        />
       </div>
     </div>
   );
@@ -468,9 +467,10 @@ function StudentSummaryGroup({
   testId: string;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const displayStudents = expanded ? students : students.slice(0, PREVIEW_COUNT);
-  const hasMore = students.length > PREVIEW_COUNT && !expanded;
-  const hiddenInPreview = students.length - PREVIEW_COUNT;
+
+  const previewStudents = students.slice(0, PREVIEW_COUNT);
+  const extraStudents = students.slice(PREVIEW_COUNT);
+  const hasExtra = students.length > PREVIEW_COUNT;
   const totalBeyondApi = totalCount - students.length;
 
   if (totalCount === 0) {
@@ -484,50 +484,69 @@ function StudentSummaryGroup({
 
   return (
     <div data-testid={testId}>
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/30 transition-colors text-left"
-        aria-expanded={expanded}
-      >
+      {/* Header row — shows count badge and optional expand toggle */}
+      <div className="px-4 pt-3 pb-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-foreground">{label}</span>
           <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${bgClass} ${colorClass}`}>
             {totalCount}
           </span>
         </div>
-        {expanded
-          ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-          : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />}
-      </button>
-      {expanded && (
-        <div className="px-4 pb-3 space-y-0.5">
-          {displayStudents.map((s) => (
-            <div
-              key={s.id}
-              className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-b-0"
-              data-testid={`summary-student-${s.id}`}
-            >
-              <span className="text-sm text-foreground">
-                {s.firstName} {s.lastName}
-              </span>
-              <span className="text-xs text-muted-foreground ml-2 flex-shrink-0">{s.className}</span>
-            </div>
-          ))}
-          {hasMore && (
-            <button
-              className="w-full text-xs text-primary pt-2 hover:underline text-left"
-              onClick={(e) => { e.stopPropagation(); setExpanded(true); }}
-            >
-              +{hiddenInPreview} more shown
-            </button>
-          )}
-          {totalBeyondApi > 0 && (
-            <p className="text-xs text-muted-foreground pt-1.5">
-              +{totalBeyondApi} more — view in Students tab
-            </p>
-          )}
-        </div>
-      )}
+        {hasExtra && (
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="p-0.5 text-muted-foreground hover:text-foreground transition-colors"
+            aria-label={expanded ? "Show fewer" : "Show all"}
+          >
+            {expanded
+              ? <ChevronUp className="w-3.5 h-3.5" />
+              : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+        )}
+      </div>
+
+      {/* Always-visible preview: first 4 students */}
+      <div className="px-4 pb-3 space-y-0.5">
+        {previewStudents.map((s) => (
+          <div
+            key={s.id}
+            className="flex items-center justify-between py-1 border-b border-border/40 last:border-b-0"
+            data-testid={`summary-student-${s.id}`}
+          >
+            <span className="text-sm text-foreground">{s.firstName} {s.lastName}</span>
+            <span className="text-xs text-muted-foreground ml-2 flex-shrink-0">{s.className}</span>
+          </div>
+        ))}
+
+        {/* "X more" affordance in collapsed state */}
+        {!expanded && hasExtra && (
+          <button
+            className="text-xs text-primary mt-1 hover:underline"
+            onClick={() => setExpanded(true)}
+          >
+            +{students.length - PREVIEW_COUNT} more
+          </button>
+        )}
+
+        {/* Extra names shown only when expanded */}
+        {expanded && extraStudents.map((s) => (
+          <div
+            key={s.id}
+            className="flex items-center justify-between py-1 border-b border-border/40 last:border-b-0"
+            data-testid={`summary-student-${s.id}`}
+          >
+            <span className="text-sm text-foreground">{s.firstName} {s.lastName}</span>
+            <span className="text-xs text-muted-foreground ml-2 flex-shrink-0">{s.className}</span>
+          </div>
+        ))}
+
+        {/* Students beyond what the API returned */}
+        {expanded && totalBeyondApi > 0 && (
+          <p className="text-xs text-muted-foreground pt-1">
+            +{totalBeyondApi} more — view in Students tab
+          </p>
+        )}
+      </div>
     </div>
   );
 }
