@@ -1,0 +1,73 @@
+Hi Replit,
+
+Please ensure that the statistic cards and the status breakdown, which are currently displayed at the top of the main dashboard (All Grades / global view), are also shown at the top of each individual grade view.
+
+---
+
+## EXPECTED BEHAVIOR
+
+* In the **All Grades (global view)**:
+
+  * Display the statistic cards and status breakdown for the entire school.
+
+* When selecting a specific grade (e.g. Grade 8, 9, 10, 11, 12):
+
+  * The **same visual layout** must be preserved.
+  * The statistic cards and status breakdown must appear at the top, just like in the global view.
+  * The data must be **filtered to that specific grade only**.
+
+In other words:
+
+* Each grade view mirrors the global dashboard layout in structure and design.
+* The only difference is the **data**, which reflects the selected grade.
+
+---
+
+## SCALABILITY REQUIREMENT (CRITICAL)
+
+This must NOT be hardcoded for Grades 8–12 only.
+
+The system must be built to support **any grade structure**, depending on the school using the app.
+
+Examples:
+
+* Primary schools (e.g. Grade 1–7)
+* High schools (e.g. Grade 8–12)
+* Combined schools (Grade 1–12)
+* A-level or other systems (e.g. AS / A-Level, Forms, Year groups)
+
+Requirements:
+
+* Grade buttons must be **dynamically generated** based on the data uploaded by the school.
+* The dashboard must work for **any grade or level structure**, not just a fixed set.
+* Filtering logic must adapt automatically to whatever grades exist in the dataset.
+* The “All Grades” view must always represent the full dataset across all available grades.
+
+---
+
+## NON-NEGOTIABLES
+
+* Every grade view must include:
+
+  * Statistic cards
+  * Status breakdown
+
+* Layout must remain consistent across:
+
+  * Global view
+  * All grade views
+
+* Data must always correctly reflect the selected grade.
+
+---
+
+## OUTPUT REQUIRED
+
+Provide:
+
+1. Updated dashboard layout implementation
+2. Dynamic grade handling (not hardcoded)
+3. Working filtering logic across all grades
+4. Clean, scalable component structure
+
+Thank you.
