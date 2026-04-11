@@ -30,14 +30,9 @@ const STATE_COLORS: Record<string, string> = {
 };
 
 function sortGrades(grades: string[]): string[] {
-  return [...grades].sort((a, b) => {
-    const na = parseInt(a, 10);
-    const nb = parseInt(b, 10);
-    if (!isNaN(na) && !isNaN(nb)) return na - nb;
-    if (!isNaN(na)) return -1;
-    if (!isNaN(nb)) return 1;
-    return a.localeCompare(b);
-  });
+  return [...grades].sort((a, b) =>
+    a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" })
+  );
 }
 
 function gradeLabel(grade: string): string {
