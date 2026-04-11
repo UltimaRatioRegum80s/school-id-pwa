@@ -29,7 +29,20 @@ const STATE_COLORS: Record<string, string> = {
   not_arrived: "#cbd5e1",
 };
 
-const GRADES = ["8", "9", "10", "11", "12"];
+function sortGrades(grades: string[]): string[] {
+  return [...grades].sort((a, b) => {
+    const na = parseInt(a, 10);
+    const nb = parseInt(b, 10);
+    if (!isNaN(na) && !isNaN(nb)) return na - nb;
+    if (!isNaN(na)) return -1;
+    if (!isNaN(nb)) return 1;
+    return a.localeCompare(b);
+  });
+}
+
+function gradeLabel(grade: string): string {
+  return /^\d+$/.test(grade) ? `Gr ${grade}` : grade;
+}
 
 export default function DashboardPage() {
   const queryClient = useQueryClient();
@@ -122,6 +135,9 @@ export default function DashboardPage() {
   if (!data) return null;
 
   const d = data;
+  const availableGrades = sortGrades(
+    Object.keys(d.availableClassesByGrade as Record<string, string[]>)
+  );
 
   const filterSection = (
     <div data-testid="panel-filter-chips">
@@ -132,10 +148,10 @@ export default function DashboardPage() {
           onClick={() => { setGradeFilter(null); setClassFilter(null); }}
           testId="chip-grade-all"
         />
-        {GRADES.map((g) => (
+        {availableGrades.map((g) => (
           <FilterChip
             key={g}
-            label={`Gr ${g}`}
+            label={gradeLabel(g)}
             active={gradeFilter === g}
             onClick={() => handleGradeChip(g)}
             testId={`chip-grade-${g}`}
