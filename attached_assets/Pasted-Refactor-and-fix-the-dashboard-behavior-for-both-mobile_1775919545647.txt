@@ -1,0 +1,151 @@
+Refactor and fix the dashboard behavior for both mobile and desktop views.
+
+---
+
+## DASHBOARD LAYOUT – GLOBAL VIEW (ALL GRADES)
+
+1. Keep the top statistic (KPI) cards
+
+* Retain summary cards showing:
+
+  * Present
+  * Not Arrived
+  * Late
+  * Missing from Class
+  * Any other key attendance states
+
+2. Remove detailed name lists from the global dashboard
+
+* Do NOT display large name-list panels such as:
+
+  * Late Arrivals (full lists)
+  * Missing from Class (full lists)
+* The global dashboard must remain clean and high-level.
+
+3. Keep the Status Breakdown section
+
+* This remains a core visual component.
+
+4. Positioning
+
+* Layout hierarchy must be:
+
+  1. KPI Cards
+  2. Status Breakdown
+  3. Recent Activity
+
+5. Design intent (Global View)
+
+* Executive / Mission Control view
+* Focus on summary and situational awareness
+* No clutter from detailed student-level lists
+
+---
+
+## GRADE VIEW BEHAVIOR (GRADE 8–12)
+
+When a grade button is selected (Grade 8, 9, 10, 11, or 12):
+
+1. Same visual structure as global view
+
+* The layout must remain consistent:
+
+  1. KPI Cards
+  2. Status Breakdown
+  3. Student Summary Section (see below)
+  4. Recent Activity
+
+2. Data must be grade-specific
+
+* All data shown must be filtered to the selected grade:
+
+  * KPI cards
+  * Status Breakdown
+  * Recent Activity
+  * Student summaries
+
+3. Student Summary Section (ONLY in grade view)
+
+* Below the Status Breakdown, display a **summarized student section**:
+
+  * Present (names or count + expandable list)
+  * Late (names or summarized list)
+  * Not Arrived (names or summarized list)
+
+Important:
+
+* This is NOT a full heavy list view.
+* Keep it **lightweight and summarized**:
+
+  * Prefer counts + preview (e.g., first few names + “view more”)
+  * Or collapsible sections / expandable panels
+
+4. Design intent (Grade View)
+
+* Still clean and structured
+* Slightly more operational detail than global view
+* Must NOT feel cluttered or overwhelming
+
+---
+
+## CRITICAL BUG FIX – GRADE FILTERING
+
+Current problem:
+
+* Clicking Grade 8–12 does nothing
+* Only “All Grades” shows data
+
+Required fix:
+
+1. Functional filtering
+
+* Each grade button must filter ALL dashboard data:
+
+  * KPI cards
+  * Status Breakdown
+  * Recent Activity
+  * Student Summary Section
+
+2. Expected behavior
+
+* "All Grades" → full school data
+* "Grade 8" → only Grade 8 data
+* "Grade 9" → only Grade 9 data
+* etc.
+
+3. Global filter state
+
+* The selected grade must act as a global dashboard filter
+* All components must react immediately to the selection
+
+4. No fallback issues
+
+* Do NOT default back to “All Grades” unless explicitly selected
+* No empty or non-responsive states
+
+5. Data handling
+
+* Do NOT hardcode global data
+* Use proper filtering logic (state-based or query-based)
+
+---
+
+## NON-NEGOTIABLES
+
+* Dashboard must work on both mobile and desktop
+* Grade buttons MUST work reliably
+* Global view = clean, no name clutter
+* Grade view = structured + summarized student insight
+* UI must remain consistent across all views
+
+---
+
+## OUTPUT REQUIRED
+
+Provide:
+
+1. Updated dashboard layout implementation
+2. Fixed and working grade filtering logic
+3. Clear state management approach (how grade filter is handled globally)
+4. Clean component structure
+5. Working first iteration of the updated dashboard
