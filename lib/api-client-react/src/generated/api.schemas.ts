@@ -226,7 +226,7 @@ export interface FeedItem {
 export interface DashboardSummary {
   kpis: DashboardKpis;
   exceptions: DashboardExceptions;
-  studentsByState?: DashboardStudentsByState;
+  studentsByState: DashboardStudentsByState;
   statusDistribution: StatusCount[];
   recentFeed: FeedItem[];
   lastUpdated: string;
