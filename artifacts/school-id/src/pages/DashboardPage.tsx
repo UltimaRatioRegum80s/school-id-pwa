@@ -5,7 +5,6 @@ import { PageHeader } from "@/components/PageHeader";
 import { formatRelativeTime, getStateLabel } from "@/lib/status";
 import {
   useGetDashboardSummary,
-  getGetDashboardSummaryQueryKey,
 } from "@workspace/api-client-react";
 import type { StudentWithState, DashboardStudentsByState, DashboardKpis } from "@workspace/api-client-react";
 import {
@@ -50,7 +49,7 @@ export default function DashboardPage() {
   }, [filterKey]);
 
   const queryKey = useMemo(
-    () => getGetDashboardSummaryQueryKey(filterParams),
+    () => ["/api/dashboard/summary", filterKey] as const,
     [filterKey]
   );
 
@@ -408,6 +407,7 @@ function StudentSummarySection({
   grade: string;
   kpis: DashboardKpis;
 }) {
+  const onCampusCount = kpis.onCampus + kpis.inClass + kpis.atEvent;
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden" data-testid="panel-student-summary">
       <div className="px-4 py-2.5 border-b border-border">
@@ -416,7 +416,7 @@ function StudentSummarySection({
       <div className="divide-y divide-border">
         <StudentSummaryGroup
           label="Present"
-          totalCount={kpis.present}
+          totalCount={onCampusCount}
           students={studentsByState.present}
           colorClass="text-green-700 dark:text-green-400"
           bgClass="bg-green-100 dark:bg-green-900/30"
