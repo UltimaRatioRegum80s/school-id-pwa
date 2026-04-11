@@ -141,6 +141,14 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
       .map((s) => formatStudentWithState(s.student, s.events)),
   };
 
+  const presentStudents = [...onCampus, ...inClass, ...atEvent];
+  const studentsByState = {
+    present: presentStudents.slice(0, 8).map((s) => formatStudentWithState(s.student, s.events)),
+    notArrived: notArrived.slice(0, 8).map((s) => formatStudentWithState(s.student, s.events)),
+    late: lateArrivals.slice(0, 8).map((s) => formatStudentWithState(s.student, s.events)),
+    unaccounted: unaccounted.slice(0, 8).map((s) => formatStudentWithState(s.student, s.events)),
+  };
+
   const studentNameMap: Record<number, string> = {};
   for (const s of students) {
     studentNameMap[s.id] = `${s.firstName} ${s.lastName}`;
@@ -175,6 +183,7 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
   res.json({
     kpis,
     exceptions,
+    studentsByState,
     statusDistribution,
     recentFeed,
     availableClassesByGrade,

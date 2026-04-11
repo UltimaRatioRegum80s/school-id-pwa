@@ -202,6 +202,13 @@ export interface DashboardExceptions {
   checkedOutWithoutReason: StudentWithState[];
 }
 
+export interface DashboardStudentsByState {
+  present: StudentWithState[];
+  notArrived: StudentWithState[];
+  late: StudentWithState[];
+  unaccounted: StudentWithState[];
+}
+
 export interface StatusCount {
   state: string;
   count: number;
@@ -219,6 +226,7 @@ export interface FeedItem {
 export interface DashboardSummary {
   kpis: DashboardKpis;
   exceptions: DashboardExceptions;
+  studentsByState?: DashboardStudentsByState;
   statusDistribution: StatusCount[];
   recentFeed: FeedItem[];
   lastUpdated: string;
