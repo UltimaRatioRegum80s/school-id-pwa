@@ -1710,18 +1710,48 @@ function fuzzyFind(raw: Record<string, string>, field: keyof typeof FIELD_SYNONY
   return bestKey ? String(raw[bestKey]).trim() : "";
 }
 
+const TITLE_RE = /^\s*(mr\.?|mrs\.?|ms\.?|miss\.?|dr\.?|prof\.?|rev\.?)\s+/i;
+
+function stripTitle(name: string): string {
+  return name.replace(TITLE_RE, "").trim();
+}
+
+const LOWERCASE_PARTICLES = new Set(["van", "de", "der", "den", "du", "von", "la", "le", "ter"]);
+
+function titleCaseSegment(segment: string, isFirst: boolean): string {
+  if (!segment) return segment;
+  if (segment.includes("-")) {
+    return segment.split("-").map((p, i) => titleCaseSegment(p, i === 0)).join("-");
+  }
+  if (segment.includes("'")) {
+    return segment.split("'").map((p) => p ? p[0].toUpperCase() + p.slice(1).toLowerCase() : "").join("'");
+  }
+  const lower = segment.toLowerCase();
+  if (!isFirst && LOWERCASE_PARTICLES.has(lower)) return lower;
+  return segment[0].toUpperCase() + segment.slice(1).toLowerCase();
+}
+
+function toTitleCase(name: string): string {
+  if (!name) return name;
+  return name.split(/\s+/).map((token, i) => titleCaseSegment(token, i === 0)).join(" ");
+}
+
 function splitFullName(fullName: string): { firstName: string; lastName: string } {
-  const trimmed = fullName.trim();
+  const trimmed = stripTitle(fullName.trim());
   if (!trimmed) return { firstName: "", lastName: "" };
   if (trimmed.includes(",")) {
     const [last, ...firstParts] = trimmed.split(",").map((s) => s.trim());
-    return { firstName: firstParts.join(" "), lastName: last };
+    return { firstName: toTitleCase(firstParts.join(" ")), lastName: toTitleCase(last) };
   }
   const parts = trimmed.split(/\s+/);
-  if (parts.length === 1) return { firstName: parts[0], lastName: "" };
-  const last = parts[parts.length - 1];
-  const first = parts.slice(0, parts.length - 1).join(" ");
-  return { firstName: first, lastName: last };
+  if (parts.length === 1) return { firstName: toTitleCase(parts[0]), lastName: "" };
+  const firstToken = parts[0];
+  const firstIsAllCaps = firstToken === firstToken.toUpperCase() && /[A-Z]/.test(firstToken);
+  const restHasLowerCase = parts.slice(1).some((p) => /[a-z]/.test(p));
+  if (firstIsAllCaps && restHasLowerCase) {
+    return { firstName: toTitleCase(parts.slice(1).join(" ")), lastName: toTitleCase(firstToken) };
+  }
+  return { firstName: toTitleCase(parts.slice(0, parts.length - 1).join(" ")), lastName: toTitleCase(parts[parts.length - 1]) };
 }
 
 function normaliseGradeValue(raw: string): string {
@@ -1735,8 +1765,8 @@ function normaliseGradeValue(raw: string): string {
 
 function normaliseRow(raw: Record<string, string>, rowIndex: number): ParsedRow {
   const studentId = fuzzyFind(raw, "studentId");
-  let firstName = fuzzyFind(raw, "firstName");
-  let lastName = fuzzyFind(raw, "lastName");
+  let firstName = toTitleCase(stripTitle(fuzzyFind(raw, "firstName")));
+  let lastName = toTitleCase(stripTitle(fuzzyFind(raw, "lastName")));
 
   if (!firstName && !lastName) {
     const fullName = fuzzyFind(raw, "fullName");
@@ -1761,7 +1791,12 @@ function normaliseRow(raw: Record<string, string>, rowIndex: number): ParsedRow 
 }
 
 function downloadTemplate() {
-  const csv = "studentId,firstName,lastName,grade,className\n2024001,Jane,Doe,Grade 10,10A\n2024002,John,Smith,AS Level,AS1\n";
+  const csv = [
+    "studentId,firstName,lastName,grade,className",
+    "2024001,Jane,Doe,Grade 10,10A",
+    "2024002,John,Smith,AS Level,AS1",
+    "# Tip: combined name column also works — e.g. name: \"SMITH John\" (ALL CAPS surname first) or \"Doe, Jane\" (comma-separated) or \"Mr John Smith\" (title stripped automatically)",
+  ].join("\n") + "\n";
   const blob = new Blob([csv], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
