@@ -1150,6 +1150,31 @@ components:
         - scanType
         - createdAt
 
+    DashboardStudentsByState:
+      type: object
+      properties:
+        present:
+          type: array
+          items:
+            $ref: "#/components/schemas/StudentWithState"
+        notArrived:
+          type: array
+          items:
+            $ref: "#/components/schemas/StudentWithState"
+        late:
+          type: array
+          items:
+            $ref: "#/components/schemas/StudentWithState"
+        unaccounted:
+          type: array
+          items:
+            $ref: "#/components/schemas/StudentWithState"
+      required:
+        - present
+        - notArrived
+        - late
+        - unaccounted
+
     DashboardSummary:
       type: object
       properties:
@@ -1157,6 +1182,8 @@ components:
           $ref: "#/components/schemas/DashboardKpis"
         exceptions:
           $ref: "#/components/schemas/DashboardExceptions"
+        studentsByState:
+          $ref: "#/components/schemas/DashboardStudentsByState"
         statusDistribution:
           type: array
           items:
@@ -1177,6 +1204,7 @@ components:
       required:
         - kpis
         - exceptions
+        - studentsByState
         - statusDistribution
         - recentFeed
         - lastUpdated
@@ -1638,6 +1666,9 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ImportStudentRow"
+        updateExisting:
+          type: boolean
+          description: When true, rows with matching student IDs update existing records instead of being skipped
       required:
         - rows
 
@@ -1660,12 +1691,15 @@ components:
       properties:
         imported:
           type: integer
+        updated:
+          type: integer
         failed:
           type: array
           items:
             $ref: "#/components/schemas/ImportFailure"
       required:
         - imported
+        - updated
         - failed
 
     PrintCardStudent:

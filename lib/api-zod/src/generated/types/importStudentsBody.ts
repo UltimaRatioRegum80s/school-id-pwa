@@ -9,4 +9,6 @@ import type { ImportStudentRow } from "./importStudentRow";
 
 export interface ImportStudentsBody {
   rows: ImportStudentRow[];
+  /** When true, rows with matching student IDs update existing records instead of being skipped */
+  updateExisting?: boolean;
 }

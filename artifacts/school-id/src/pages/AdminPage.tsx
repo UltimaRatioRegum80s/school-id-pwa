@@ -1864,7 +1864,7 @@ function downloadTemplate() {
   URL.revokeObjectURL(url);
 }
 
-function ResultsSummary({ result, onReset }: { result: { imported: number; failed: ImportFailure[] }; onReset: () => void }) {
+function ResultsSummary({ result, onReset }: { result: { imported: number; updated: number; failed: ImportFailure[] }; onReset: () => void }) {
   const skippedRows = result.failed.filter((f) => f.reason === "Duplicate student ID");
   const errorRows = result.failed.filter((f) => f.reason !== "Duplicate student ID");
   return (
@@ -1874,9 +1874,19 @@ function ResultsSummary({ result, onReset }: { result: { imported: number; faile
           <Check className="w-5 h-5 text-green-600 flex-shrink-0" />
           <p className="text-sm font-semibold text-green-800">Import complete</p>
         </div>
-        <p className="text-sm text-green-700 ml-7">
-          {result.imported} student{result.imported !== 1 ? "s" : ""} imported successfully.
-        </p>
+        {result.imported > 0 && (
+          <p className="text-sm text-green-700 ml-7" data-testid="text-imported-count">
+            {result.imported} student{result.imported !== 1 ? "s" : ""} added.
+          </p>
+        )}
+        {result.updated > 0 && (
+          <p className="text-sm text-green-700 ml-7" data-testid="text-updated-count">
+            {result.updated} student{result.updated !== 1 ? "s" : ""} updated.
+          </p>
+        )}
+        {result.imported === 0 && result.updated === 0 && (
+          <p className="text-sm text-green-700 ml-7">No students were added or updated.</p>
+        )}
         {skippedRows.length > 0 && (
           <p className="text-sm text-amber-700 ml-7" data-testid="text-skipped-count">
             {skippedRows.length} already existed and {skippedRows.length === 1 ? "was" : "were"} skipped.
@@ -1942,7 +1952,8 @@ function ImportStudentsView({ onBack }: { onBack: () => void }) {
   const [fileName, setFileName] = useState("");
   const [parseError, setParseError] = useState("");
   const [isParsing, setIsParsing] = useState(false);
-  const [result, setResult] = useState<{ imported: number; failed: ImportFailure[] } | null>(null);
+  const [updateExisting, setUpdateExisting] = useState(false);
+  const [result, setResult] = useState<{ imported: number; updated: number; failed: ImportFailure[] } | null>(null);
 
   const { data: existingStudents } = useListStudents();
 
@@ -1996,6 +2007,7 @@ function ImportStudentsView({ onBack }: { onBack: () => void }) {
           className,
           _rowIndex,
         })) as import("@workspace/api-client-react").ImportStudentRow[],
+        updateExisting,
       },
     });
   }
@@ -2082,6 +2094,27 @@ function ImportStudentsView({ onBack }: { onBack: () => void }) {
           </button>
         </div>
 
+        {/* Update existing toggle */}
+        {!result && (
+          <div className="bg-card border border-border rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+            <div className="space-y-0.5">
+              <p className="text-sm font-semibold text-foreground">Update existing students</p>
+              <p className="text-xs text-muted-foreground">When on, rows with a matching ID update the student's name, grade and class instead of being skipped.</p>
+            </div>
+            <button
+              role="switch"
+              aria-checked={updateExisting}
+              onClick={() => setUpdateExisting((v) => !v)}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none ${updateExisting ? "bg-primary" : "bg-muted"}`}
+              data-testid="toggle-update-existing"
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform ${updateExisting ? "translate-x-5" : "translate-x-0"}`}
+              />
+            </button>
+          </div>
+        )}
+
         {/* File picker */}
         {!result && (
           <div className="bg-card border border-border rounded-xl p-4 space-y-3">
@@ -2164,8 +2197,8 @@ function ImportStudentsView({ onBack }: { onBack: () => void }) {
                             <div className="flex flex-col gap-0.5">
                               <ImportEditableCell field="studentId" value={row.studentId} rowIndex={row._rowIndex} isInvalid={!row.studentId || isDuplicate} errorMessage={isDuplicate ? "Duplicate Student ID" : undefined} mono onChange={(v) => updateRow(row._rowIndex, "studentId", v)} />
                               {isExisting && (
-                                <span className="inline-block text-[10px] font-semibold text-amber-700 bg-amber-100 border border-amber-200 rounded px-1 py-0 leading-4 w-fit" data-testid={`badge-existing-${row._rowIndex}`}>
-                                  Already exists
+                                <span className={`inline-block text-[10px] font-semibold rounded px-1 py-0 leading-4 w-fit border ${updateExisting ? "text-blue-700 bg-blue-50 border-blue-200" : "text-amber-700 bg-amber-100 border-amber-200"}`} data-testid={`badge-existing-${row._rowIndex}`}>
+                                  {updateExisting ? "Will update" : "Already exists"}
                                 </span>
                               )}
                             </div>
@@ -2195,7 +2228,10 @@ function ImportStudentsView({ onBack }: { onBack: () => void }) {
                 <p className="text-xs font-semibold text-amber-800">
                   {existingCount} student{existingCount !== 1 ? "s" : ""} already exist in the system
                 </p>
-                <p className="text-xs text-amber-700">These rows will be skipped during import. Only {newCount} new student{newCount !== 1 ? "s" : ""} will be added.</p>
+                {updateExisting
+                  ? <p className="text-xs text-amber-700">These rows will be <span className="font-semibold">updated</span> with the new values. {newCount} new student{newCount !== 1 ? "s" : ""} will be added.</p>
+                  : <p className="text-xs text-amber-700">These rows will be skipped during import. Only {newCount} new student{newCount !== 1 ? "s" : ""} will be added.</p>
+                }
               </div>
             )}
 
@@ -2206,7 +2242,7 @@ function ImportStudentsView({ onBack }: { onBack: () => void }) {
                   {duplicateRowIndices.size > 0 && (
                     <span className="font-normal"> ({duplicateRowIndices.size} duplicate ID{duplicateRowIndices.size !== 1 ? "s" : ""})</span>
                   )}
-                  {" · "}{existingCount} already exist (will be skipped)
+                  {" · "}{existingCount} already exist ({updateExisting ? "will be updated" : "will be skipped"})
                 </p>
                 <p className="text-xs text-amber-700">Fix highlighted cells inline — edit the Student ID to make it unique, or fix missing fields. Import enables once all rows are valid.</p>
               </div>
@@ -2239,9 +2275,11 @@ function ImportStudentsView({ onBack }: { onBack: () => void }) {
             >
               {importMutation.isPending
                 ? "Importing..."
-                : existingCount > 0
-                  ? `Import ${newCount} new student${newCount !== 1 ? "s" : ""} (${existingCount} will be skipped)`
-                  : `Import ${rows.length} student${rows.length !== 1 ? "s" : ""}`}
+                : updateExisting && existingCount > 0
+                  ? `Import — add ${newCount}, update ${existingCount}`
+                  : existingCount > 0
+                    ? `Import ${newCount} new student${newCount !== 1 ? "s" : ""} (${existingCount} will be skipped)`
+                    : `Import ${rows.length} student${rows.length !== 1 ? "s" : ""}`}
             </button>
           </div>
         )}

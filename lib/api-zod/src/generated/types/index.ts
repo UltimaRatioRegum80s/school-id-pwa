@@ -21,6 +21,7 @@ export * from "./createStudentBody";
 export * from "./createUserBody";
 export * from "./dashboardExceptions";
 export * from "./dashboardKpis";
+export * from "./dashboardStudentsByState";
 export * from "./dashboardSummary";
 export * from "./dashboardSummaryAvailableClassesByGrade";
 export * from "./feedItem";

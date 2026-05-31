@@ -269,10 +269,17 @@ export const ImportStudentsBody = zod.object({
       className: zod.string(),
     }),
   ),
+  updateExisting: zod
+    .boolean()
+    .optional()
+    .describe(
+      "When true, rows with matching student IDs update existing records instead of being skipped",
+    ),
 });
 
 export const ImportStudentsResponse = zod.object({
   imported: zod.number(),
+  updated: zod.number(),
   failed: zod.array(
     zod.object({
       row: zod.number(),
@@ -540,6 +547,100 @@ export const GetDashboardSummaryResponse = zod.object({
         ),
     ),
     checkedOutWithoutReason: zod.array(
+      zod
+        .object({
+          id: zod.number(),
+          studentId: zod.string(),
+          firstName: zod.string(),
+          lastName: zod.string(),
+          grade: zod.string(),
+          className: zod.string(),
+          photoUrl: zod.string().nullish(),
+          qrCode: zod.string(),
+          isActive: zod.number(),
+          createdAt: zod.string(),
+          updatedAt: zod.string(),
+        })
+        .and(
+          zod.object({
+            currentState: zod.string(),
+            lastSeenAt: zod.string().nullish(),
+            lastSeenLocation: zod.string().nullish(),
+          }),
+        ),
+    ),
+  }),
+  studentsByState: zod.object({
+    present: zod.array(
+      zod
+        .object({
+          id: zod.number(),
+          studentId: zod.string(),
+          firstName: zod.string(),
+          lastName: zod.string(),
+          grade: zod.string(),
+          className: zod.string(),
+          photoUrl: zod.string().nullish(),
+          qrCode: zod.string(),
+          isActive: zod.number(),
+          createdAt: zod.string(),
+          updatedAt: zod.string(),
+        })
+        .and(
+          zod.object({
+            currentState: zod.string(),
+            lastSeenAt: zod.string().nullish(),
+            lastSeenLocation: zod.string().nullish(),
+          }),
+        ),
+    ),
+    notArrived: zod.array(
+      zod
+        .object({
+          id: zod.number(),
+          studentId: zod.string(),
+          firstName: zod.string(),
+          lastName: zod.string(),
+          grade: zod.string(),
+          className: zod.string(),
+          photoUrl: zod.string().nullish(),
+          qrCode: zod.string(),
+          isActive: zod.number(),
+          createdAt: zod.string(),
+          updatedAt: zod.string(),
+        })
+        .and(
+          zod.object({
+            currentState: zod.string(),
+            lastSeenAt: zod.string().nullish(),
+            lastSeenLocation: zod.string().nullish(),
+          }),
+        ),
+    ),
+    late: zod.array(
+      zod
+        .object({
+          id: zod.number(),
+          studentId: zod.string(),
+          firstName: zod.string(),
+          lastName: zod.string(),
+          grade: zod.string(),
+          className: zod.string(),
+          photoUrl: zod.string().nullish(),
+          qrCode: zod.string(),
+          isActive: zod.number(),
+          createdAt: zod.string(),
+          updatedAt: zod.string(),
+        })
+        .and(
+          zod.object({
+            currentState: zod.string(),
+            lastSeenAt: zod.string().nullish(),
+            lastSeenLocation: zod.string().nullish(),
+          }),
+        ),
+    ),
+    unaccounted: zod.array(
       zod
         .object({
           id: zod.number(),

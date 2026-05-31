@@ -176,6 +176,13 @@ export interface ScanResult {
   warnings: string[];
 }
 
+export interface DashboardStudentsByState {
+  present: StudentWithState[];
+  notArrived: StudentWithState[];
+  late: StudentWithState[];
+  unaccounted: StudentWithState[];
+}
+
 /**
  * Mapping of grade to available class names for filter chip population
  */
@@ -200,13 +207,6 @@ export interface DashboardExceptions {
   unaccountedStudents: StudentWithState[];
   lateArrivals: StudentWithState[];
   checkedOutWithoutReason: StudentWithState[];
-}
-
-export interface DashboardStudentsByState {
-  present: StudentWithState[];
-  notArrived: StudentWithState[];
-  late: StudentWithState[];
-  unaccounted: StudentWithState[];
 }
 
 export interface StatusCount {
@@ -415,6 +415,8 @@ export interface ImportStudentRow {
 
 export interface ImportStudentsBody {
   rows: ImportStudentRow[];
+  /** When true, rows with matching student IDs update existing records instead of being skipped */
+  updateExisting?: boolean;
 }
 
 export interface ImportFailure {
@@ -425,6 +427,7 @@ export interface ImportFailure {
 
 export interface ImportStudentsResult {
   imported: number;
+  updated: number;
   failed: ImportFailure[];
 }
 

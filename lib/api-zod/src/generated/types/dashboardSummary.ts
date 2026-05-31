@@ -7,6 +7,7 @@
  */
 import type { DashboardExceptions } from "./dashboardExceptions";
 import type { DashboardKpis } from "./dashboardKpis";
+import type { DashboardStudentsByState } from "./dashboardStudentsByState";
 import type { DashboardSummaryAvailableClassesByGrade } from "./dashboardSummaryAvailableClassesByGrade";
 import type { FeedItem } from "./feedItem";
 import type { StatusCount } from "./statusCount";
@@ -14,6 +15,7 @@ import type { StatusCount } from "./statusCount";
 export interface DashboardSummary {
   kpis: DashboardKpis;
   exceptions: DashboardExceptions;
+  studentsByState: DashboardStudentsByState;
   statusDistribution: StatusCount[];
   recentFeed: FeedItem[];
   lastUpdated: string;

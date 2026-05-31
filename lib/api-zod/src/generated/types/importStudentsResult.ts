@@ -9,5 +9,6 @@ import type { ImportFailure } from "./importFailure";
 
 export interface ImportStudentsResult {
   imported: number;
+  updated: number;
   failed: ImportFailure[];
 }

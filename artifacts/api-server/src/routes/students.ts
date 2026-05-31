@@ -123,6 +123,8 @@ router.post("/students/import", requireAuth, async (req, res): Promise<void> => 
   const user = (req as Request & { user: JwtPayload }).user;
 
   const rows = req.body?.rows;
+  const updateExisting = req.body?.updateExisting === true;
+
   if (!Array.isArray(rows) || rows.length === 0) {
     res.status(400).json({ error: "rows must be a non-empty array" });
     return;
@@ -136,6 +138,7 @@ router.post("/students/import", requireAuth, async (req, res): Promise<void> => 
   const schoolCode = school?.code ?? "SCH";
 
   let imported = 0;
+  let updated = 0;
   const failed: { row: number; studentId: string; reason: string }[] = [];
 
   for (let i = 0; i < rows.length; i++) {
@@ -163,20 +166,50 @@ router.post("/students/import", requireAuth, async (req, res): Promise<void> => 
     const qrCode = `SCID-${schoolCode}-${rawStudentId}`;
 
     try {
-      await db.transaction(async (tx) => {
-        const [s] = await tx.insert(studentsTable).values({
-          schoolId: user.schoolId,
-          studentId: scopedStudentId,
-          firstName,
-          lastName,
-          grade,
-          className,
-          photoUrl: null,
-          qrCode,
-        }).returning();
-        await tx.insert(studentQrCodesTable).values({ studentId: s.id, code: qrCode, isActive: 1 });
-      });
-      imported++;
+      if (updateExisting) {
+        await db.transaction(async (tx) => {
+          const existing = await tx
+            .select({ id: studentsTable.id })
+            .from(studentsTable)
+            .where(eq(studentsTable.studentId, scopedStudentId));
+
+          if (existing.length > 0) {
+            await tx
+              .update(studentsTable)
+              .set({ firstName, lastName, grade, className })
+              .where(eq(studentsTable.studentId, scopedStudentId));
+            updated++;
+          } else {
+            const [s] = await tx.insert(studentsTable).values({
+              schoolId: user.schoolId,
+              studentId: scopedStudentId,
+              firstName,
+              lastName,
+              grade,
+              className,
+              photoUrl: null,
+              qrCode,
+            }).returning();
+            await tx.insert(studentQrCodesTable).values({ studentId: s.id, code: qrCode, isActive: 1 });
+            imported++;
+          }
+        });
+      } else {
+        await db.transaction(async (tx) => {
+          const [s] = await tx.insert(studentsTable).values({
+            schoolId: user.schoolId,
+            studentId: scopedStudentId,
+            firstName,
+            lastName,
+            grade,
+            className,
+            photoUrl: null,
+            qrCode,
+          }).returning();
+          await tx.insert(studentQrCodesTable).values({ studentId: s.id, code: qrCode, isActive: 1 });
+        });
+        imported++;
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       const code = (err as Record<string, unknown>)?.code;
@@ -186,7 +219,7 @@ router.post("/students/import", requireAuth, async (req, res): Promise<void> => 
     }
   }
 
-  res.json({ imported, failed });
+  res.json({ imported, updated, failed });
 });
 
 router.get("/students/lookup/:qrCode", requireAuth, async (req, res): Promise<void> => {
