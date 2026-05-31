@@ -118,12 +118,12 @@ async function seed() {
         studentCounter++;
         students.push({
           schoolId: demoSchool.id,
-          studentId: `DEMO-STU${studentCounter}`,
+          studentId: `STU${studentCounter}`,
           firstName,
           lastName,
           grade,
           className,
-          qrCode: `SCID-DEMO-STU${studentCounter}`,
+          qrCode: `SCID-STU${studentCounter}`,
           photoUrl: null as string | null,
         });
       }
@@ -222,7 +222,7 @@ async function seed() {
   console.log("  Staff: staff1 / staff123");
   console.log("  Staff: staff2 / staff123");
   console.log(`\nDemo school code: ${demoSchool.code}`);
-  console.log(`Demo QR format: SCID-DEMO-STU####`);
+  console.log(`Demo QR format: SCID-STU####`);
 
   await pool.end();
 }
