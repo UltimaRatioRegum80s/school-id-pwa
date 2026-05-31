@@ -1,4 +1,4 @@
-import { useState, useRef, lazy, Suspense } from "react";
+import { useState, useRef, useMemo, lazy, Suspense } from "react";
 const PrintCardsPage = lazy(() => import("./PrintCardsPage"));
 import { useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
@@ -1804,6 +1804,7 @@ function ImportEditableCell({
   value,
   rowIndex,
   isInvalid,
+  errorMessage,
   mono,
   onChange,
 }: {
@@ -1811,24 +1812,32 @@ function ImportEditableCell({
   value: string;
   rowIndex: number;
   isInvalid: boolean;
+  errorMessage?: string;
   mono?: boolean;
   onChange: (value: string) => void;
 }) {
   return (
-    <input
-      type="text"
-      defaultValue={value}
-      placeholder={isInvalid ? "required" : undefined}
-      onChange={(e) => onChange(e.target.value)}
-      className={`w-full min-w-0 bg-transparent border rounded px-1 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary ${
-        mono ? "font-mono" : ""
-      } ${
-        isInvalid
-          ? "border-destructive/60 placeholder:text-destructive/50 text-destructive"
-          : "border-border/50 text-foreground"
-      }`}
-      data-testid={`edit-${field}-${rowIndex}`}
-    />
+    <div className="flex flex-col gap-0.5">
+      <input
+        type="text"
+        defaultValue={value}
+        placeholder={isInvalid ? "required" : undefined}
+        onChange={(e) => onChange(e.target.value)}
+        className={`w-full min-w-0 bg-transparent border rounded px-1 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary ${
+          mono ? "font-mono" : ""
+        } ${
+          isInvalid
+            ? "border-destructive/60 placeholder:text-destructive/50 text-destructive"
+            : "border-border/50 text-foreground"
+        }`}
+        data-testid={`edit-${field}-${rowIndex}`}
+      />
+      {errorMessage && (
+        <span className="text-[10px] leading-tight text-destructive font-medium" data-testid={`error-${field}-${rowIndex}`}>
+          {errorMessage}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -1918,8 +1927,24 @@ function ImportStudentsView({ onBack }: { onBack: () => void }) {
     );
   }
 
-  const validRows = rows?.filter((r) => r._errors.length === 0) ?? [];
-  const invalidRows = rows?.filter((r) => r._errors.length > 0) ?? [];
+  const duplicateRowIndices = useMemo(() => {
+    if (!rows) return new Set<number>();
+    const seen = new Map<string, number>();
+    const dupes = new Set<number>();
+    for (const row of rows) {
+      if (!row.studentId) continue;
+      const key = row.studentId.trim().toLowerCase();
+      if (seen.has(key)) {
+        dupes.add(row._rowIndex);
+      } else {
+        seen.set(key, row._rowIndex);
+      }
+    }
+    return dupes;
+  }, [rows]);
+
+  const validRows = rows?.filter((r) => r._errors.length === 0 && !duplicateRowIndices.has(r._rowIndex)) ?? [];
+  const invalidRows = rows?.filter((r) => r._errors.length > 0 || duplicateRowIndices.has(r._rowIndex)) ?? [];
 
   return (
     <div className="flex flex-col min-h-screen bg-background pb-20">
@@ -2022,7 +2047,8 @@ function ImportStudentsView({ onBack }: { onBack: () => void }) {
                   </thead>
                   <tbody className="divide-y divide-border">
                     {rows.map((row) => {
-                      const hasErrors = row._errors.length > 0;
+                      const isDuplicate = duplicateRowIndices.has(row._rowIndex);
+                      const hasErrors = row._errors.length > 0 || isDuplicate;
                       return (
                         <tr
                           key={row._rowIndex}
@@ -2031,7 +2057,7 @@ function ImportStudentsView({ onBack }: { onBack: () => void }) {
                         >
                           <td className="px-3 py-2 text-muted-foreground">{row._rowIndex}</td>
                           <td className="px-2 py-1.5 max-w-[80px]">
-                            <ImportEditableCell field="studentId" value={row.studentId} rowIndex={row._rowIndex} isInvalid={!row.studentId} mono onChange={(v) => updateRow(row._rowIndex, "studentId", v)} />
+                            <ImportEditableCell field="studentId" value={row.studentId} rowIndex={row._rowIndex} isInvalid={!row.studentId || isDuplicate} errorMessage={isDuplicate ? "Duplicate Student ID" : undefined} mono onChange={(v) => updateRow(row._rowIndex, "studentId", v)} />
                           </td>
                           <td className="px-2 py-1.5 max-w-[70px]">
                             <ImportEditableCell field="firstName" value={row.firstName} rowIndex={row._rowIndex} isInvalid={!row.firstName} onChange={(v) => updateRow(row._rowIndex, "firstName", v)} />
@@ -2055,8 +2081,13 @@ function ImportStudentsView({ onBack }: { onBack: () => void }) {
 
             {invalidRows.length > 0 && (
               <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 space-y-1">
-                <p className="text-xs font-semibold text-amber-800">{invalidRows.length} row{invalidRows.length !== 1 ? "s" : ""} {invalidRows.length === 1 ? "has" : "have"} missing fields</p>
-                <p className="text-xs text-amber-700">Click any highlighted cell to fix it inline — no need to re-upload. Import enables once all rows are valid.</p>
+                <p className="text-xs font-semibold text-amber-800">
+                  {invalidRows.length} row{invalidRows.length !== 1 ? "s" : ""} {invalidRows.length === 1 ? "has" : "have"} errors
+                  {duplicateRowIndices.size > 0 && (
+                    <span className="font-normal"> ({duplicateRowIndices.size} duplicate ID{duplicateRowIndices.size !== 1 ? "s" : ""})</span>
+                  )}
+                </p>
+                <p className="text-xs text-amber-700">Fix highlighted cells inline — edit the Student ID to make it unique, or fix missing fields. Import enables once all rows are valid.</p>
               </div>
             )}
 
