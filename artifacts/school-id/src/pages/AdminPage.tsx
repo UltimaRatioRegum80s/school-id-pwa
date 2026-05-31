@@ -1747,8 +1747,7 @@ function splitFullName(fullName: string): { firstName: string; lastName: string 
   if (parts.length === 1) return { firstName: toTitleCase(parts[0]), lastName: "" };
   const firstToken = parts[0];
   const firstIsAllCaps = firstToken === firstToken.toUpperCase() && /[A-Z]/.test(firstToken);
-  const restHasLowerCase = parts.slice(1).some((p) => /[a-z]/.test(p));
-  if (firstIsAllCaps && restHasLowerCase) {
+  if (firstIsAllCaps) {
     return { firstName: toTitleCase(parts.slice(1).join(" ")), lastName: toTitleCase(firstToken) };
   }
   return { firstName: toTitleCase(parts.slice(0, parts.length - 1).join(" ")), lastName: toTitleCase(parts[parts.length - 1]) };
@@ -1797,11 +1796,11 @@ function downloadTemplate() {
     "2024002,John,Smith,AS Level,AS1",
     "# --- OR use a single 'name' column instead of firstName+lastName ---",
     "# name,studentId,grade,className",
-    "# BANDA Peter,2024003,10,10B   <- ALL CAPS surname first (auto-detected)",
-    "# SMITH JOHN,2024004,10,10B    <- ALL CAPS both tokens → surname=SMITH first=John",
-    "# Doe Jane,2024005,10,10B      <- natural order",
-    "# Doe, Jane,2024006,10,10B     <- comma-separated",
-    "# Mr John Smith,2024007,10,10B <- title stripped automatically",
+    "# BANDA Peter,2024003,10,10B   <- ALL CAPS first token = surname-first: firstName=Peter lastName=Banda",
+    "# BANDA PETER,2024004,10,10B   <- ALL CAPS first token = surname-first: firstName=Peter lastName=Banda",
+    "# Doe Jane,2024005,10,10B      <- mixed case first token = natural order: firstName=Doe lastName=Jane",
+    "# Doe, Jane,2024006,10,10B     <- comma-separated: firstName=Jane lastName=Doe",
+    "# Mr John Smith,2024007,10,10B <- title stripped automatically: firstName=John lastName=Smith",
   ].join("\n") + "\n";
   const blob = new Blob([csv], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
