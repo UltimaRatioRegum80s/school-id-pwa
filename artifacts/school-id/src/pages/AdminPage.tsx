@@ -1789,6 +1789,49 @@ function normaliseRow(raw: Record<string, string>, rowIndex: number): ParsedRow 
   return { studentId, firstName, lastName, grade, className, _rowIndex: rowIndex, _errors: errors };
 }
 
+function recomputeErrors(row: Omit<ParsedRow, "_errors">): string[] {
+  const errors: string[] = [];
+  if (!row.studentId) errors.push("Missing Student ID");
+  if (!row.firstName) errors.push("Missing First Name");
+  if (!row.lastName) errors.push("Missing Last Name");
+  if (!row.grade) errors.push("Missing Grade");
+  if (!row.className) errors.push("Missing Class");
+  return errors;
+}
+
+function ImportEditableCell({
+  field,
+  value,
+  rowIndex,
+  isInvalid,
+  mono,
+  onChange,
+}: {
+  field: string;
+  value: string;
+  rowIndex: number;
+  isInvalid: boolean;
+  mono?: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <input
+      type="text"
+      defaultValue={value}
+      placeholder={isInvalid ? "required" : undefined}
+      onChange={(e) => onChange(e.target.value)}
+      className={`w-full min-w-0 bg-transparent border rounded px-1 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary ${
+        mono ? "font-mono" : ""
+      } ${
+        isInvalid
+          ? "border-destructive/60 placeholder:text-destructive/50 text-destructive"
+          : "border-border/50 text-foreground"
+      }`}
+      data-testid={`edit-${field}-${rowIndex}`}
+    />
+  );
+}
+
 function downloadTemplate() {
   const csv = [
     "studentId,firstName,lastName,grade,className",
@@ -1848,11 +1891,10 @@ function ImportStudentsView({ onBack }: { onBack: () => void }) {
   }
 
   function handleImport() {
-    if (!rows) return;
-    const validRows = rows.filter((r) => r._errors.length === 0);
+    if (!rows || invalidRows.length > 0) return;
     importMutation.mutate({
       data: {
-        rows: validRows.map(({ studentId, firstName, lastName, grade, className, _rowIndex }) => ({
+        rows: rows.map(({ studentId, firstName, lastName, grade, className, _rowIndex }) => ({
           studentId,
           firstName,
           lastName,
@@ -1862,6 +1904,18 @@ function ImportStudentsView({ onBack }: { onBack: () => void }) {
         })) as import("@workspace/api-client-react").ImportStudentRow[],
       },
     });
+  }
+
+  function updateRow(rowIndex: number, field: keyof Omit<ParsedRow, "_rowIndex" | "_errors">, value: string) {
+    setRows((prev) =>
+      prev
+        ? prev.map((r) => {
+            if (r._rowIndex !== rowIndex) return r;
+            const updated = { ...r, [field]: value.trim() };
+            return { ...updated, _errors: recomputeErrors(updated) };
+          })
+        : prev
+    );
   }
 
   const validRows = rows?.filter((r) => r._errors.length === 0) ?? [];
@@ -1967,30 +2021,33 @@ function ImportStudentsView({ onBack }: { onBack: () => void }) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {rows.map((row) => (
-                      <tr
-                        key={row._rowIndex}
-                        className={row._errors.length > 0 ? "bg-destructive/5" : ""}
-                        data-testid={`preview-row-${row._rowIndex}`}
-                      >
-                        <td className="px-3 py-2 text-muted-foreground">{row._rowIndex}</td>
-                        <td className={`px-3 py-2 font-mono ${!row.studentId ? "text-destructive" : "text-foreground"}`}>
-                          {row.studentId || <span className="italic text-destructive">missing</span>}
-                        </td>
-                        <td className={`px-3 py-2 ${!row.firstName ? "text-destructive" : "text-foreground"}`}>
-                          {row.firstName || <span className="italic text-destructive">missing</span>}
-                        </td>
-                        <td className={`px-3 py-2 ${!row.lastName ? "text-destructive" : "text-foreground"}`}>
-                          {row.lastName || <span className="italic text-destructive">missing</span>}
-                        </td>
-                        <td className={`px-3 py-2 ${!row.grade ? "text-destructive" : "text-foreground"}`}>
-                          {row.grade || <span className="italic text-destructive">missing</span>}
-                        </td>
-                        <td className={`px-3 py-2 ${!row.className ? "text-destructive" : "text-foreground"}`}>
-                          {row.className || <span className="italic text-destructive">missing</span>}
-                        </td>
-                      </tr>
-                    ))}
+                    {rows.map((row) => {
+                      const hasErrors = row._errors.length > 0;
+                      return (
+                        <tr
+                          key={row._rowIndex}
+                          className={hasErrors ? "bg-destructive/5" : ""}
+                          data-testid={`preview-row-${row._rowIndex}`}
+                        >
+                          <td className="px-3 py-2 text-muted-foreground">{row._rowIndex}</td>
+                          <td className="px-2 py-1.5 max-w-[80px]">
+                            <ImportEditableCell field="studentId" value={row.studentId} rowIndex={row._rowIndex} isInvalid={!row.studentId} mono onChange={(v) => updateRow(row._rowIndex, "studentId", v)} />
+                          </td>
+                          <td className="px-2 py-1.5 max-w-[70px]">
+                            <ImportEditableCell field="firstName" value={row.firstName} rowIndex={row._rowIndex} isInvalid={!row.firstName} onChange={(v) => updateRow(row._rowIndex, "firstName", v)} />
+                          </td>
+                          <td className="px-2 py-1.5 max-w-[70px]">
+                            <ImportEditableCell field="lastName" value={row.lastName} rowIndex={row._rowIndex} isInvalid={!row.lastName} onChange={(v) => updateRow(row._rowIndex, "lastName", v)} />
+                          </td>
+                          <td className="px-2 py-1.5 max-w-[60px]">
+                            <ImportEditableCell field="grade" value={row.grade} rowIndex={row._rowIndex} isInvalid={!row.grade} onChange={(v) => updateRow(row._rowIndex, "grade", v)} />
+                          </td>
+                          <td className="px-2 py-1.5 max-w-[60px]">
+                            <ImportEditableCell field="className" value={row.className} rowIndex={row._rowIndex} isInvalid={!row.className} onChange={(v) => updateRow(row._rowIndex, "className", v)} />
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1998,8 +2055,8 @@ function ImportStudentsView({ onBack }: { onBack: () => void }) {
 
             {invalidRows.length > 0 && (
               <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 space-y-1">
-                <p className="text-xs font-semibold text-amber-800">{invalidRows.length} row{invalidRows.length !== 1 ? "s" : ""} will be skipped (highlighted in red)</p>
-                <p className="text-xs text-amber-700">Only {validRows.length} valid row{validRows.length !== 1 ? "s" : ""} will be imported.</p>
+                <p className="text-xs font-semibold text-amber-800">{invalidRows.length} row{invalidRows.length !== 1 ? "s" : ""} {invalidRows.length === 1 ? "has" : "have"} missing fields</p>
+                <p className="text-xs text-amber-700">Click any highlighted cell to fix it inline — no need to re-upload. Import enables once all rows are valid.</p>
               </div>
             )}
 
@@ -2012,13 +2069,13 @@ function ImportStudentsView({ onBack }: { onBack: () => void }) {
 
             <button
               onClick={handleImport}
-              disabled={importMutation.isPending || validRows.length === 0}
+              disabled={importMutation.isPending || rows.length === 0 || invalidRows.length > 0}
               className="w-full bg-primary text-primary-foreground font-semibold py-3 rounded-xl disabled:opacity-50 transition-opacity"
               data-testid="button-confirm-import"
             >
               {importMutation.isPending
                 ? "Importing..."
-                : `Import ${validRows.length} student${validRows.length !== 1 ? "s" : ""}`}
+                : `Import ${rows.length} student${rows.length !== 1 ? "s" : ""}`}
             </button>
           </div>
         )}
