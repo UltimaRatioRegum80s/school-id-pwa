@@ -9,6 +9,7 @@ import {
   useGetSettings,
   useUpdateSettings,
   useListUsers,
+  useListStudents,
   useListBehaviorCategories,
   useCreateBehaviorCategory,
   useCreateStudent,
@@ -1863,6 +1864,77 @@ function downloadTemplate() {
   URL.revokeObjectURL(url);
 }
 
+function ResultsSummary({ result, onReset }: { result: { imported: number; failed: ImportFailure[] }; onReset: () => void }) {
+  const skippedRows = result.failed.filter((f) => f.reason === "Duplicate student ID");
+  const errorRows = result.failed.filter((f) => f.reason !== "Duplicate student ID");
+  return (
+    <div className="space-y-3" data-testid="section-import-results">
+      <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-4 space-y-1">
+        <div className="flex items-center gap-2">
+          <Check className="w-5 h-5 text-green-600 flex-shrink-0" />
+          <p className="text-sm font-semibold text-green-800">Import complete</p>
+        </div>
+        <p className="text-sm text-green-700 ml-7">
+          {result.imported} student{result.imported !== 1 ? "s" : ""} imported successfully.
+        </p>
+        {skippedRows.length > 0 && (
+          <p className="text-sm text-amber-700 ml-7" data-testid="text-skipped-count">
+            {skippedRows.length} already existed and {skippedRows.length === 1 ? "was" : "were"} skipped.
+          </p>
+        )}
+        {errorRows.length > 0 && (
+          <p className="text-sm text-destructive ml-7">
+            {errorRows.length} row{errorRows.length !== 1 ? "s" : ""} failed with errors.
+          </p>
+        )}
+      </div>
+
+      {skippedRows.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl overflow-hidden" data-testid="table-skipped-rows">
+          <div className="px-4 py-3 border-b border-amber-200">
+            <p className="text-sm font-semibold text-amber-800">Already existed (skipped)</p>
+          </div>
+          <div className="divide-y divide-amber-100">
+            {skippedRows.map((f) => (
+              <div key={f.row} className="px-4 py-2.5 flex items-center gap-3">
+                <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 border border-amber-200 rounded px-1.5 py-0.5 flex-shrink-0">Already exists</span>
+                <p className="text-xs text-amber-800">Row {f.row} — <span className="font-mono">{f.studentId}</span></p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {errorRows.length > 0 && (
+        <div className="bg-card border border-border rounded-xl overflow-hidden" data-testid="table-failed-rows">
+          <div className="px-4 py-3 border-b border-border">
+            <p className="text-sm font-semibold text-foreground">Failed rows</p>
+          </div>
+          <div className="divide-y divide-border">
+            {errorRows.map((f) => (
+              <div key={f.row} className="px-4 py-3 flex items-start gap-3">
+                <AlertCircle className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-semibold text-foreground">Row {f.row} — {f.studentId}</p>
+                  <p className="text-xs text-muted-foreground">{f.reason}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <button
+        onClick={onReset}
+        className="w-full bg-muted text-foreground font-semibold py-2.5 rounded-xl hover:bg-muted/70 transition-colors"
+        data-testid="button-import-another"
+      >
+        Import Another File
+      </button>
+    </div>
+  );
+}
+
 function ImportStudentsView({ onBack }: { onBack: () => void }) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1871,6 +1943,19 @@ function ImportStudentsView({ onBack }: { onBack: () => void }) {
   const [parseError, setParseError] = useState("");
   const [isParsing, setIsParsing] = useState(false);
   const [result, setResult] = useState<{ imported: number; failed: ImportFailure[] } | null>(null);
+
+  const { data: existingStudents } = useListStudents();
+
+  const existingStudentIdSet = useMemo(() => {
+    const set = new Set<string>();
+    if (!existingStudents) return set;
+    for (const s of existingStudents) {
+      const idx = s.studentId.indexOf("-");
+      const raw = idx !== -1 ? s.studentId.substring(idx + 1) : s.studentId;
+      set.add(raw.toLowerCase());
+    }
+    return set;
+  }, [existingStudents]);
 
   const importMutation = useImportStudents({
     mutation: {
@@ -1943,8 +2028,21 @@ function ImportStudentsView({ onBack }: { onBack: () => void }) {
     return dupes;
   }, [rows]);
 
+  const existingRowIndices = useMemo(() => {
+    if (!rows) return new Set<number>();
+    const set = new Set<number>();
+    for (const row of rows) {
+      if (row.studentId && existingStudentIdSet.has(row.studentId.trim().toLowerCase())) {
+        set.add(row._rowIndex);
+      }
+    }
+    return set;
+  }, [rows, existingStudentIdSet]);
+
   const validRows = rows?.filter((r) => r._errors.length === 0 && !duplicateRowIndices.has(r._rowIndex)) ?? [];
   const invalidRows = rows?.filter((r) => r._errors.length > 0 || duplicateRowIndices.has(r._rowIndex)) ?? [];
+  const existingCount = existingRowIndices.size;
+  const newCount = validRows.filter((r) => !existingRowIndices.has(r._rowIndex)).length;
 
   return (
     <div className="flex flex-col min-h-screen bg-background pb-20">
@@ -2027,9 +2125,14 @@ function ImportStudentsView({ onBack }: { onBack: () => void }) {
               <p className="text-sm font-semibold text-foreground">
                 Preview — {rows.length} row{rows.length !== 1 ? "s" : ""} found
               </p>
-              {invalidRows.length > 0 && (
-                <span className="text-xs text-destructive font-medium">{invalidRows.length} invalid</span>
-              )}
+              <div className="flex items-center gap-2">
+                {existingCount > 0 && (
+                  <span className="text-xs text-amber-600 font-medium" data-testid="label-existing-count">{existingCount} already exist</span>
+                )}
+                {invalidRows.length > 0 && (
+                  <span className="text-xs text-destructive font-medium">{invalidRows.length} invalid</span>
+                )}
+              </div>
             </div>
 
             <div className="bg-card border border-border rounded-xl overflow-hidden">
@@ -2048,16 +2151,24 @@ function ImportStudentsView({ onBack }: { onBack: () => void }) {
                   <tbody className="divide-y divide-border">
                     {rows.map((row) => {
                       const isDuplicate = duplicateRowIndices.has(row._rowIndex);
+                      const isExisting = !isDuplicate && existingRowIndices.has(row._rowIndex);
                       const hasErrors = row._errors.length > 0 || isDuplicate;
                       return (
                         <tr
                           key={row._rowIndex}
-                          className={hasErrors ? "bg-destructive/5" : ""}
+                          className={hasErrors ? "bg-destructive/5" : isExisting ? "bg-amber-50/60" : ""}
                           data-testid={`preview-row-${row._rowIndex}`}
                         >
                           <td className="px-3 py-2 text-muted-foreground">{row._rowIndex}</td>
-                          <td className="px-2 py-1.5 max-w-[80px]">
-                            <ImportEditableCell field="studentId" value={row.studentId} rowIndex={row._rowIndex} isInvalid={!row.studentId || isDuplicate} errorMessage={isDuplicate ? "Duplicate Student ID" : undefined} mono onChange={(v) => updateRow(row._rowIndex, "studentId", v)} />
+                          <td className="px-2 py-1.5 max-w-[110px]">
+                            <div className="flex flex-col gap-0.5">
+                              <ImportEditableCell field="studentId" value={row.studentId} rowIndex={row._rowIndex} isInvalid={!row.studentId || isDuplicate} errorMessage={isDuplicate ? "Duplicate Student ID" : undefined} mono onChange={(v) => updateRow(row._rowIndex, "studentId", v)} />
+                              {isExisting && (
+                                <span className="inline-block text-[10px] font-semibold text-amber-700 bg-amber-100 border border-amber-200 rounded px-1 py-0 leading-4 w-fit" data-testid={`badge-existing-${row._rowIndex}`}>
+                                  Already exists
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-2 py-1.5 max-w-[70px]">
                             <ImportEditableCell field="firstName" value={row.firstName} rowIndex={row._rowIndex} isInvalid={!row.firstName} onChange={(v) => updateRow(row._rowIndex, "firstName", v)} />
@@ -2079,7 +2190,29 @@ function ImportStudentsView({ onBack }: { onBack: () => void }) {
               </div>
             </div>
 
-            {invalidRows.length > 0 && (
+            {existingCount > 0 && invalidRows.length === 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 space-y-1" data-testid="notice-existing-rows">
+                <p className="text-xs font-semibold text-amber-800">
+                  {existingCount} student{existingCount !== 1 ? "s" : ""} already exist in the system
+                </p>
+                <p className="text-xs text-amber-700">These rows will be skipped during import. Only {newCount} new student{newCount !== 1 ? "s" : ""} will be added.</p>
+              </div>
+            )}
+
+            {existingCount > 0 && invalidRows.length > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 space-y-1" data-testid="notice-existing-rows">
+                <p className="text-xs font-semibold text-amber-800">
+                  {invalidRows.length} row{invalidRows.length !== 1 ? "s" : ""} {invalidRows.length === 1 ? "has" : "have"} errors
+                  {duplicateRowIndices.size > 0 && (
+                    <span className="font-normal"> ({duplicateRowIndices.size} duplicate ID{duplicateRowIndices.size !== 1 ? "s" : ""})</span>
+                  )}
+                  {" · "}{existingCount} already exist (will be skipped)
+                </p>
+                <p className="text-xs text-amber-700">Fix highlighted cells inline — edit the Student ID to make it unique, or fix missing fields. Import enables once all rows are valid.</p>
+              </div>
+            )}
+
+            {invalidRows.length > 0 && existingCount === 0 && (
               <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 space-y-1">
                 <p className="text-xs font-semibold text-amber-800">
                   {invalidRows.length} row{invalidRows.length !== 1 ? "s" : ""} {invalidRows.length === 1 ? "has" : "have"} errors
@@ -2106,7 +2239,9 @@ function ImportStudentsView({ onBack }: { onBack: () => void }) {
             >
               {importMutation.isPending
                 ? "Importing..."
-                : `Import ${rows.length} student${rows.length !== 1 ? "s" : ""}`}
+                : existingCount > 0
+                  ? `Import ${newCount} new student${newCount !== 1 ? "s" : ""} (${existingCount} will be skipped)`
+                  : `Import ${rows.length} student${rows.length !== 1 ? "s" : ""}`}
             </button>
           </div>
         )}
@@ -2119,56 +2254,14 @@ function ImportStudentsView({ onBack }: { onBack: () => void }) {
 
         {/* Results summary */}
         {result && (
-          <div className="space-y-3" data-testid="section-import-results">
-            <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-4 space-y-1">
-              <div className="flex items-center gap-2">
-                <Check className="w-5 h-5 text-green-600 flex-shrink-0" />
-                <p className="text-sm font-semibold text-green-800">Import complete</p>
-              </div>
-              <p className="text-sm text-green-700 ml-7">
-                {result.imported} student{result.imported !== 1 ? "s" : ""} imported successfully.
-              </p>
-              {result.failed.length > 0 && (
-                <p className="text-sm text-amber-700 ml-7">
-                  {result.failed.length} row{result.failed.length !== 1 ? "s" : ""} failed.
-                </p>
-              )}
-            </div>
-
-            {result.failed.length > 0 && (
-              <div className="bg-card border border-border rounded-xl overflow-hidden" data-testid="table-failed-rows">
-                <div className="px-4 py-3 border-b border-border">
-                  <p className="text-sm font-semibold text-foreground">Failed rows</p>
-                </div>
-                <div className="divide-y divide-border">
-                  {result.failed.map((f) => (
-                    <div key={f.row} className="px-4 py-3 flex items-start gap-3">
-                      <AlertCircle className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-xs font-semibold text-foreground">Row {f.row} — {f.studentId}</p>
-                        <p className="text-xs text-muted-foreground">{f.reason}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <button
-              onClick={() => {
-                setRows(null);
-                setFileName("");
-                setResult(null);
-                setParseError("");
-                importMutation.reset();
-                if (fileInputRef.current) fileInputRef.current.value = "";
-              }}
-              className="w-full bg-muted text-foreground font-semibold py-2.5 rounded-xl hover:bg-muted/70 transition-colors"
-              data-testid="button-import-another"
-            >
-              Import Another File
-            </button>
-          </div>
+          <ResultsSummary result={result} onReset={() => {
+            setRows(null);
+            setFileName("");
+            setResult(null);
+            setParseError("");
+            importMutation.reset();
+            if (fileInputRef.current) fileInputRef.current.value = "";
+          }} />
         )}
       </div>
     </div>
