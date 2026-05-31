@@ -1,10 +1,11 @@
 import { Router, type IRouter } from "express";
 import { requireAuth } from "../lib/auth";
 import { eq } from "drizzle-orm";
-import { db, schoolSettingsTable, schoolsTable } from "@workspace/db";
+import { db, schoolSettingsTable } from "@workspace/db";
 import { UpdateSettingsBody } from "@workspace/api-zod";
 import type { Request } from "express";
 import type { JwtPayload } from "../lib/auth";
+import { updateSchoolName } from "../lib/school-helpers";
 
 const router: IRouter = Router();
 
@@ -74,10 +75,7 @@ router.patch("/settings", requireAuth, async (req, res): Promise<void> => {
     .returning();
 
   if (parsed.data.schoolName) {
-    await db
-      .update(schoolsTable)
-      .set({ name: parsed.data.schoolName })
-      .where(eq(schoolsTable.id, user.schoolId));
+    await updateSchoolName(user.schoolId, parsed.data.schoolName);
   }
 
   res.json({

@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { eq, and, isNull } from "drizzle-orm";
-import { db, usersTable, schoolsTable, inviteTokensTable } from "@workspace/db";
+import { db, usersTable, schoolsTable, schoolSettingsTable, inviteTokensTable } from "@workspace/db";
 import { LoginBody } from "@workspace/api-zod";
 import { signToken, requireAuth, requireAdmin } from "../lib/auth";
 import type { Request } from "express";
@@ -236,6 +236,15 @@ router.post("/auth/register-school", async (req, res): Promise<void> => {
       plan: "free",
       isActive: true,
     }).returning();
+
+    await tx.insert(schoolSettingsTable).values({
+      schoolId: newSchool.id,
+      schoolName,
+      startTime: "07:30",
+      endTime: "14:30",
+      lateThresholdMinutes: "15",
+      timezone: "Africa/Johannesburg",
+    });
 
     const [newAdmin] = await tx.insert(usersTable).values({
       schoolId: newSchool.id,
