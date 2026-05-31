@@ -1747,7 +1747,8 @@ function splitFullName(fullName: string): { firstName: string; lastName: string 
   if (parts.length === 1) return { firstName: toTitleCase(parts[0]), lastName: "" };
   const firstToken = parts[0];
   const firstIsAllCaps = firstToken === firstToken.toUpperCase() && /[A-Z]/.test(firstToken);
-  if (firstIsAllCaps) {
+  const restHasLowerCase = parts.slice(1).some((p) => /[a-z]/.test(p));
+  if (firstIsAllCaps && restHasLowerCase) {
     return { firstName: toTitleCase(parts.slice(1).join(" ")), lastName: toTitleCase(firstToken) };
   }
   return { firstName: toTitleCase(parts.slice(0, parts.length - 1).join(" ")), lastName: toTitleCase(parts[parts.length - 1]) };
