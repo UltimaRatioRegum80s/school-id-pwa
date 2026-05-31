@@ -19,24 +19,17 @@ function todayStart(): Date {
 /**
  * Resolve QR code input to candidate lookup values.
  * Supports:
- *   - New namespaced format: SCID-[CODE]-STU#### → also try stripping the code prefix
- *   - Legacy format: SCID-STU#### → also try matching qrCode directly
- *   - Raw studentId: DEMO-STU1001 → match studentId directly
+ *   - SCID-{schoolCode}-{studentId} (e.g. SCID-DEMO-STU1001) → try input as qrCode, and "{schoolCode}-{studentId}" as studentId
+ *   - SCID-{studentId} (e.g. SCID-STU1001) → try input as qrCode, and "{studentId}" as studentId
+ *   - Raw studentId or scoped studentId (e.g. STU1001, DEMO-STU1001) → match studentId directly
  * Returns an array of values to try matching against qrCode OR studentId.
  */
 function resolveQrCandidates(input: string): string[] {
   const candidates = new Set<string>([input]);
 
-  const namespacedMatch = input.match(/^SCID-([A-Z]+)-(.+)$/);
-  if (namespacedMatch) {
-    const [, , rest] = namespacedMatch;
-    candidates.add(`SCID-${rest}`);
-    candidates.add(rest);
-  }
-
-  const legacyMatch = input.match(/^SCID-(.+)$/);
-  if (legacyMatch && !namespacedMatch) {
-    candidates.add(legacyMatch[1]);
+  const scidMatch = input.match(/^SCID-(.+)$/);
+  if (scidMatch) {
+    candidates.add(scidMatch[1]);
   }
 
   return Array.from(candidates);
