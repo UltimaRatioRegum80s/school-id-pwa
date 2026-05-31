@@ -257,6 +257,12 @@ export const DeleteStudentParams = zod.object({
 });
 
 /**
+ * @summary List raw student IDs for the school (lightweight, for duplicate checking)
+ */
+export const ListStudentIdsResponseItem = zod.string();
+export const ListStudentIdsResponse = zod.array(ListStudentIdsResponseItem);
+
+/**
  * @summary Bulk import students from parsed rows
  */
 export const ImportStudentsBody = zod.object({

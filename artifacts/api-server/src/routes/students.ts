@@ -119,6 +119,15 @@ router.post("/students", requireAuth, async (req, res): Promise<void> => {
   res.status(201).json(formatStudent(student));
 });
 
+router.get("/students/ids", requireAuth, async (req, res): Promise<void> => {
+  const user = (req as Request & { user: JwtPayload }).user;
+  const rows = await db
+    .select({ studentId: studentsTable.studentId })
+    .from(studentsTable)
+    .where(eq(studentsTable.schoolId, user.schoolId));
+  res.json(rows.map((r) => r.studentId));
+});
+
 router.post("/students/import", requireAuth, async (req, res): Promise<void> => {
   const user = (req as Request & { user: JwtPayload }).user;
 

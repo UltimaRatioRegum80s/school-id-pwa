@@ -233,6 +233,21 @@ paths:
         "204":
           description: Deleted
 
+  /students/ids:
+    get:
+      operationId: listStudentIds
+      tags: [students]
+      summary: List raw student IDs for the school (lightweight, for duplicate checking)
+      responses:
+        "200":
+          description: Array of student ID strings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
   /students/import:
     post:
       operationId: importStudents

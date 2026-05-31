@@ -924,6 +924,81 @@ export const useDeleteStudent = <
 };
 
 /**
+ * @summary List raw student IDs for the school (lightweight, for duplicate checking)
+ */
+export const getListStudentIdsUrl = () => {
+  return `/api/students/ids`;
+};
+
+export const listStudentIds = async (
+  options?: RequestInit,
+): Promise<string[]> => {
+  return customFetch<string[]>(getListStudentIdsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListStudentIdsQueryKey = () => {
+  return [`/api/students/ids`] as const;
+};
+
+export const getListStudentIdsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listStudentIds>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listStudentIds>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListStudentIdsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listStudentIds>>> = ({
+    signal,
+  }) => listStudentIds({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listStudentIds>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListStudentIdsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listStudentIds>>
+>;
+export type ListStudentIdsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List raw student IDs for the school (lightweight, for duplicate checking)
+ */
+
+export function useListStudentIds<
+  TData = Awaited<ReturnType<typeof listStudentIds>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listStudentIds>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListStudentIdsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
  * @summary Bulk import students from parsed rows
  */
 export const getImportStudentsUrl = () => {

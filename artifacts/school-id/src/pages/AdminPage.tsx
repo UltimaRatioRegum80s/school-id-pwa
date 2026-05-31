@@ -9,7 +9,7 @@ import {
   useGetSettings,
   useUpdateSettings,
   useListUsers,
-  useListStudents,
+  useListStudentIds,
   useListBehaviorCategories,
   useCreateBehaviorCategory,
   useCreateStudent,
@@ -21,6 +21,7 @@ import {
   getListUsersQueryKey,
   getListBehaviorCategoriesQueryKey,
   getListStudentsQueryKey,
+  getListStudentIdsQueryKey,
   getListActivitiesQueryKey,
 } from "@workspace/api-client-react";
 import type { SchoolSettings, Activity, ImportStudentRow, ImportFailure } from "@workspace/api-client-react";
@@ -1955,24 +1956,25 @@ function ImportStudentsView({ onBack }: { onBack: () => void }) {
   const [updateExisting, setUpdateExisting] = useState(false);
   const [result, setResult] = useState<{ imported: number; updated: number; failed: ImportFailure[] } | null>(null);
 
-  const { data: existingStudents } = useListStudents();
+  const { data: existingStudentIds } = useListStudentIds();
 
   const existingStudentIdSet = useMemo(() => {
     const set = new Set<string>();
-    if (!existingStudents) return set;
-    for (const s of existingStudents) {
-      const idx = s.studentId.indexOf("-");
-      const raw = idx !== -1 ? s.studentId.substring(idx + 1) : s.studentId;
+    if (!existingStudentIds) return set;
+    for (const studentId of existingStudentIds) {
+      const idx = studentId.indexOf("-");
+      const raw = idx !== -1 ? studentId.substring(idx + 1) : studentId;
       set.add(raw.toLowerCase());
     }
     return set;
-  }, [existingStudents]);
+  }, [existingStudentIds]);
 
   const importMutation = useImportStudents({
     mutation: {
       onSuccess: (data) => {
         setResult(data);
         queryClient.invalidateQueries({ queryKey: getListStudentsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getListStudentIdsQueryKey() });
       },
     },
   });
