@@ -1,0 +1,1 @@
+- [Post-merge codegen requirement](post-merge-codegen.md) — after any merge touching openapi.yaml or new generated hooks, run codegen + typecheck:libs or the app crashes.
