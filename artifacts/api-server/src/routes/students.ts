@@ -146,6 +146,33 @@ router.post("/students/import", requireAuth, async (req, res): Promise<void> => 
 
   const schoolCode = school?.code ?? "SCH";
 
+  const hasAutoRows = (rows as unknown[]).some(
+    (r) => r !== null && typeof r === "object" && !Array.isArray(r) && !String((r as Record<string, unknown>).studentId ?? "").trim()
+  );
+
+  const usedNumericIds = new Set<number>();
+  let autoIdCounter = 1001;
+  if (hasAutoRows) {
+    const existing = await db
+      .select({ studentId: studentsTable.studentId })
+      .from(studentsTable)
+      .where(eq(studentsTable.schoolId, user.schoolId));
+    for (const s of existing) {
+      const rawPart = s.studentId.split("-").pop() ?? "";
+      const num = parseInt(rawPart, 10);
+      if (!isNaN(num)) usedNumericIds.add(num);
+    }
+    for (const r of rows as unknown[]) {
+      if (r === null || typeof r !== "object" || Array.isArray(r)) continue;
+      const rid = String((r as Record<string, unknown>).studentId ?? "").trim();
+      if (rid) {
+        const num = parseInt(rid, 10);
+        if (!isNaN(num) && String(num) === rid) usedNumericIds.add(num);
+      }
+    }
+    while (usedNumericIds.has(autoIdCounter)) autoIdCounter++;
+  }
+
   let imported = 0;
   let updated = 0;
   const failed: { row: number; studentId: string; reason: string }[] = [];
@@ -166,13 +193,21 @@ router.post("/students/import", requireAuth, async (req, res): Promise<void> => 
     const grade = String(r.grade ?? "").trim();
     const className = String(r.className ?? "").trim();
 
-    if (!rawStudentId || !firstName || !lastName || !grade || !className) {
-      failed.push({ row: sourceRowNum, studentId: rawStudentId || "(empty)", reason: "Missing required field(s)" });
+    let resolvedStudentId = rawStudentId;
+    if (!resolvedStudentId) {
+      while (usedNumericIds.has(autoIdCounter)) autoIdCounter++;
+      resolvedStudentId = String(autoIdCounter);
+      usedNumericIds.add(autoIdCounter);
+      autoIdCounter++;
+    }
+
+    if (!firstName || !lastName || !grade || !className) {
+      failed.push({ row: sourceRowNum, studentId: resolvedStudentId, reason: "Missing required field(s)" });
       continue;
     }
 
-    const scopedStudentId = `${schoolCode}-${rawStudentId}`;
-    const qrCode = `SCID-${schoolCode}-${rawStudentId}`;
+    const scopedStudentId = `${schoolCode}-${resolvedStudentId}`;
+    const qrCode = `SCID-${schoolCode}-${resolvedStudentId}`;
 
     try {
       if (updateExisting) {
@@ -224,7 +259,7 @@ router.post("/students/import", requireAuth, async (req, res): Promise<void> => 
       const code = (err as Record<string, unknown>)?.code;
       const isDuplicate = code === "23505" || message.toLowerCase().includes("duplicate") || message.toLowerCase().includes("unique");
       const reason = isDuplicate ? "Duplicate student ID" : "Insert failed";
-      failed.push({ row: sourceRowNum, studentId: rawStudentId, reason });
+      failed.push({ row: sourceRowNum, studentId: resolvedStudentId, reason });
     }
   }
 

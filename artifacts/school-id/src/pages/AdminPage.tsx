@@ -1765,7 +1765,8 @@ function normaliseGradeValue(raw: string): string {
 }
 
 function normaliseRow(raw: Record<string, string>, rowIndex: number): ParsedRow {
-  const studentId = fuzzyFind(raw, "studentId");
+  const rawStudentId = fuzzyFind(raw, "studentId");
+  const studentId = rawStudentId || `AUTO-${String(rowIndex).padStart(3, "0")}`;
   let firstName = toTitleCase(stripTitle(fuzzyFind(raw, "firstName")));
   let lastName = toTitleCase(stripTitle(fuzzyFind(raw, "lastName")));
 
@@ -1782,7 +1783,6 @@ function normaliseRow(raw: Record<string, string>, rowIndex: number): ParsedRow 
   const className = fuzzyFind(raw, "className");
 
   const errors: string[] = [];
-  if (!studentId) errors.push("Missing Student ID");
   if (!firstName) errors.push("Missing First Name");
   if (!lastName) errors.push("Missing Last Name");
   if (!grade) errors.push("Missing Grade");
@@ -1793,7 +1793,6 @@ function normaliseRow(raw: Record<string, string>, rowIndex: number): ParsedRow 
 
 function recomputeErrors(row: Omit<ParsedRow, "_errors">): string[] {
   const errors: string[] = [];
-  if (!row.studentId) errors.push("Missing Student ID");
   if (!row.firstName) errors.push("Missing First Name");
   if (!row.lastName) errors.push("Missing Last Name");
   if (!row.grade) errors.push("Missing Grade");
@@ -1806,6 +1805,7 @@ function ImportEditableCell({
   value,
   rowIndex,
   isInvalid,
+  isAuto,
   errorMessage,
   mono,
   onChange,
@@ -1814,6 +1814,7 @@ function ImportEditableCell({
   value: string;
   rowIndex: number;
   isInvalid: boolean;
+  isAuto?: boolean;
   errorMessage?: string;
   mono?: boolean;
   onChange: (value: string) => void;
@@ -1830,7 +1831,9 @@ function ImportEditableCell({
         } ${
           isInvalid
             ? "border-destructive/60 placeholder:text-destructive/50 text-destructive"
-            : "border-border/50 text-foreground"
+            : isAuto
+              ? "border-border/50 text-muted-foreground italic"
+              : "border-border/50 text-foreground"
         }`}
         data-testid={`edit-${field}-${rowIndex}`}
       />
@@ -2002,7 +2005,7 @@ function ImportStudentsView({ onBack }: { onBack: () => void }) {
     importMutation.mutate({
       data: {
         rows: rows.map(({ studentId, firstName, lastName, grade, className, _rowIndex }) => ({
-          studentId,
+          studentId: studentId.startsWith("AUTO-") ? "" : studentId,
           firstName,
           lastName,
           grade,
@@ -2031,7 +2034,7 @@ function ImportStudentsView({ onBack }: { onBack: () => void }) {
     const seen = new Map<string, number>();
     const dupes = new Set<number>();
     for (const row of rows) {
-      if (!row.studentId) continue;
+      if (!row.studentId || row.studentId.startsWith("AUTO-")) continue;
       const key = row.studentId.trim().toLowerCase();
       if (seen.has(key)) {
         dupes.add(row._rowIndex);
@@ -2083,7 +2086,8 @@ function ImportStudentsView({ onBack }: { onBack: () => void }) {
             <Table className="w-5 h-5 text-indigo-500 flex-shrink-0 mt-0.5" />
             <div className="space-y-1">
               <p className="text-sm font-semibold text-foreground">Required columns</p>
-              <p className="text-xs text-muted-foreground font-mono">studentId, firstName, lastName, grade, className</p>
+              <p className="text-xs text-muted-foreground font-mono">firstName, lastName, grade, className</p>
+              <p className="text-xs text-muted-foreground">studentId is optional — auto-assigned if omitted</p>
             </div>
           </div>
           <button
@@ -2197,7 +2201,12 @@ function ImportStudentsView({ onBack }: { onBack: () => void }) {
                           <td className="px-3 py-2 text-muted-foreground">{row._rowIndex}</td>
                           <td className="px-2 py-1.5 max-w-[110px]">
                             <div className="flex flex-col gap-0.5">
-                              <ImportEditableCell field="studentId" value={row.studentId} rowIndex={row._rowIndex} isInvalid={!row.studentId || isDuplicate} errorMessage={isDuplicate ? "Duplicate Student ID" : undefined} mono onChange={(v) => updateRow(row._rowIndex, "studentId", v)} />
+                              <ImportEditableCell field="studentId" value={row.studentId} rowIndex={row._rowIndex} isInvalid={isDuplicate} isAuto={row.studentId.startsWith("AUTO-")} errorMessage={isDuplicate ? "Duplicate Student ID" : undefined} mono onChange={(v) => updateRow(row._rowIndex, "studentId", v)} />
+                              {row.studentId.startsWith("AUTO-") && !isDuplicate && (
+                                <span className="inline-block text-[10px] font-semibold rounded px-1 py-0 leading-4 w-fit border text-indigo-600 bg-indigo-50 border-indigo-200" data-testid={`badge-auto-${row._rowIndex}`}>
+                                  auto
+                                </span>
+                              )}
                               {isExisting && (
                                 <span className={`inline-block text-[10px] font-semibold rounded px-1 py-0 leading-4 w-fit border ${updateExisting ? "text-blue-700 bg-blue-50 border-blue-200" : "text-amber-700 bg-amber-100 border-amber-200"}`} data-testid={`badge-existing-${row._rowIndex}`}>
                                   {updateExisting ? "Will update" : "Already exists"}
