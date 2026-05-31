@@ -291,6 +291,7 @@ function MenuRow({
 
 function SettingsView({ onBack }: { onBack: () => void }) {
   const queryClient = useQueryClient();
+  const { refreshBranding } = useAuth();
   const { data, isLoading } = useGetSettings({
     query: { queryKey: getGetSettingsQueryKey() },
   });
@@ -308,6 +309,7 @@ function SettingsView({ onBack }: { onBack: () => void }) {
         setForm(null);
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
+        refreshBranding();
       },
       onError: () => setError("Failed to save settings. Please try again."),
     },
