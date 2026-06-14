@@ -109,7 +109,7 @@ All frontend pages use generated React Query hooks from `@workspace/api-client-r
 - 3 staff accounts (admin, staff1, staff2)
 - 72 gate_in scan events for today
 - 3 activities (Morning Assembly - active, Inter-House Sports - upcoming, Science Club - upcoming)
-- 6 behavior categories (3 merit, 3 demerit)
+- 27 behavior categories (3 merit; 24 demerit = PSS Disciplinary + Academic transgressions)
 - School: "Westbrook Academy", 07:30-14:30, Africa/Johannesburg
 
 ## Status Color Coding
