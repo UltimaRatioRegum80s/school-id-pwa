@@ -98,13 +98,16 @@ export function isLateArrival(
   events: ScanEvent[],
   schoolStartTime: string
 ): boolean {
-  const gateIn = events.find((e) => e.scanType === "gate_in");
-  if (!gateIn) return false;
+  const gateIns = events.filter((e) => e.scanType === "gate_in");
+  if (gateIns.length === 0) return false;
+  const earliestGateIn = gateIns.reduce((earliest, e) =>
+    new Date(e.createdAt) < new Date(earliest.createdAt) ? e : earliest
+  );
 
   const today = new Date();
   const [hours, minutes] = schoolStartTime.split(":").map(Number);
   const startTime = new Date(today);
   startTime.setHours(hours, minutes + 15, 0, 0);
 
-  return new Date(gateIn.createdAt) > startTime;
+  return new Date(earliestGateIn.createdAt) > startTime;
 }

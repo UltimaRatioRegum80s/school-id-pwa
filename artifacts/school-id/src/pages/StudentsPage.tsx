@@ -19,6 +19,7 @@ import { QRCodeSVG } from "qrcode.react";
 const STATES = [
   { value: "", label: "All" },
   { value: "not_arrived", label: "Not Arrived" },
+  { value: "late", label: "Late" },
   { value: "on_campus", label: "On Campus" },
   { value: "in_class", label: "In Class" },
   { value: "at_event", label: "At Event" },
@@ -28,16 +29,36 @@ const STATES = [
 
 const GRADES = ["", "8", "9", "10", "11", "12"];
 
+const VALID_STATUSES = new Set(STATES.map((s) => s.value).filter(Boolean));
+
+function readInitialFilters(): { grade: string; status: string; className: string } {
+  if (typeof window === "undefined") return { grade: "", status: "", className: "" };
+  const params = new URLSearchParams(window.location.search);
+  const g = params.get("grade") ?? "";
+  const s = params.get("status") ?? "";
+  const c = params.get("className") ?? "";
+  return {
+    grade: g,
+    status: VALID_STATUSES.has(s) ? s : "",
+    className: c,
+  };
+}
+
 export default function StudentsPage() {
+  const initialFilters = readInitialFilters();
   const [search, setSearch] = useState("");
-  const [grade, setGrade] = useState("");
-  const [status, setStatus] = useState("");
-  const [showFilters, setShowFilters] = useState(false);
+  const [grade, setGrade] = useState(initialFilters.grade);
+  const [status, setStatus] = useState(initialFilters.status);
+  const [className] = useState(initialFilters.className);
+  const [showFilters, setShowFilters] = useState(
+    Boolean(initialFilters.grade || initialFilters.status || initialFilters.className)
+  );
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
   const listParams = {
     ...(search ? { search } : {}),
     ...(grade ? { grade } : {}),
+    ...(className ? { className } : {}),
     ...(status ? { status } : {}),
   };
 

@@ -676,6 +676,16 @@ export const GetDashboardSummaryResponse = zod.object({
       count: zod.number(),
     }),
   ),
+  byGrade: zod
+    .array(
+      zod.object({
+        grade: zod.string(),
+        present: zod.number(),
+        notArrived: zod.number(),
+        total: zod.number(),
+      }),
+    )
+    .describe("Per-grade attendance breakdown (present vs not arrived)"),
   recentFeed: zod.array(
     zod.object({
       id: zod.number(),

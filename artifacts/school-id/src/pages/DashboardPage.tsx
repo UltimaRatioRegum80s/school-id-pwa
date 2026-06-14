@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { io } from "socket.io-client";
 import { PageHeader } from "@/components/PageHeader";
 import { formatRelativeTime, getStateLabel } from "@/lib/status";
@@ -7,6 +8,18 @@ import {
   useGetDashboardSummary,
 } from "@workspace/api-client-react";
 import type { StudentWithState, DashboardStudentsByState, DashboardKpis } from "@workspace/api-client-react";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+} from "recharts";
 import {
   Users,
   CheckCircle,
@@ -18,6 +31,7 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  ChevronRight,
 } from "lucide-react";
 
 const STATE_COLORS: Record<string, string> = {
@@ -29,6 +43,10 @@ const STATE_COLORS: Record<string, string> = {
   not_arrived: "#cbd5e1",
 };
 
+const COLOR_PRESENT = "#22c55e";
+const COLOR_LATE = "#f59e0b";
+const COLOR_NOT_ARRIVED = "#cbd5e1";
+
 function sortGrades(grades: string[]): string[] {
   return [...grades].sort((a, b) =>
     a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" })
@@ -39,8 +57,17 @@ function gradeLabel(grade: string): string {
   return /^\d+$/.test(grade) ? `Gr ${grade}` : grade;
 }
 
+function initials(name: string): string {
+  return name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
 export default function DashboardPage() {
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
   const [gradeFilter, setGradeFilter] = useState<string | null>(null);
   const [classFilter, setClassFilter] = useState<string | null>(null);
 
@@ -113,6 +140,14 @@ export default function DashboardPage() {
     setClassFilter(classFilter === c ? null : c);
   }
 
+  function goToStudents(status: string) {
+    const params = new URLSearchParams();
+    params.set("status", status);
+    if (gradeFilter) params.set("grade", gradeFilter);
+    if (classFilter) params.set("className", classFilter);
+    setLocation(`/students?${params.toString()}`);
+  }
+
   if (isLoading) {
     return (
       <div className="flex flex-col min-h-screen bg-background pb-20 md:pb-6">
@@ -133,6 +168,22 @@ export default function DashboardPage() {
   const availableGrades = sortGrades(
     Object.keys(d.availableClassesByGrade as Record<string, string[]>)
   );
+  const isEmpty = d.kpis.total === 0;
+
+  const onTime = Math.max(0, d.kpis.present - d.kpis.late);
+  const onCampusCount = d.kpis.onCampus + d.kpis.inClass + d.kpis.atEvent;
+  const onCampusPct = d.kpis.total > 0 ? Math.round((onCampusCount / d.kpis.total) * 100) : 0;
+  const donutData = [
+    { name: "On Time", value: onTime, color: COLOR_PRESENT },
+    { name: "Late", value: d.kpis.late, color: COLOR_LATE },
+    { name: "Not Arrived", value: d.kpis.absent, color: COLOR_NOT_ARRIVED },
+  ].filter((s) => s.value > 0);
+
+  const byGradeData = d.byGrade.map((g) => ({
+    grade: gradeLabel(g.grade),
+    Present: g.present,
+    "Not Arrived": g.notArrived,
+  }));
 
   const filterSection = (
     <div data-testid="panel-filter-chips">
@@ -187,19 +238,20 @@ export default function DashboardPage() {
           <span>Updating{gradeFilter ? ` Grade ${gradeFilter}` : ""}...</span>
         </div>
       )}
-      {d.kpis.total === 0 && gradeFilter ? (
+      {isEmpty && gradeFilter ? (
         <div className="bg-card border border-border rounded-xl p-6 text-center" data-testid="grid-kpis">
           <Users className="w-8 h-8 mx-auto mb-2 text-muted-foreground opacity-30" />
           <p className="text-sm font-medium text-muted-foreground">No students in Grade {gradeFilter}</p>
           <p className="text-xs text-muted-foreground mt-1">Try selecting a different grade or All Grades</p>
         </div>
       ) : (
-        <div className="grid grid-cols-3 gap-3" data-testid="grid-kpis">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3" data-testid="grid-kpis">
           <KpiCard
             label="Total"
             value={d.kpis.total}
             total={d.kpis.total}
-            icon={<Users className="w-4 h-4 text-primary" />}
+            icon={<Users className="w-4 h-4 text-slate-500" />}
+            accentClass="border-l-slate-400"
             showPct={false}
             testId="kpi-total"
           />
@@ -208,68 +260,134 @@ export default function DashboardPage() {
             value={d.kpis.present}
             total={d.kpis.total}
             icon={<CheckCircle className="w-4 h-4 text-green-500" />}
+            accentClass="border-l-green-500"
             testId="kpi-present"
-          />
-          <KpiCard
-            label="Not Arrived"
-            value={d.kpis.absent}
-            total={d.kpis.total}
-            icon={<Clock className="w-4 h-4 text-slate-400" />}
-            testId="kpi-absent"
           />
           <KpiCard
             label="Late"
             value={d.kpis.late}
             total={d.kpis.total}
-            icon={<TrendingUp className="w-4 h-4 text-yellow-500" />}
+            icon={<TrendingUp className="w-4 h-4 text-amber-500" />}
+            accentClass="border-l-amber-500"
             testId="kpi-late"
+          />
+          <KpiCard
+            label="Not Arrived"
+            value={d.kpis.absent}
+            total={d.kpis.total}
+            icon={<Clock className="w-4 h-4 text-red-500" />}
+            accentClass="border-l-red-500"
+            testId="kpi-absent"
           />
           <KpiCard
             label="Checked Out"
             value={d.kpis.checkedOut}
             total={d.kpis.total}
             icon={<LogOut className="w-4 h-4 text-slate-500" />}
+            accentClass="border-l-slate-400"
             testId="kpi-checked-out"
-          />
-          <KpiCard
-            label="Unaccounted"
-            value={d.kpis.unaccounted}
-            total={d.kpis.total}
-            icon={<AlertTriangle className="w-4 h-4 text-red-500" />}
-            testId="kpi-unaccounted"
           />
         </div>
       )}
     </div>
   );
 
-  const statusSection = (
-    <div className="bg-card border border-border rounded-xl p-4" data-testid="panel-status-breakdown">
-      <h3 className="text-sm font-semibold text-foreground mb-3">Status Breakdown</h3>
-      <div className="space-y-2">
-        {d.statusDistribution.map(({ state, count }) => {
-          const pct = d.kpis.total > 0 ? (count / d.kpis.total) * 100 : 0;
-          return (
-            <div key={state} className="flex items-center gap-3" data-testid={`status-row-${state}`}>
-              <span className="text-xs text-muted-foreground w-24 flex-shrink-0">
-                {getStateLabel(state)}
+  const donutSection = (
+    <div className="bg-card border border-border rounded-xl p-4" data-testid="panel-attendance-donut">
+      <h3 className="text-sm font-semibold text-foreground mb-2">Attendance</h3>
+      {isEmpty || donutData.length === 0 ? (
+        <div className="h-[200px] flex items-center justify-center text-sm text-muted-foreground">
+          No attendance data
+        </div>
+      ) : (
+        <>
+          <div className="relative" style={{ height: 200 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={donutData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={62}
+                  outerRadius={88}
+                  paddingAngle={donutData.length > 1 ? 2 : 0}
+                  stroke="none"
+                >
+                  {donutData.map((e) => (
+                    <Cell key={e.name} fill={e.color} />
+                  ))}
+                </Pie>
+                <Tooltip content={<ChartTooltip />} />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+              <span className="text-3xl font-bold text-foreground leading-none" data-testid="text-oncampus-pct">
+                {onCampusPct}%
               </span>
-              <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all duration-500"
-                  style={{
-                    width: `${pct}%`,
-                    backgroundColor: STATE_COLORS[state] ?? "#94a3b8",
-                  }}
-                />
-              </div>
-              <span className="text-xs font-semibold text-foreground w-6 text-right">
-                {count}
-              </span>
+              <span className="text-xs text-muted-foreground mt-1">on campus</span>
             </div>
-          );
-        })}
-      </div>
+          </div>
+          <div className="flex justify-center gap-4 mt-3 flex-wrap">
+            {donutData.map((e) => (
+              <div key={e.name} className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: e.color }} />
+                <span className="text-xs text-muted-foreground">{e.name}</span>
+                <span className="text-xs font-semibold text-foreground">{e.value}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  const byGradeSection = (
+    <div className="bg-card border border-border rounded-xl p-4" data-testid="panel-by-grade">
+      <h3 className="text-sm font-semibold text-foreground mb-2">By Grade</h3>
+      {byGradeData.length === 0 ? (
+        <div className="h-[200px] flex items-center justify-center text-sm text-muted-foreground">
+          No grade data
+        </div>
+      ) : (
+        <>
+          <div style={{ height: 200 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={byGradeData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+                <CartesianGrid vertical={false} stroke="#e2e8f0" strokeDasharray="3 3" opacity={0.4} />
+                <XAxis
+                  dataKey="grade"
+                  tick={{ fontSize: 11, fill: "#94a3b8" }}
+                  axisLine={false}
+                  tickLine={false}
+                  interval={0}
+                />
+                <YAxis
+                  allowDecimals={false}
+                  tick={{ fontSize: 11, fill: "#94a3b8" }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={30}
+                />
+                <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(148,163,184,0.12)" }} />
+                <Bar dataKey="Present" stackId="a" fill={COLOR_PRESENT} maxBarSize={44} />
+                <Bar dataKey="Not Arrived" stackId="a" fill={COLOR_NOT_ARRIVED} radius={[4, 4, 0, 0]} maxBarSize={44} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="flex justify-center gap-4 mt-3">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLOR_PRESENT }} />
+              <span className="text-xs text-muted-foreground">Present</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLOR_NOT_ARRIVED }} />
+              <span className="text-xs text-muted-foreground">Not Arrived</span>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 
@@ -282,8 +400,10 @@ export default function DashboardPage() {
         <div className="space-y-0 divide-y divide-border">
           {d.recentFeed.slice(0, 10).map((item) => (
             <div key={item.id} className="py-2.5 flex items-start gap-3" data-testid={`feed-item-${item.id}`}>
-              <div className="w-7 h-7 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                <Users className="w-3.5 h-3.5 text-primary" />
+              <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span className="text-[11px] font-semibold text-primary">
+                  {initials(item.studentName) || "?"}
+                </span>
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-sm text-foreground leading-tight">{item.message}</p>
@@ -293,6 +413,41 @@ export default function DashboardPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const exceptionsSection = (
+    <div className="bg-card border border-border rounded-xl p-4" data-testid="panel-exceptions">
+      <h3 className="text-sm font-semibold text-foreground mb-2">Exceptions</h3>
+      <div className="divide-y divide-border">
+        <ExceptionRow
+          label="Late today"
+          count={d.kpis.late}
+          dotColor={COLOR_LATE}
+          onClick={() => goToStudents("late")}
+          testId="exception-late"
+        />
+        <ExceptionRow
+          label="Not yet arrived"
+          count={d.kpis.absent}
+          dotColor={COLOR_NOT_ARRIVED}
+          onClick={() => goToStudents("not_arrived")}
+          testId="exception-not-arrived"
+        />
+        <ExceptionRow
+          label="Unaccounted"
+          count={d.kpis.unaccounted}
+          dotColor={STATE_COLORS.unaccounted}
+          onClick={() => goToStudents("unaccounted")}
+          testId="exception-unaccounted"
+        />
+      </div>
+      {d.kpis.late === 0 && d.kpis.absent === 0 && d.kpis.unaccounted === 0 && (
+        <div className="flex items-center gap-2 mt-2 pt-2 text-sm text-green-600 dark:text-green-400">
+          <CheckCircle className="w-4 h-4" />
+          <span>All students accounted for</span>
         </div>
       )}
     </div>
@@ -324,31 +479,50 @@ export default function DashboardPage() {
         }
       />
 
-      {/* Mobile: single column */}
-      <div className="md:hidden max-w-lg mx-auto w-full px-4 py-4 space-y-4">
+      <div className="mx-auto w-full max-w-lg md:max-w-none px-4 md:px-6 py-4 md:py-5 space-y-4 md:space-y-5 flex-1">
         {filterSection}
         {kpiSection}
-        {statusSection}
+        {!isEmpty && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-5">
+            {donutSection}
+            {byGradeSection}
+          </div>
+        )}
         {studentSummarySection}
-        {feedSection}
-      </div>
-
-      {/* Desktop: two-column layout */}
-      <div className="hidden md:grid md:grid-cols-[280px,1fr] md:gap-6 px-6 py-5 flex-1">
-        {/* Left column: filters only */}
-        <div className="space-y-3 min-w-0">
-          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Filters</h2>
-          {filterSection}
-        </div>
-
-        {/* Right column: KPIs + status + [student summary if grade] + activity */}
-        <div className="space-y-4 min-w-0">
-          {kpiSection}
-          {statusSection}
-          {studentSummarySection}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-5">
           {feedSection}
+          {exceptionsSection}
         </div>
       </div>
+    </div>
+  );
+}
+
+function ChartTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: Array<{ name?: string; value?: number | string; color?: string; payload?: { color?: string } }>;
+  label?: string | number;
+}) {
+  if (!active || !payload || payload.length === 0) return null;
+  return (
+    <div className="bg-card border border-border rounded-lg px-2.5 py-1.5 shadow-md">
+      {label !== undefined && label !== "" && (
+        <p className="text-xs font-semibold text-foreground mb-1">{label}</p>
+      )}
+      {payload.map((p, i) => (
+        <p key={i} className="text-xs text-muted-foreground flex items-center gap-1.5">
+          <span
+            className="inline-block w-2 h-2 rounded-full"
+            style={{ backgroundColor: p.color ?? p.payload?.color ?? "#94a3b8" }}
+          />
+          <span>{p.name}</span>
+          <span className="font-semibold text-foreground">{p.value}</span>
+        </p>
+      ))}
     </div>
   );
 }
@@ -384,6 +558,7 @@ function KpiCard({
   value,
   total,
   icon,
+  accentClass,
   testId,
   showPct = true,
 }: {
@@ -391,12 +566,16 @@ function KpiCard({
   value: number;
   total: number;
   icon: React.ReactNode;
+  accentClass: string;
   testId: string;
   showPct?: boolean;
 }) {
   const pct = total > 0 ? Math.round((value / total) * 100) : 0;
   return (
-    <div className="bg-card border border-border rounded-xl p-3 md:p-4" data-testid={testId}>
+    <div
+      className={`bg-card border border-border border-l-4 ${accentClass} rounded-xl p-3 md:p-4`}
+      data-testid={testId}
+    >
       <div className="flex items-center justify-between mb-1.5">
         {icon}
         {showPct && <span className="text-[10px] text-muted-foreground">{pct}%</span>}
@@ -404,6 +583,39 @@ function KpiCard({
       <p className="text-xl md:text-2xl font-bold text-foreground leading-none">{value}</p>
       <p className="text-[10px] text-muted-foreground mt-1 leading-tight">{label}</p>
     </div>
+  );
+}
+
+function ExceptionRow({
+  label,
+  count,
+  dotColor,
+  onClick,
+  testId,
+}: {
+  label: string;
+  count: number;
+  dotColor: string;
+  onClick: () => void;
+  testId: string;
+}) {
+  const disabled = count === 0;
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="w-full flex items-center justify-between py-2.5 transition-colors enabled:hover:bg-muted/50 disabled:opacity-50 rounded-lg px-1 -mx-1"
+      data-testid={testId}
+    >
+      <div className="flex items-center gap-2.5">
+        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: dotColor }} />
+        <span className="text-sm text-foreground">{label}</span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <span className="text-sm font-bold text-foreground">{count}</span>
+        {!disabled && <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+      </div>
+    </button>
   );
 }
 
@@ -424,39 +636,43 @@ function StudentSummarySection({
       <div className="px-4 py-2.5 border-b border-border">
         <h3 className="text-sm font-semibold text-foreground">Grade {grade} Students</h3>
       </div>
-      <div className="divide-y divide-border">
-        <StudentSummaryGroup
-          label="Present"
-          totalCount={onCampusCount}
-          students={studentsByState.present}
-          colorClass="text-green-700 dark:text-green-400"
-          bgClass="bg-green-100 dark:bg-green-900/30"
-          testId="summary-group-present"
-        />
-        <StudentSummaryGroup
-          label="Not Arrived"
-          totalCount={kpis.absent}
-          students={studentsByState.notArrived}
-          colorClass="text-slate-600 dark:text-slate-400"
-          bgClass="bg-slate-100 dark:bg-slate-800/50"
-          testId="summary-group-not-arrived"
-        />
-        <StudentSummaryGroup
-          label="Late"
-          totalCount={kpis.late}
-          students={studentsByState.late}
-          colorClass="text-yellow-700 dark:text-yellow-400"
-          bgClass="bg-yellow-100 dark:bg-yellow-900/30"
-          testId="summary-group-late"
-        />
-        <StudentSummaryGroup
-          label="Unaccounted"
-          totalCount={kpis.unaccounted}
-          students={studentsByState.unaccounted}
-          colorClass="text-red-700 dark:text-red-400"
-          bgClass="bg-red-100 dark:bg-red-900/30"
-          testId="summary-group-unaccounted"
-        />
+      <div className="grid grid-cols-1 md:grid-cols-2 md:divide-x divide-border">
+        <div className="divide-y divide-border">
+          <StudentSummaryGroup
+            label="Present"
+            totalCount={onCampusCount}
+            students={studentsByState.present}
+            colorClass="text-green-700 dark:text-green-400"
+            bgClass="bg-green-100 dark:bg-green-900/30"
+            testId="summary-group-present"
+          />
+          <StudentSummaryGroup
+            label="Not Arrived"
+            totalCount={kpis.absent}
+            students={studentsByState.notArrived}
+            colorClass="text-slate-600 dark:text-slate-400"
+            bgClass="bg-slate-100 dark:bg-slate-800/50"
+            testId="summary-group-not-arrived"
+          />
+        </div>
+        <div className="divide-y divide-border border-t md:border-t-0 border-border">
+          <StudentSummaryGroup
+            label="Late"
+            totalCount={kpis.late}
+            students={studentsByState.late}
+            colorClass="text-yellow-700 dark:text-yellow-400"
+            bgClass="bg-yellow-100 dark:bg-yellow-900/30"
+            testId="summary-group-late"
+          />
+          <StudentSummaryGroup
+            label="Unaccounted"
+            totalCount={kpis.unaccounted}
+            students={studentsByState.unaccounted}
+            colorClass="text-red-700 dark:text-red-400"
+            bgClass="bg-red-100 dark:bg-red-900/30"
+            testId="summary-group-unaccounted"
+          />
+        </div>
       </div>
     </div>
   );

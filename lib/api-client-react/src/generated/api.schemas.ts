@@ -214,6 +214,13 @@ export interface StatusCount {
   count: number;
 }
 
+export interface DashboardGradeStat {
+  grade: string;
+  present: number;
+  notArrived: number;
+  total: number;
+}
+
 export interface FeedItem {
   id: number;
   message: string;
@@ -228,6 +235,8 @@ export interface DashboardSummary {
   exceptions: DashboardExceptions;
   studentsByState: DashboardStudentsByState;
   statusDistribution: StatusCount[];
+  /** Per-grade attendance breakdown (present vs not arrived) */
+  byGrade: DashboardGradeStat[];
   recentFeed: FeedItem[];
   lastUpdated: string;
   /** Mapping of grade to available class names for filter chip population */

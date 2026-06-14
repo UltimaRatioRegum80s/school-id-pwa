@@ -125,6 +125,23 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
     { state: "unaccounted", count: unaccounted.length },
   ];
 
+  const gradeStatMap: Record<string, { present: number; notArrived: number; total: number }> = {};
+  for (const sw of studentsWithState) {
+    const g = sw.student.grade;
+    if (!gradeStatMap[g]) gradeStatMap[g] = { present: 0, notArrived: 0, total: 0 };
+    gradeStatMap[g].total += 1;
+    if (sw.state === "not_arrived") {
+      gradeStatMap[g].notArrived += 1;
+    } else if (sw.state === "on_campus" || sw.state === "in_class" || sw.state === "at_event") {
+      gradeStatMap[g].present += 1;
+    }
+  }
+  const byGrade = Object.entries(gradeStatMap)
+    .map(([grade, v]) => ({ grade, present: v.present, notArrived: v.notArrived, total: v.total }))
+    .sort((a, b) =>
+      a.grade.localeCompare(b.grade, undefined, { numeric: true, sensitivity: "base" })
+    );
+
   const exceptions = {
     missingFromClass: notArrived
       .slice(0, 10)
@@ -185,6 +202,7 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
     exceptions,
     studentsByState,
     statusDistribution,
+    byGrade,
     recentFeed,
     availableClassesByGrade,
     lastUpdated: new Date().toISOString(),

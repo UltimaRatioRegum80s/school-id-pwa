@@ -20,6 +20,7 @@ export * from "./createBehaviorLogBody";
 export * from "./createStudentBody";
 export * from "./createUserBody";
 export * from "./dashboardExceptions";
+export * from "./dashboardGradeStat";
 export * from "./dashboardKpis";
 export * from "./dashboardStudentsByState";
 export * from "./dashboardSummary";

@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DashboardExceptions } from "./dashboardExceptions";
+import type { DashboardGradeStat } from "./dashboardGradeStat";
 import type { DashboardKpis } from "./dashboardKpis";
 import type { DashboardStudentsByState } from "./dashboardStudentsByState";
 import type { DashboardSummaryAvailableClassesByGrade } from "./dashboardSummaryAvailableClassesByGrade";
@@ -17,6 +18,8 @@ export interface DashboardSummary {
   exceptions: DashboardExceptions;
   studentsByState: DashboardStudentsByState;
   statusDistribution: StatusCount[];
+  /** Per-grade attendance breakdown (present vs not arrived) */
+  byGrade: DashboardGradeStat[];
   recentFeed: FeedItem[];
   lastUpdated: string;
   /** Mapping of grade to available class names for filter chip population */

@@ -1203,6 +1203,11 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/StatusCount"
+        byGrade:
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardGradeStat"
+          description: "Per-grade attendance breakdown (present vs not arrived)"
         recentFeed:
           type: array
           items:
@@ -1221,9 +1226,27 @@ components:
         - exceptions
         - studentsByState
         - statusDistribution
+        - byGrade
         - recentFeed
         - lastUpdated
         - availableClassesByGrade
+
+    DashboardGradeStat:
+      type: object
+      properties:
+        grade:
+          type: string
+        present:
+          type: integer
+        notArrived:
+          type: integer
+        total:
+          type: integer
+      required:
+        - grade
+        - present
+        - notArrived
+        - total
 
     DashboardKpis:
       type: object

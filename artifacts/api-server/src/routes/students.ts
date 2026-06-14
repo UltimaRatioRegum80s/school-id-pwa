@@ -1,8 +1,8 @@
 import { Router, type IRouter } from "express";
 import { eq, ilike, and, or, sql, desc } from "drizzle-orm";
-import { db, studentsTable, scanEventsTable, schoolsTable, studentQrCodesTable } from "@workspace/db";
+import { db, studentsTable, scanEventsTable, schoolsTable, studentQrCodesTable, schoolSettingsTable } from "@workspace/db";
 import { CreateStudentBody, UpdateStudentBody } from "@workspace/api-zod";
-import { computeStudentState } from "../lib/state-engine";
+import { computeStudentState, isLateArrival } from "../lib/state-engine";
 import { requireAuth, requireAdmin } from "../lib/auth";
 import type { Request } from "express";
 import type { JwtPayload } from "../lib/auth";
@@ -79,10 +79,25 @@ router.get("/students", requireAuth, async (req, res): Promise<void> => {
       .orderBy(desc(scanEventsTable.createdAt));
   }
 
+  let schoolStartTime = "07:30";
+  if (status === "late") {
+    const [settingsRow] = await db
+      .select()
+      .from(schoolSettingsTable)
+      .where(eq(schoolSettingsTable.schoolId, user.schoolId));
+    schoolStartTime = settingsRow?.startTime ?? "07:30";
+  }
+
   const result = students.map((s) => {
     const events = todayEvents.filter((e) => e.studentId === s.id);
     const formatted = formatStudent(s, events);
-    if (status && formatted.currentState !== status) return null;
+    if (status === "late") {
+      if (formatted.currentState === "not_arrived" || !isLateArrival(events, schoolStartTime)) {
+        return null;
+      }
+    } else if (status && formatted.currentState !== status) {
+      return null;
+    }
     return formatted;
   }).filter(Boolean);
 
