@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, schoolsTable } from "@workspace/db";
+import { db, schoolsTable, schoolSettingsTable } from "@workspace/db";
 import { requireAuth, requireAdmin } from "../lib/auth";
 import { ObjectStorageService } from "../lib/objectStorage";
 import type { Request } from "express";
@@ -54,12 +54,18 @@ router.get("/school/branding", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
+  const [settings] = await db
+    .select({ timezone: schoolSettingsTable.timezone })
+    .from(schoolSettingsTable)
+    .where(eq(schoolSettingsTable.schoolId, user.schoolId));
+
   res.json({
     schoolName: school.name,
     logoUrl: school.logoUrl ?? null,
     colorPalette: school.colorPalette,
     customPrimaryColor: school.customPrimaryColor ?? null,
     customAccentColor: school.customAccentColor ?? null,
+    timezone: settings?.timezone ?? null,
   });
 });
 

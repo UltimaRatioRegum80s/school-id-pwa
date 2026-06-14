@@ -842,7 +842,7 @@ export default function PrintCardsPage({ onBack }: { onBack: () => void }) {
         }
       `}</style>
 
-      <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-0 z-40 no-print">
+      <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-7 z-40 no-print">
         <div className="max-w-6xl mx-auto flex items-center gap-3">
           <button
             onClick={onBack}

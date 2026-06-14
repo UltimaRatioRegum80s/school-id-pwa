@@ -22,6 +22,7 @@ export interface BrandingInfo {
   schoolName: string;
   customPrimaryColor: string | null;
   customAccentColor: string | null;
+  timezone: string | null;
 }
 
 interface AuthContextValue {

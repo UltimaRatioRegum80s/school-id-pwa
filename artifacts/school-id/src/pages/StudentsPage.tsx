@@ -305,7 +305,7 @@ export default function StudentsPage() {
           <>
             <PageHeader title="Students" subtitle={subtitle} showLogo={true} action={filterAction} />
             <div className="max-w-lg mx-auto w-full">
-              <div className="px-4 pt-3 sticky top-[64px] z-30 bg-background pb-2 space-y-2">
+              <div className="px-4 pt-3 sticky top-[92px] z-30 bg-background pb-2 space-y-2">
                 {searchBox}
                 {filtersRow}
                 {contextRow}
@@ -722,7 +722,7 @@ function StudentProfileView({ id, onBack }: { id: number; onBack: () => void }) 
   if (isLoading || !data) {
     return (
       <div className="flex flex-col">
-        <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-0 z-40">
+        <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-7 z-40">
           <div className="max-w-lg mx-auto flex items-center gap-3">
             <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-muted transition-colors" data-testid="button-profile-back">
               <X className="w-4 h-4" />
@@ -739,7 +739,7 @@ function StudentProfileView({ id, onBack }: { id: number; onBack: () => void }) 
 
   return (
     <div className="flex flex-col">
-      <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-0 z-40">
+      <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-7 z-40">
         <div className="max-w-lg mx-auto flex items-center gap-3">
           <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-muted transition-colors" data-testid="button-profile-back">
             <X className="w-4 h-4" />

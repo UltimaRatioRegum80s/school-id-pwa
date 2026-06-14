@@ -456,7 +456,7 @@ function ActivityDetailView({ id, onBack }: { id: number; onBack: () => void }) 
 
   return (
     <div className="flex flex-col min-h-screen bg-background pb-20">
-      <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-0 z-40">
+      <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-7 z-40">
         <div className="max-w-lg mx-auto flex items-center gap-3">
           <button
             onClick={onBack}
@@ -717,7 +717,7 @@ function CreateActivityView({
 
   return (
     <div className="flex flex-col min-h-screen bg-background pb-20">
-      <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-0 z-40">
+      <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-7 z-40">
         <div className="max-w-lg mx-auto flex items-center gap-3">
           <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-muted transition-colors" data-testid="button-create-back">
             <X className="w-4 h-4" />

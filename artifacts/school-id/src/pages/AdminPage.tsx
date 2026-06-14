@@ -356,7 +356,7 @@ function SettingsView({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="flex flex-col min-h-screen bg-background pb-20">
-      <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-0 z-40">
+      <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-7 z-40">
         <div className="max-w-lg mx-auto flex items-center gap-3">
           <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-muted transition-colors" data-testid="button-settings-back">
             <X className="w-4 h-4" />
@@ -489,7 +489,7 @@ function UsersView({ onBack, onCreateUser }: { onBack: () => void; onCreateUser:
 
   return (
     <div className="flex flex-col min-h-screen bg-background pb-20">
-      <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-0 z-40">
+      <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-7 z-40">
         <div className="max-w-lg mx-auto flex items-center gap-3">
           <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-muted transition-colors" data-testid="button-users-back">
             <X className="w-4 h-4" />
@@ -685,7 +685,7 @@ function CreateUserView({ onBack }: { onBack: () => void }) {
   if (created) {
     return (
       <div className="flex flex-col min-h-screen bg-background pb-20">
-        <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-0 z-40">
+        <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-7 z-40">
           <div className="max-w-lg mx-auto flex items-center gap-3">
             <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-muted transition-colors" data-testid="button-create-user-back">
               <X className="w-4 h-4" />
@@ -742,7 +742,7 @@ function CreateUserView({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="flex flex-col min-h-screen bg-background pb-20">
-      <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-0 z-40">
+      <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-7 z-40">
         <div className="max-w-lg mx-auto flex items-center gap-3">
           <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-muted transition-colors" data-testid="button-create-user-back">
             <X className="w-4 h-4" />
@@ -1018,7 +1018,7 @@ function BehaviorCategoriesView({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="flex flex-col min-h-screen bg-background pb-20">
-      <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-0 z-40">
+      <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-7 z-40">
         <div className="max-w-lg mx-auto flex items-center gap-3">
           <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-muted transition-colors" data-testid="button-categories-back">
             <X className="w-4 h-4" />
@@ -1188,7 +1188,7 @@ function RecognitionTiersView({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="flex flex-col min-h-screen bg-background pb-20">
-      <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-0 z-40">
+      <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-7 z-40">
         <div className="max-w-lg mx-auto flex items-center gap-3">
           <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-muted transition-colors" data-testid="button-tiers-back">
             <X className="w-4 h-4" />
@@ -1309,7 +1309,7 @@ function RewardRecognitionView({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="flex flex-col min-h-screen bg-background pb-20">
-      <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-0 z-40">
+      <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-7 z-40">
         <div className="max-w-lg mx-auto flex items-center gap-3">
           <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-muted transition-colors" data-testid="button-recognition-back">
             <X className="w-4 h-4" />
@@ -1398,7 +1398,7 @@ function AddStudentView({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="flex flex-col min-h-screen bg-background pb-20">
-      <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-0 z-40">
+      <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-7 z-40">
         <div className="max-w-lg mx-auto flex items-center gap-3">
           <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-muted transition-colors" data-testid="button-add-student-back">
             <X className="w-4 h-4" />
@@ -2332,7 +2332,7 @@ function ImportStudentsView({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="flex flex-col min-h-screen bg-background pb-20">
-      <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-0 z-40">
+      <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-7 z-40">
         <div className="max-w-lg mx-auto flex items-center gap-3">
           <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-muted transition-colors" data-testid="button-import-back">
             <X className="w-4 h-4" />
@@ -2729,7 +2729,7 @@ function AppearanceView({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="flex flex-col min-h-screen bg-background pb-20">
-      <div className="bg-primary text-primary-foreground px-4 pt-4 pb-3 sticky top-0 z-40">
+      <div className="bg-primary text-primary-foreground px-4 pt-4 pb-3 sticky top-7 z-40">
         <div className="max-w-lg mx-auto flex items-center gap-3">
           <button
             onClick={onBack}
