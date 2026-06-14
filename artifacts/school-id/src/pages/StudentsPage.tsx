@@ -104,6 +104,21 @@ function computeStats(students: StudentWithState[]): CardStats {
   return { total: students.length, onCampus, notArrived, checkedOut, unaccounted };
 }
 
+const STAT_BUCKETS = {
+  onCampus: { label: "On Campus", states: ["on_campus", "in_class", "at_event"], dot: "bg-green-500" },
+  notArrived: { label: "Not Arrived", states: ["not_arrived"], dot: "bg-slate-400" },
+  checkedOut: { label: "Checked Out", states: ["checked_out"], dot: "bg-gray-400" },
+  unaccounted: { label: "Unaccounted", states: ["unaccounted"], dot: "bg-red-500" },
+} as const;
+
+type StatBucket = keyof typeof STAT_BUCKETS;
+
+interface StatFilter {
+  bucket: StatBucket;
+  grade: string;
+  className: string | null;
+}
+
 export default function StudentsPage() {
   const initialFilters = readInitialFilters();
   const [search, setSearch] = useState("");
@@ -111,6 +126,7 @@ export default function StudentsPage() {
   const [selectedGrade, setSelectedGrade] = useState<string | null>(initialFilters.grade || null);
   const [selectedClass, setSelectedClass] = useState<string | null>(initialFilters.className || null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [statFilter, setStatFilter] = useState<StatFilter | null>(null);
   const [showFilters, setShowFilters] = useState(
     Boolean(initialFilters.grade || initialFilters.status || initialFilters.className)
   );
@@ -187,18 +203,37 @@ export default function StudentsPage() {
 
   const gradeOptions = useMemo(() => grades.map((g) => g.grade), [grades]);
 
-  const studentLevel = flatEnabled || selectedClass != null;
-  const studentLevelList = flatEnabled ? flatData ?? [] : classStudents;
+  const statActive = statFilter != null && !isSearching && !isFiltering;
+
+  const statFilteredList = useMemo(() => {
+    if (!statFilter) return [];
+    const states = STAT_BUCKETS[statFilter.bucket].states as readonly string[];
+    return all.filter(
+      (s) =>
+        (s.grade || "—") === statFilter.grade &&
+        (statFilter.className == null || (s.className || "—") === statFilter.className) &&
+        states.includes(s.currentState)
+    );
+  }, [all, statFilter]);
+
+  const studentLevel = statActive || flatEnabled || selectedClass != null;
+  const studentLevelList = statActive
+    ? statFilteredList
+    : flatEnabled
+      ? flatData ?? []
+      : classStudents;
   const studentLevelLoading = flatEnabled ? flatLoading : isLoading;
 
   function selectGrade(g: string | null) {
     setSelectedGrade(g);
     setSelectedClass(null);
     setSelectedId(null);
+    setStatFilter(null);
   }
   function selectClass(c: string | null) {
     setSelectedClass(c);
     setSelectedId(null);
+    setStatFilter(null);
   }
   function handleSearch(v: string) {
     setSearch(v);
@@ -207,24 +242,39 @@ export default function StudentsPage() {
   function handleStatus(v: string) {
     setStatus(v);
     setSelectedId(null);
+    setStatFilter(null);
   }
   function crumbAll() {
     setSelectedGrade(null);
     setSelectedClass(null);
     setSelectedId(null);
+    setStatFilter(null);
   }
   function crumbGrade() {
     setSelectedClass(null);
     setSelectedId(null);
+    setStatFilter(null);
+  }
+  function selectStat(grade: string, className: string | null, bucket: StatBucket) {
+    setStatFilter({ grade, className, bucket });
+    setSelectedId(null);
+    setSearch("");
+    setStatus("");
+  }
+  function clearStatFilter() {
+    setStatFilter(null);
+    setSelectedId(null);
   }
 
-  const subtitle = flatEnabled
-    ? `${studentLevelList.length} found`
-    : studentLevel
-      ? `${selectedClass} · ${studentLevelList.length} students`
-      : selectedGrade
-        ? `${gradeLabel(selectedGrade)} · ${classesForGrade.length} classes`
-        : `${all.length} students · ${grades.length} grades`;
+  const subtitle = statActive
+    ? `${gradeLabel(statFilter.grade)}${statFilter.className ? ` · ${statFilter.className}` : ""} · ${studentLevelList.length} ${STAT_BUCKETS[statFilter.bucket].label}`
+    : flatEnabled
+      ? `${studentLevelList.length} found`
+      : studentLevel
+        ? `${selectedClass} · ${studentLevelList.length} students`
+        : selectedGrade
+          ? `${gradeLabel(selectedGrade)} · ${classesForGrade.length} classes`
+          : `${all.length} students · ${grades.length} grades`;
 
   const filterAction = (
     <button
@@ -269,7 +319,15 @@ export default function StudentsPage() {
     />
   );
 
-  const contextRow = flatEnabled ? (
+  const contextRow = statActive ? (
+    <StatFilterBar
+      bucket={statFilter.bucket}
+      grade={statFilter.grade}
+      className={statFilter.className}
+      count={studentLevelList.length}
+      onClear={clearStatFilter}
+    />
+  ) : flatEnabled ? (
     <FlatResultsBar
       count={studentLevelList.length}
       isSearching={isSearching}
@@ -292,6 +350,8 @@ export default function StudentsPage() {
       isLoading={isLoading}
       onSelectGrade={selectGrade}
       onSelectClass={selectClass}
+      onStatGrade={(grade, bucket) => selectStat(grade, null, bucket)}
+      onStatClass={(className, bucket) => selectStat(selectedGrade!, className, bucket)}
     />
   );
 
@@ -316,7 +376,7 @@ export default function StudentsPage() {
                   isLoading={studentLevelLoading}
                   selectedId={selectedId}
                   onSelect={setSelectedId}
-                  showMeta={flatEnabled}
+                  showMeta={flatEnabled || statActive}
                 />
               ) : (
                 cardsContent
@@ -346,7 +406,7 @@ export default function StudentsPage() {
                 isLoading={studentLevelLoading}
                 selectedId={selectedId}
                 onSelect={setSelectedId}
-                showMeta={flatEnabled}
+                showMeta={flatEnabled || statActive}
               />
             </div>
             <div className="flex flex-col flex-1 overflow-y-auto bg-background">
@@ -481,6 +541,39 @@ function FlatResultsBar({
   );
 }
 
+function StatFilterBar({
+  bucket,
+  grade,
+  className,
+  count,
+  onClear,
+}: {
+  bucket: StatBucket;
+  grade: string;
+  className: string | null;
+  count: number;
+  onClear: () => void;
+}) {
+  const scope = `${gradeLabel(grade)}${className ? ` · ${className}` : ""}`;
+  return (
+    <div className="flex items-center gap-2 flex-wrap" data-testid="stat-filter-bar">
+      <span className="text-sm text-muted-foreground">
+        <span className="font-semibold text-foreground">{scope}</span> ·{" "}
+        <span className="font-semibold text-foreground">{STAT_BUCKETS[bucket].label}</span> ·{" "}
+        {count} student{count === 1 ? "" : "s"}
+      </span>
+      <button
+        onClick={onClear}
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+        data-testid="button-clear-stat-filter"
+      >
+        <X className="w-3 h-3" />
+        Clear
+      </button>
+    </div>
+  );
+}
+
 function SegBar({ stats }: { stats: CardStats }) {
   const total = stats.total || 1;
   const segs = [
@@ -501,21 +594,44 @@ function SegBar({ stats }: { stats: CardStats }) {
   );
 }
 
-function StatGrid({ stats }: { stats: CardStats }) {
+function StatGrid({
+  stats,
+  onStatClick,
+  testId,
+}: {
+  stats: CardStats;
+  onStatClick: (bucket: StatBucket) => void;
+  testId: string;
+}) {
   const items = [
-    { label: "On Campus", value: stats.onCampus, dot: "bg-green-500" },
-    { label: "Not Arrived", value: stats.notArrived, dot: "bg-slate-400" },
-    { label: "Checked Out", value: stats.checkedOut, dot: "bg-gray-400" },
-    { label: "Unaccounted", value: stats.unaccounted, dot: "bg-red-500" },
+    { bucket: "onCampus" as const, label: "On Campus", value: stats.onCampus, dot: "bg-green-500" },
+    { bucket: "notArrived" as const, label: "Not Arrived", value: stats.notArrived, dot: "bg-slate-400" },
+    { bucket: "checkedOut" as const, label: "Checked Out", value: stats.checkedOut, dot: "bg-gray-400" },
+    { bucket: "unaccounted" as const, label: "Unaccounted", value: stats.unaccounted, dot: "bg-red-500" },
   ];
   return (
-    <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 mt-3">
+    <div className="grid grid-cols-2 gap-x-2 gap-y-1 mt-3">
       {items.map((it) => (
-        <div key={it.label} className="flex items-center gap-1.5 min-w-0">
+        <button
+          key={it.bucket}
+          type="button"
+          disabled={it.value === 0}
+          onClick={(e) => {
+            e.stopPropagation();
+            onStatClick(it.bucket);
+          }}
+          className={`flex items-center gap-1.5 min-w-0 -mx-1 px-1 py-1 rounded-md text-left transition-colors ${
+            it.value === 0
+              ? "cursor-default"
+              : "cursor-pointer hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          }`}
+          aria-label={`View ${it.label} students`}
+          data-testid={`${testId}-stat-${it.bucket}`}
+        >
           <span className={`w-1.5 h-1.5 rounded-full ${it.dot} flex-shrink-0`} />
           <span className="text-sm font-semibold text-foreground">{it.value}</span>
           <span className="text-xs text-muted-foreground truncate">{it.label}</span>
-        </div>
+        </button>
       ))}
     </div>
   );
@@ -528,6 +644,8 @@ function DrillCards({
   isLoading,
   onSelectGrade,
   onSelectClass,
+  onStatGrade,
+  onStatClass,
 }: {
   level: "grades" | "classes";
   grades: { grade: string; stats: CardStats }[];
@@ -535,6 +653,8 @@ function DrillCards({
   isLoading: boolean;
   onSelectGrade: (g: string) => void;
   onSelectClass: (c: string) => void;
+  onStatGrade: (grade: string, bucket: StatBucket) => void;
+  onStatClass: (className: string, bucket: StatBucket) => void;
 }) {
   if (isLoading) {
     return <div className="text-center py-12 text-muted-foreground text-sm px-4">Loading...</div>;
@@ -566,6 +686,7 @@ function DrillCards({
               stats={g.stats}
               cta="View classes"
               onClick={() => onSelectGrade(g.grade)}
+              onStatClick={(bucket) => onStatGrade(g.grade, bucket)}
               testId={`card-grade-${g.grade}`}
             />
           ))
@@ -579,6 +700,7 @@ function DrillCards({
               stats={c.stats}
               cta="View students"
               onClick={() => onSelectClass(c.className)}
+              onStatClick={(bucket) => onStatClass(c.className, bucket)}
               testId={`card-class-${c.className}`}
             />
           ))}
@@ -594,6 +716,7 @@ function DrillCard({
   stats,
   cta,
   onClick,
+  onStatClick,
   testId,
 }: {
   eyebrow: string;
@@ -603,12 +726,21 @@ function DrillCard({
   stats: CardStats;
   cta: string;
   onClick: () => void;
+  onStatClick: (bucket: StatBucket) => void;
   testId: string;
 }) {
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
-      className={`group bg-card border border-border border-l-4 ${accent} rounded-xl p-4 text-left transition-all hover:shadow-md hover:-translate-y-0.5`}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      className={`group bg-card border border-border border-l-4 ${accent} rounded-xl p-4 text-left transition-all cursor-pointer hover:shadow-md hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
       data-testid={testId}
     >
       <div className="flex items-start justify-between gap-2">
@@ -627,12 +759,12 @@ function DrillCard({
         </div>
       </div>
       <SegBar stats={stats} />
-      <StatGrid stats={stats} />
+      <StatGrid stats={stats} onStatClick={onStatClick} testId={testId} />
       <div className="flex items-center justify-end gap-1 text-xs font-medium text-primary mt-3 opacity-70 group-hover:opacity-100 transition-opacity">
         {cta}
         <ChevronRight className="w-3.5 h-3.5" />
       </div>
-    </button>
+    </div>
   );
 }
 
