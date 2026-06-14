@@ -247,7 +247,7 @@ router.get("/behavior/recognition-tiers", requireAuth, async (req, res): Promise
     .select()
     .from(recognitionTiersTable)
     .where(eq(recognitionTiersTable.schoolId, user.schoolId))
-    .orderBy(asc(recognitionTiersTable.thresholdPoints));
+    .orderBy(asc(recognitionTiersTable.sortOrder), asc(recognitionTiersTable.thresholdPoints));
   res.json(tiers.map(formatTier));
 });
 
@@ -343,7 +343,7 @@ router.get("/behavior/recognition", requireAuth, async (req, res): Promise<void>
     .select()
     .from(recognitionTiersTable)
     .where(eq(recognitionTiersTable.schoolId, user.schoolId))
-    .orderBy(asc(recognitionTiersTable.thresholdPoints));
+    .orderBy(asc(recognitionTiersTable.sortOrder), asc(recognitionTiersTable.thresholdPoints));
 
   if (tiers.length === 0) {
     res.json([]);

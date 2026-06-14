@@ -63,7 +63,23 @@ import {
   Trophy,
   CheckCircle2,
   Undo2,
+  GripVertical,
 } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 type AdminView =
   | "main"
@@ -1134,6 +1150,69 @@ function BehaviorCategoriesView({ onBack }: { onBack: () => void }) {
   );
 }
 
+function SortableTierRow({
+  tier,
+  onEdit,
+  onDelete,
+}: {
+  tier: RecognitionTier;
+  onEdit: (tier: RecognitionTier) => void;
+  onDelete: (tier: RecognitionTier) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: tier.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : undefined,
+    position: isDragging ? ("relative" as const) : undefined,
+  };
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="px-4 py-3 flex items-center gap-3 bg-card"
+      data-testid={`row-tier-${tier.id}`}
+    >
+      <button
+        {...attributes}
+        {...listeners}
+        className="p-1 rounded touch-none cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground flex-shrink-0"
+        aria-label="Drag to reorder"
+        data-testid={`drag-handle-tier-${tier.id}`}
+      >
+        <GripVertical className="w-4 h-4" />
+      </button>
+      <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
+        <Award className="w-4 h-4 text-amber-600" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-foreground">{tier.name}</p>
+        {tier.description && (
+          <p className="text-xs text-muted-foreground truncate">{tier.description}</p>
+        )}
+      </div>
+      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 flex-shrink-0">
+        {tier.thresholdPoints} pts
+      </span>
+      <button
+        onClick={() => onEdit(tier)}
+        className="p-1.5 rounded-lg hover:bg-muted transition-colors flex-shrink-0"
+        data-testid={`button-edit-tier-${tier.id}`}
+      >
+        <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+      </button>
+      <button
+        onClick={() => onDelete(tier)}
+        className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors flex-shrink-0"
+        data-testid={`button-delete-tier-${tier.id}`}
+      >
+        <Trash2 className="w-3.5 h-3.5 text-destructive" />
+      </button>
+    </div>
+  );
+}
+
 function RecognitionTiersView({ onBack }: { onBack: () => void }) {
   const queryClient = useQueryClient();
   const { data: tiers, isLoading } = useListRecognitionTiers({
@@ -1145,6 +1224,11 @@ function RecognitionTiersView({ onBack }: { onBack: () => void }) {
   const [description, setDescription] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [localOrder, setLocalOrder] = useState<RecognitionTier[] | null>(null);
+
+  const displayTiers: RecognitionTier[] = localOrder ?? (tiers ?? []);
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: getListRecognitionTiersQueryKey() });
@@ -1153,7 +1237,7 @@ function RecognitionTiersView({ onBack }: { onBack: () => void }) {
 
   const createMutation = useCreateRecognitionTier({
     mutation: {
-      onSuccess: () => { invalidate(); resetForm(); },
+      onSuccess: () => { invalidate(); resetForm(); setLocalOrder(null); },
     },
   });
   const updateMutation = useUpdateRecognitionTier({
@@ -1162,7 +1246,7 @@ function RecognitionTiersView({ onBack }: { onBack: () => void }) {
     },
   });
   const deleteMutation = useDeleteRecognitionTier({
-    mutation: { onSuccess: invalidate },
+    mutation: { onSuccess: () => { invalidate(); setLocalOrder(null); } },
   });
 
   function resetForm() {
@@ -1188,6 +1272,20 @@ function RecognitionTiersView({ onBack }: { onBack: () => void }) {
     }
   }
 
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const current = displayTiers;
+    const oldIndex = current.findIndex((t) => t.id === active.id);
+    const newIndex = current.findIndex((t) => t.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered: RecognitionTier[] = arrayMove(current, oldIndex, newIndex);
+    setLocalOrder(reordered);
+    reordered.forEach((tier, idx) => {
+      updateMutation.mutate({ id: tier.id, data: { sortOrder: idx } });
+    });
+  }
+
   const pending = createMutation.isPending || updateMutation.isPending;
 
   return (
@@ -1210,7 +1308,7 @@ function RecognitionTiersView({ onBack }: { onBack: () => void }) {
 
       <div className="max-w-lg mx-auto w-full px-4 py-4 space-y-4">
         <p className="text-xs text-muted-foreground">
-          Define the merit-point thresholds at which a student earns a recognition action — e.g. a letter to parents, a newsletter mention, a certificate, or a trophy nomination.
+          Define the merit-point thresholds at which a student earns a recognition action — e.g. a letter to parents, a newsletter mention, a certificate, or a trophy nomination. Drag to reorder.
         </p>
 
         {showForm && (
@@ -1263,41 +1361,23 @@ function RecognitionTiersView({ onBack }: { onBack: () => void }) {
           <div className="text-center py-8 text-muted-foreground text-sm">Loading...</div>
         ) : (
           <div className="bg-card border border-border rounded-xl divide-y divide-border overflow-hidden" data-testid="list-recognition-tiers">
-            {(tiers ?? []).length === 0 ? (
+            {displayTiers.length === 0 ? (
               <div className="px-4 py-8 text-center text-sm text-muted-foreground">
                 No recognition tiers yet. Add one above.
               </div>
             ) : (
-              (tiers ?? []).map((tier) => (
-                <div key={tier.id} className="px-4 py-3 flex items-center gap-3" data-testid={`row-tier-${tier.id}`}>
-                  <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Award className="w-4 h-4 text-amber-600" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-foreground">{tier.name}</p>
-                    {tier.description && (
-                      <p className="text-xs text-muted-foreground truncate">{tier.description}</p>
-                    )}
-                  </div>
-                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 flex-shrink-0">
-                    {tier.thresholdPoints} pts
-                  </span>
-                  <button
-                    onClick={() => startEdit(tier)}
-                    className="p-1.5 rounded-lg hover:bg-muted transition-colors flex-shrink-0"
-                    data-testid={`button-edit-tier-${tier.id}`}
-                  >
-                    <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
-                  </button>
-                  <button
-                    onClick={() => { if (confirm(`Delete "${tier.name}"?`)) deleteMutation.mutate({ id: tier.id }); }}
-                    className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors flex-shrink-0"
-                    data-testid={`button-delete-tier-${tier.id}`}
-                  >
-                    <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                  </button>
-                </div>
-              ))
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={displayTiers.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+                  {displayTiers.map((tier) => (
+                    <SortableTierRow
+                      key={tier.id}
+                      tier={tier}
+                      onEdit={startEdit}
+                      onDelete={(t) => { if (confirm(`Delete "${t.name}"?`)) deleteMutation.mutate({ id: t.id }); }}
+                    />
+                  ))}
+                </SortableContext>
+              </DndContext>
             )}
           </div>
         )}
