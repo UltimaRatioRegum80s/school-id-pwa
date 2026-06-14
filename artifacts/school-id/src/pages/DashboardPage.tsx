@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { io } from "socket.io-client";
@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { formatRelativeTime, getStateLabel } from "@/lib/status";
 import {
   useGetDashboardSummary,
+  useGetDashboardTrends,
 } from "@workspace/api-client-react";
 import type { StudentWithState, DashboardStudentsByState, DashboardKpis } from "@workspace/api-client-react";
 import {
@@ -14,6 +15,8 @@ import {
   Cell,
   BarChart,
   Bar,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -57,6 +60,21 @@ function gradeLabel(grade: string): string {
   return /^\d+$/.test(grade) ? `Gr ${grade}` : grade;
 }
 
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function trendDateLabel(isoDate: string): string {
+  const parts = isoDate.split("-").map(Number);
+  if (parts.length !== 3) return isoDate;
+  const [, m, d] = parts;
+  return `${MONTH_NAMES[m - 1] ?? ""} ${d}`;
+}
+
+const TREND_RANGES = [
+  { label: "7d", days: 7 },
+  { label: "14d", days: 14 },
+  { label: "30d", days: 30 },
+];
+
 function initials(name: string): string {
   return name
     .split(/\s+/)
@@ -88,14 +106,29 @@ export default function DashboardPage() {
     [filterKey]
   );
 
-  const queryKeyRef = useRef(queryKey);
-  queryKeyRef.current = queryKey;
-
   const { data, isLoading, isFetching, refetch } = useGetDashboardSummary(filterParams, {
     query: {
       queryKey,
       refetchInterval: 30000,
     },
+  });
+
+  const [trendDays, setTrendDays] = useState(7);
+
+  const trendParams = useMemo(() => {
+    const p: { days: number; grade?: string; className?: string } = { days: trendDays };
+    if (gradeFilter) p.grade = gradeFilter;
+    if (classFilter) p.className = classFilter;
+    return p;
+  }, [trendDays, filterKey]);
+
+  const trendQueryKey = useMemo(
+    () => ["/api/dashboard/trends", trendDays, filterKey] as const,
+    [trendDays, filterKey]
+  );
+
+  const { data: trendData, isLoading: trendLoading } = useGetDashboardTrends(trendParams, {
+    query: { queryKey: trendQueryKey, refetchInterval: 60000 },
   });
 
   useEffect(() => {
@@ -108,13 +141,13 @@ export default function DashboardPage() {
       transports: ["websocket", "polling"],
     });
 
-    socket.on("dashboard_update", () => {
-      queryClient.invalidateQueries({ queryKey: queryKeyRef.current });
-    });
+    const invalidateDashboard = () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/summary"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/trends"] });
+    };
 
-    socket.on("state_changed", () => {
-      queryClient.invalidateQueries({ queryKey: queryKeyRef.current });
-    });
+    socket.on("dashboard_update", invalidateDashboard);
+    socket.on("state_changed", invalidateDashboard);
 
     return () => {
       socket.disconnect();
@@ -184,6 +217,14 @@ export default function DashboardPage() {
     Present: g.present,
     "Not Arrived": g.notArrived,
   }));
+
+  const trendChartData = (trendData ?? []).map((p) => ({
+    date: trendDateLabel(p.date),
+    "On Time": Math.max(0, p.present - p.late),
+    Late: p.late,
+    "Not Arrived": p.notArrived,
+  }));
+  const hasTrendData = trendChartData.length > 0;
 
   const filterSection = (
     <div data-testid="panel-filter-chips">
@@ -391,6 +432,101 @@ export default function DashboardPage() {
     </div>
   );
 
+  const trendsSection = (
+    <div className="bg-card border border-border rounded-xl p-4" data-testid="panel-trends">
+      <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+        <h3 className="text-sm font-semibold text-foreground">Attendance Trends</h3>
+        <div className="flex gap-1 bg-muted/50 rounded-lg p-0.5" data-testid="trend-range-selector">
+          {TREND_RANGES.map((r) => (
+            <button
+              key={r.days}
+              onClick={() => setTrendDays(r.days)}
+              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors ${
+                trendDays === r.days
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              data-testid={`trend-range-${r.days}`}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {trendLoading ? (
+        <div className="h-[240px] flex items-center justify-center text-sm text-muted-foreground">
+          <RefreshCw className="w-5 h-5 animate-spin" />
+        </div>
+      ) : !hasTrendData ? (
+        <div className="h-[240px] flex items-center justify-center text-sm text-muted-foreground">
+          No trend data
+        </div>
+      ) : (
+        <>
+          <div style={{ height: 240 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={trendChartData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+                <CartesianGrid vertical={false} stroke="#e2e8f0" strokeDasharray="3 3" opacity={0.4} />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 11, fill: "#94a3b8" }}
+                  axisLine={false}
+                  tickLine={false}
+                  interval="preserveStartEnd"
+                  minTickGap={16}
+                />
+                <YAxis
+                  allowDecimals={false}
+                  tick={{ fontSize: 11, fill: "#94a3b8" }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={30}
+                />
+                <Tooltip content={<ChartTooltip />} />
+                <Line
+                  type="monotone"
+                  dataKey="On Time"
+                  stroke={COLOR_PRESENT}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4 }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="Late"
+                  stroke={COLOR_LATE}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4 }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="Not Arrived"
+                  stroke={COLOR_NOT_ARRIVED}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="flex justify-center gap-4 mt-3 flex-wrap">
+            {[
+              { name: "On Time", color: COLOR_PRESENT },
+              { name: "Late", color: COLOR_LATE },
+              { name: "Not Arrived", color: COLOR_NOT_ARRIVED },
+            ].map((e) => (
+              <div key={e.name} className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: e.color }} />
+                <span className="text-xs text-muted-foreground">{e.name}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+
   const feedSection = (
     <div className="bg-card border border-border rounded-xl p-4" data-testid="panel-recent-feed">
       <h3 className="text-sm font-semibold text-foreground mb-3">Recent Activity</h3>
@@ -489,6 +625,7 @@ export default function DashboardPage() {
           </div>
         )}
         {studentSummarySection}
+        {!isEmpty && trendsSection}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-5">
           {feedSection}
           {exceptionsSection}

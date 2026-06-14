@@ -96,7 +96,8 @@ export function formatScanType(scanType: string): string {
 
 export function isLateArrival(
   events: ScanEvent[],
-  schoolStartTime: string
+  schoolStartTime: string,
+  referenceDate?: Date
 ): boolean {
   const gateIns = events.filter((e) => e.scanType === "gate_in");
   if (gateIns.length === 0) return false;
@@ -104,9 +105,8 @@ export function isLateArrival(
     new Date(e.createdAt) < new Date(earliest.createdAt) ? e : earliest
   );
 
-  const today = new Date();
   const [hours, minutes] = schoolStartTime.split(":").map(Number);
-  const startTime = new Date(today);
+  const startTime = new Date(referenceDate ?? new Date());
   startTime.setHours(hours, minutes + 15, 0, 0);
 
   return new Date(earliestGateIn.createdAt) > startTime;

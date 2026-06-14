@@ -715,6 +715,29 @@ export const GetDashboardSummaryResponse = zod.object({
 });
 
 /**
+ * @summary Get attendance trends over a date range
+ */
+export const GetDashboardTrendsQueryParams = zod.object({
+  days: zod.coerce
+    .number()
+    .optional()
+    .describe("Number of days to include (1-90, default 7)"),
+  grade: zod.coerce.string().optional().describe("Filter by grade"),
+  className: zod.coerce.string().optional().describe("Filter by class name"),
+});
+
+export const GetDashboardTrendsResponseItem = zod.object({
+  date: zod.string().describe("Day in YYYY-MM-DD format"),
+  present: zod.number(),
+  late: zod.number(),
+  notArrived: zod.number(),
+  total: zod.number(),
+});
+export const GetDashboardTrendsResponse = zod.array(
+  GetDashboardTrendsResponseItem,
+);
+
+/**
  * @summary Get live activity feed
  */
 export const GetDashboardFeedQueryParams = zod.object({

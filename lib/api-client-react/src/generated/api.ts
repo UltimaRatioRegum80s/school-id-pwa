@@ -29,9 +29,11 @@ import type {
   CreateStudentBody,
   CreateUserBody,
   DashboardSummary,
+  DashboardTrendPoint,
   FeedItem,
   GetDashboardFeedParams,
   GetDashboardSummaryParams,
+  GetDashboardTrendsParams,
   GetStudentsForPrintParams,
   HealthStatus,
   ImportStudentsBody,
@@ -1615,6 +1617,103 @@ export function useGetDashboardSummary<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetDashboardSummaryQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get attendance trends over a date range
+ */
+export const getGetDashboardTrendsUrl = (params?: GetDashboardTrendsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/dashboard/trends?${stringifiedParams}`
+    : `/api/dashboard/trends`;
+};
+
+export const getDashboardTrends = async (
+  params?: GetDashboardTrendsParams,
+  options?: RequestInit,
+): Promise<DashboardTrendPoint[]> => {
+  return customFetch<DashboardTrendPoint[]>(getGetDashboardTrendsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetDashboardTrendsQueryKey = (
+  params?: GetDashboardTrendsParams,
+) => {
+  return [`/api/dashboard/trends`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetDashboardTrendsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getDashboardTrends>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetDashboardTrendsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getDashboardTrends>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetDashboardTrendsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getDashboardTrends>>
+  > = ({ signal }) => getDashboardTrends(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getDashboardTrends>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetDashboardTrendsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getDashboardTrends>>
+>;
+export type GetDashboardTrendsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get attendance trends over a date range
+ */
+
+export function useGetDashboardTrends<
+  TData = Awaited<ReturnType<typeof getDashboardTrends>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetDashboardTrendsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getDashboardTrends>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetDashboardTrendsQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

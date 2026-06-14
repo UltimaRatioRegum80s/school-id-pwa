@@ -243,6 +243,15 @@ export interface DashboardSummary {
   availableClassesByGrade: DashboardSummaryAvailableClassesByGrade;
 }
 
+export interface DashboardTrendPoint {
+  /** Day in YYYY-MM-DD format */
+  date: string;
+  present: number;
+  late: number;
+  notArrived: number;
+  total: number;
+}
+
 export interface Activity {
   id: number;
   name: string;
@@ -494,6 +503,21 @@ export type GetDashboardSummaryParams = {
   grade?: string;
   /**
    * Filter by class name (e.g. "8A", "10B")
+   */
+  className?: string;
+};
+
+export type GetDashboardTrendsParams = {
+  /**
+   * Number of days to include (1-90, default 7)
+   */
+  days?: number;
+  /**
+   * Filter by grade
+   */
+  grade?: string;
+  /**
+   * Filter by class name
    */
   className?: string;
 };

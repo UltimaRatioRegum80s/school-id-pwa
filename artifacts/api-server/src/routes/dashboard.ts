@@ -209,6 +209,91 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
   });
 });
 
+function dayKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+router.get("/dashboard/trends", requireAuth, async (req, res): Promise<void> => {
+  const { grade, className } = req.query as { grade?: string; className?: string };
+  const requestedDays = parseInt((req.query.days as string) ?? "", 10);
+  const days = Number.isFinite(requestedDays)
+    ? Math.min(Math.max(requestedDays, 1), 90)
+    : 7;
+  const user = (req as Request & { user: JwtPayload }).user;
+
+  const [settingsRow] = await db
+    .select()
+    .from(schoolSettingsTable)
+    .where(eq(schoolSettingsTable.schoolId, user.schoolId));
+  const schoolStartTime = settingsRow?.startTime ?? "07:30";
+
+  let students = await db
+    .select()
+    .from(studentsTable)
+    .where(and(eq(studentsTable.isActive, 1), eq(studentsTable.schoolId, user.schoolId)));
+  if (grade) students = students.filter((s) => s.grade === grade);
+  if (className) students = students.filter((s) => s.className === className);
+  const total = students.length;
+  const studentIdSet = new Set(students.map((s) => s.id));
+
+  const rangeStart = new Date();
+  rangeStart.setHours(0, 0, 0, 0);
+  rangeStart.setDate(rangeStart.getDate() - (days - 1));
+
+  const events = await db
+    .select()
+    .from(scanEventsTable)
+    .where(
+      and(
+        eq(scanEventsTable.schoolId, user.schoolId),
+        sql`${scanEventsTable.createdAt} >= ${rangeStart}`
+      )
+    )
+    .orderBy(scanEventsTable.createdAt);
+
+  // events grouped by day key, then by studentId (only for filtered students)
+  const eventsByDay: Record<string, Record<number, typeof scanEventsTable.$inferSelect[]>> = {};
+  for (const e of events) {
+    if (!studentIdSet.has(e.studentId)) continue;
+    const key = dayKey(new Date(e.createdAt));
+    if (!eventsByDay[key]) eventsByDay[key] = {};
+    if (!eventsByDay[key][e.studentId]) eventsByDay[key][e.studentId] = [];
+    eventsByDay[key][e.studentId].push(e);
+  }
+
+  const points: Array<{
+    date: string;
+    present: number;
+    late: number;
+    notArrived: number;
+    total: number;
+  }> = [];
+
+  for (let i = 0; i < days; i++) {
+    const dayDate = new Date(rangeStart);
+    dayDate.setDate(rangeStart.getDate() + i);
+    const key = dayKey(dayDate);
+    const byStudent = eventsByDay[key] ?? {};
+
+    let present = 0;
+    let late = 0;
+    for (const s of students) {
+      const studentEvents = byStudent[s.id] ?? [];
+      const { state } = computeStudentState(studentEvents);
+      if (state === "not_arrived") continue;
+      present += 1;
+      if (isLateArrival(studentEvents, schoolStartTime, dayDate)) late += 1;
+    }
+
+    points.push({ date: key, present, late, notArrived: total - present, total });
+  }
+
+  res.json(points);
+});
+
 router.get("/dashboard/feed", requireAuth, async (req, res): Promise<void> => {
   const lim = req.query.limit ? parseInt(req.query.limit as string, 10) : 30;
   const todayStartDate = todayStart();
