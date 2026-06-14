@@ -215,6 +215,29 @@ export const GetStudentResponse = zod
             categoryName: zod.string().nullish(),
           }),
         ),
+        earnedTiers: zod.array(
+          zod.object({
+            id: zod.number(),
+            name: zod.string(),
+            thresholdPoints: zod.number(),
+            description: zod.string().nullish(),
+            sortOrder: zod.number(),
+            createdAt: zod.string(),
+          }),
+        ),
+        nextTier: zod
+          .union([
+            zod.object({
+              id: zod.number(),
+              name: zod.string(),
+              thresholdPoints: zod.number(),
+              description: zod.string().nullish(),
+              sortOrder: zod.number(),
+              createdAt: zod.string(),
+            }),
+            zod.null(),
+          ])
+          .optional(),
       }),
     }),
   );
@@ -1127,6 +1150,94 @@ export const CreateBehaviorCategoryBody = zod.object({
   points: zod.number(),
   description: zod.string().nullish(),
 });
+
+/**
+ * @summary List recognition tiers
+ */
+export const ListRecognitionTiersResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  thresholdPoints: zod.number(),
+  description: zod.string().nullish(),
+  sortOrder: zod.number(),
+  createdAt: zod.string(),
+});
+export const ListRecognitionTiersResponse = zod.array(
+  ListRecognitionTiersResponseItem,
+);
+
+/**
+ * @summary Create a recognition tier
+ */
+export const CreateRecognitionTierBody = zod.object({
+  name: zod.string(),
+  thresholdPoints: zod.number(),
+  description: zod.string().nullish(),
+  sortOrder: zod.number().optional(),
+});
+
+/**
+ * @summary Update a recognition tier
+ */
+export const UpdateRecognitionTierParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateRecognitionTierBody = zod.object({
+  name: zod.string().optional(),
+  thresholdPoints: zod.number().optional(),
+  description: zod.string().nullish(),
+  sortOrder: zod.number().optional(),
+});
+
+export const UpdateRecognitionTierResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  thresholdPoints: zod.number(),
+  description: zod.string().nullish(),
+  sortOrder: zod.number(),
+  createdAt: zod.string(),
+});
+
+/**
+ * @summary Delete a recognition tier
+ */
+export const DeleteRecognitionTierParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary List students who have crossed recognition tiers
+ */
+export const ListRecognitionQualifiersResponseItem = zod.object({
+  studentId: zod.number(),
+  studentName: zod.string(),
+  studentCode: zod.string(),
+  grade: zod.string(),
+  className: zod.string(),
+  totalMerits: zod.number(),
+  highestTier: zod.object({
+    id: zod.number(),
+    name: zod.string(),
+    thresholdPoints: zod.number(),
+    description: zod.string().nullish(),
+    sortOrder: zod.number(),
+    createdAt: zod.string(),
+  }),
+  earnedTiers: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      thresholdPoints: zod.number(),
+      description: zod.string().nullish(),
+      sortOrder: zod.number(),
+      createdAt: zod.string(),
+    }),
+  ),
+});
+export const ListRecognitionQualifiersResponse = zod.array(
+  ListRecognitionQualifiersResponseItem,
+);
 
 /**
  * @summary Get school settings

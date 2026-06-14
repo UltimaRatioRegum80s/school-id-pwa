@@ -753,6 +753,91 @@ paths:
               schema:
                 $ref: "#/components/schemas/BehaviorCategory"
 
+  /behavior/recognition-tiers:
+    get:
+      operationId: listRecognitionTiers
+      tags: [behavior]
+      summary: List recognition tiers
+      responses:
+        "200":
+          description: List of recognition tiers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RecognitionTier"
+    post:
+      operationId: createRecognitionTier
+      tags: [behavior]
+      summary: Create a recognition tier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRecognitionTierBody"
+      responses:
+        "201":
+          description: Recognition tier created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecognitionTier"
+
+  /behavior/recognition-tiers/{id}:
+    patch:
+      operationId: updateRecognitionTier
+      tags: [behavior]
+      summary: Update a recognition tier
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRecognitionTierBody"
+      responses:
+        "200":
+          description: Recognition tier updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecognitionTier"
+    delete:
+      operationId: deleteRecognitionTier
+      tags: [behavior]
+      summary: Delete a recognition tier
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /behavior/recognition:
+    get:
+      operationId: listRecognitionQualifiers
+      tags: [behavior]
+      summary: List students who have crossed recognition tiers
+      responses:
+        "200":
+          description: Students grouped by the highest recognition tier they qualify for
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RecognitionQualifier"
+
   /settings:
     get:
       operationId: getSettings
@@ -1080,10 +1165,19 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/BehaviorLog"
+        earnedTiers:
+          type: array
+          items:
+            $ref: "#/components/schemas/RecognitionTier"
+        nextTier:
+          oneOf:
+            - $ref: "#/components/schemas/RecognitionTier"
+            - type: "null"
       required:
         - totalMerits
         - totalDemerits
         - recentLogs
+        - earnedTiers
 
     CreateStudentBody:
       type: object
@@ -1677,6 +1771,86 @@ components:
         - name
         - type
         - points
+
+    RecognitionTier:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        thresholdPoints:
+          type: integer
+        description:
+          type: ["string", "null"]
+        sortOrder:
+          type: integer
+        createdAt:
+          type: string
+      required:
+        - id
+        - name
+        - thresholdPoints
+        - sortOrder
+        - createdAt
+
+    CreateRecognitionTierBody:
+      type: object
+      properties:
+        name:
+          type: string
+        thresholdPoints:
+          type: integer
+        description:
+          type: ["string", "null"]
+        sortOrder:
+          type: integer
+      required:
+        - name
+        - thresholdPoints
+
+    UpdateRecognitionTierBody:
+      type: object
+      properties:
+        name:
+          type: string
+        thresholdPoints:
+          type: integer
+        description:
+          type: ["string", "null"]
+        sortOrder:
+          type: integer
+
+    RecognitionQualifier:
+      type: object
+      properties:
+        studentId:
+          type: integer
+        studentName:
+          type: string
+        studentCode:
+          type: string
+        grade:
+          type: string
+        className:
+          type: string
+        totalMerits:
+          type: integer
+        highestTier:
+          $ref: "#/components/schemas/RecognitionTier"
+        earnedTiers:
+          type: array
+          items:
+            $ref: "#/components/schemas/RecognitionTier"
+      required:
+        - studentId
+        - studentName
+        - studentCode
+        - grade
+        - className
+        - totalMerits
+        - highestTier
+        - earnedTiers
 
     SchoolBranding:
       type: object

@@ -128,10 +128,22 @@ export interface BehaviorLog {
   categoryName?: string | null;
 }
 
+export interface RecognitionTier {
+  id: number;
+  name: string;
+  thresholdPoints: number;
+  /** @nullable */
+  description?: string | null;
+  sortOrder: number;
+  createdAt: string;
+}
+
 export interface BehaviorSummary {
   totalMerits: number;
   totalDemerits: number;
   recentLogs: BehaviorLog[];
+  earnedTiers: RecognitionTier[];
+  nextTier?: RecognitionTier | null;
 }
 
 export type StudentProfile = StudentWithState & {
@@ -413,6 +425,33 @@ export interface CreateBehaviorCategoryBody {
   points: number;
   /** @nullable */
   description?: string | null;
+}
+
+export interface CreateRecognitionTierBody {
+  name: string;
+  thresholdPoints: number;
+  /** @nullable */
+  description?: string | null;
+  sortOrder?: number;
+}
+
+export interface UpdateRecognitionTierBody {
+  name?: string;
+  thresholdPoints?: number;
+  /** @nullable */
+  description?: string | null;
+  sortOrder?: number;
+}
+
+export interface RecognitionQualifier {
+  studentId: number;
+  studentName: string;
+  studentCode: string;
+  grade: string;
+  className: string;
+  totalMerits: number;
+  highestTier: RecognitionTier;
+  earnedTiers: RecognitionTier[];
 }
 
 export interface SchoolBranding {

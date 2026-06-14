@@ -3,6 +3,7 @@ import pg from "pg";
 import bcrypt from "bcryptjs";
 import * as schema from "./schema";
 import { SEED_BEHAVIOR_CATEGORIES } from "./data/behavior-categories";
+import { SEED_RECOGNITION_TIERS } from "./data/recognition-tiers";
 
 const { Pool } = pg;
 
@@ -22,6 +23,7 @@ const {
   activitiesTable,
   schoolSettingsTable,
   behaviorCategoriesTable,
+  recognitionTiersTable,
 } = schema;
 
 async function seed() {
@@ -34,6 +36,7 @@ async function seed() {
   await db.delete(schema.activitiesTable);
   await db.delete(schema.studentsTable);
   await db.delete(schema.behaviorCategoriesTable);
+  await db.delete(schema.recognitionTiersTable);
   await db.delete(schema.usersTable);
   await db.delete(schema.schoolSettingsTable);
   await db.delete(schema.schoolsTable);
@@ -153,6 +156,10 @@ async function seed() {
 
   await db.insert(behaviorCategoriesTable).values(
     SEED_BEHAVIOR_CATEGORIES.map((c) => ({ ...c, schoolId: demoSchool.id }))
+  );
+
+  await db.insert(recognitionTiersTable).values(
+    SEED_RECOGNITION_TIERS.map((t) => ({ ...t, schoolId: demoSchool.id }))
   );
 
   const now = new Date();

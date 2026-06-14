@@ -1,12 +1,23 @@
 import { Router, type IRouter } from "express";
 import { requireAuth } from "../lib/auth";
-import { eq, desc, and } from "drizzle-orm";
-import { db, behaviorLogsTable, behaviorCategoriesTable, studentsTable } from "@workspace/db";
-import { CreateBehaviorLogBody, CreateBehaviorCategoryBody, UpdateBehaviorLogBody } from "@workspace/api-zod";
+import { eq, desc, and, asc, sql } from "drizzle-orm";
+import { db, behaviorLogsTable, behaviorCategoriesTable, studentsTable, recognitionTiersTable } from "@workspace/db";
+import { CreateBehaviorLogBody, CreateBehaviorCategoryBody, UpdateBehaviorLogBody, CreateRecognitionTierBody, UpdateRecognitionTierBody } from "@workspace/api-zod";
 import type { Request } from "express";
 import type { JwtPayload } from "../lib/auth";
 
 const router: IRouter = Router();
+
+function formatTier(t: typeof recognitionTiersTable.$inferSelect) {
+  return {
+    id: t.id,
+    name: t.name,
+    thresholdPoints: t.thresholdPoints,
+    description: t.description,
+    sortOrder: t.sortOrder,
+    createdAt: t.createdAt.toISOString(),
+  };
+}
 
 router.get("/behavior/categories", requireAuth, async (req, res): Promise<void> => {
   const user = (req as Request & { user: JwtPayload }).user;
@@ -228,6 +239,164 @@ router.delete("/behavior/logs/:id", requireAuth, async (req, res): Promise<void>
 
   await db.delete(behaviorLogsTable).where(and(eq(behaviorLogsTable.id, id), eq(behaviorLogsTable.schoolId, user.schoolId)));
   res.status(204).send();
+});
+
+router.get("/behavior/recognition-tiers", requireAuth, async (req, res): Promise<void> => {
+  const user = (req as Request & { user: JwtPayload }).user;
+  const tiers = await db
+    .select()
+    .from(recognitionTiersTable)
+    .where(eq(recognitionTiersTable.schoolId, user.schoolId))
+    .orderBy(asc(recognitionTiersTable.thresholdPoints));
+  res.json(tiers.map(formatTier));
+});
+
+router.post("/behavior/recognition-tiers", requireAuth, async (req, res): Promise<void> => {
+  const parsed = CreateRecognitionTierBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const user = (req as Request & { user: JwtPayload }).user;
+
+  const [tier] = await db
+    .insert(recognitionTiersTable)
+    .values({
+      schoolId: user.schoolId,
+      name: parsed.data.name,
+      thresholdPoints: parsed.data.thresholdPoints,
+      description: parsed.data.description ?? null,
+      sortOrder: parsed.data.sortOrder ?? 0,
+    })
+    .returning();
+
+  res.status(201).json(formatTier(tier));
+});
+
+router.patch("/behavior/recognition-tiers/:id", requireAuth, async (req, res): Promise<void> => {
+  const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = parseInt(rawId, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid tier ID" });
+    return;
+  }
+  const user = (req as Request & { user: JwtPayload }).user;
+
+  const parsed = UpdateRecognitionTierBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const [existing] = await db
+    .select()
+    .from(recognitionTiersTable)
+    .where(and(eq(recognitionTiersTable.id, id), eq(recognitionTiersTable.schoolId, user.schoolId)));
+
+  if (!existing) {
+    res.status(404).json({ error: "Recognition tier not found" });
+    return;
+  }
+
+  const updates: Partial<typeof recognitionTiersTable.$inferInsert> = {};
+  if (parsed.data.name !== undefined) updates.name = parsed.data.name;
+  if (parsed.data.thresholdPoints !== undefined) updates.thresholdPoints = parsed.data.thresholdPoints;
+  if (parsed.data.description !== undefined) updates.description = parsed.data.description;
+  if (parsed.data.sortOrder !== undefined) updates.sortOrder = parsed.data.sortOrder;
+
+  const [updated] = await db
+    .update(recognitionTiersTable)
+    .set(updates)
+    .where(and(eq(recognitionTiersTable.id, id), eq(recognitionTiersTable.schoolId, user.schoolId)))
+    .returning();
+
+  res.json(formatTier(updated));
+});
+
+router.delete("/behavior/recognition-tiers/:id", requireAuth, async (req, res): Promise<void> => {
+  const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = parseInt(rawId, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid tier ID" });
+    return;
+  }
+  const user = (req as Request & { user: JwtPayload }).user;
+
+  const [existing] = await db
+    .select()
+    .from(recognitionTiersTable)
+    .where(and(eq(recognitionTiersTable.id, id), eq(recognitionTiersTable.schoolId, user.schoolId)));
+
+  if (!existing) {
+    res.status(404).json({ error: "Recognition tier not found" });
+    return;
+  }
+
+  await db.delete(recognitionTiersTable).where(and(eq(recognitionTiersTable.id, id), eq(recognitionTiersTable.schoolId, user.schoolId)));
+  res.status(204).send();
+});
+
+router.get("/behavior/recognition", requireAuth, async (req, res): Promise<void> => {
+  const user = (req as Request & { user: JwtPayload }).user;
+
+  const tiers = await db
+    .select()
+    .from(recognitionTiersTable)
+    .where(eq(recognitionTiersTable.schoolId, user.schoolId))
+    .orderBy(asc(recognitionTiersTable.thresholdPoints));
+
+  if (tiers.length === 0) {
+    res.json([]);
+    return;
+  }
+
+  const meritTotals = await db
+    .select({
+      studentId: behaviorLogsTable.studentId,
+      total: sql<number>`COALESCE(SUM(${behaviorLogsTable.points}), 0)`,
+    })
+    .from(behaviorLogsTable)
+    .where(and(eq(behaviorLogsTable.schoolId, user.schoolId), eq(behaviorLogsTable.type, "merit")))
+    .groupBy(behaviorLogsTable.studentId);
+
+  const minThreshold = Math.min(...tiers.map((t) => t.thresholdPoints));
+  const qualifyingTotals = meritTotals.filter((m) => Number(m.total) >= minThreshold);
+
+  if (qualifyingTotals.length === 0) {
+    res.json([]);
+    return;
+  }
+
+  const studentIds = qualifyingTotals.map((m) => m.studentId);
+  const students = await db
+    .select()
+    .from(studentsTable)
+    .where(and(eq(studentsTable.schoolId, user.schoolId), eq(studentsTable.isActive, 1)));
+  const studentMap = new Map(students.map((s) => [s.id, s]));
+
+  const qualifiers = qualifyingTotals
+    .map((m) => {
+      const student = studentMap.get(m.studentId);
+      if (!student) return null;
+      const total = Number(m.total);
+      const earned = tiers.filter((t) => total >= t.thresholdPoints);
+      if (earned.length === 0) return null;
+      const highest = earned.reduce((a, b) => (b.thresholdPoints > a.thresholdPoints ? b : a));
+      return {
+        studentId: student.id,
+        studentName: `${student.firstName} ${student.lastName}`,
+        studentCode: student.studentId,
+        grade: student.grade,
+        className: student.className,
+        totalMerits: total,
+        highestTier: formatTier(highest),
+        earnedTiers: earned.map(formatTier),
+      };
+    })
+    .filter((q): q is NonNullable<typeof q> => q !== null)
+    .sort((a, b) => b.totalMerits - a.totalMerits);
+
+  res.json(qualifiers);
 });
 
 export default router;

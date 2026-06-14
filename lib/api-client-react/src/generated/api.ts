@@ -26,6 +26,7 @@ import type {
   CreateActivityBody,
   CreateBehaviorCategoryBody,
   CreateBehaviorLogBody,
+  CreateRecognitionTierBody,
   CreateStudentBody,
   CreateUserBody,
   DashboardSummary,
@@ -46,6 +47,8 @@ import type {
   LoginResponse,
   MarkAttendanceBody,
   PrintCardsResponse,
+  RecognitionQualifier,
+  RecognitionTier,
   RegisterSchoolBody,
   RequestUploadUrlBody,
   RequestUploadUrlResponse,
@@ -61,6 +64,7 @@ import type {
   UpdateActivityBody,
   UpdateAttendanceBody,
   UpdateBehaviorLogBody,
+  UpdateRecognitionTierBody,
   UpdateSchoolBrandingBody,
   UpdateSettingsBody,
   UpdateStudentBody,
@@ -3043,6 +3047,419 @@ export const useCreateBehaviorCategory = <
 > => {
   return useMutation(getCreateBehaviorCategoryMutationOptions(options));
 };
+
+/**
+ * @summary List recognition tiers
+ */
+export const getListRecognitionTiersUrl = () => {
+  return `/api/behavior/recognition-tiers`;
+};
+
+export const listRecognitionTiers = async (
+  options?: RequestInit,
+): Promise<RecognitionTier[]> => {
+  return customFetch<RecognitionTier[]>(getListRecognitionTiersUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListRecognitionTiersQueryKey = () => {
+  return [`/api/behavior/recognition-tiers`] as const;
+};
+
+export const getListRecognitionTiersQueryOptions = <
+  TData = Awaited<ReturnType<typeof listRecognitionTiers>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listRecognitionTiers>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListRecognitionTiersQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listRecognitionTiers>>
+  > = ({ signal }) => listRecognitionTiers({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listRecognitionTiers>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListRecognitionTiersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listRecognitionTiers>>
+>;
+export type ListRecognitionTiersQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List recognition tiers
+ */
+
+export function useListRecognitionTiers<
+  TData = Awaited<ReturnType<typeof listRecognitionTiers>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listRecognitionTiers>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListRecognitionTiersQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a recognition tier
+ */
+export const getCreateRecognitionTierUrl = () => {
+  return `/api/behavior/recognition-tiers`;
+};
+
+export const createRecognitionTier = async (
+  createRecognitionTierBody: CreateRecognitionTierBody,
+  options?: RequestInit,
+): Promise<RecognitionTier> => {
+  return customFetch<RecognitionTier>(getCreateRecognitionTierUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createRecognitionTierBody),
+  });
+};
+
+export const getCreateRecognitionTierMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createRecognitionTier>>,
+    TError,
+    { data: BodyType<CreateRecognitionTierBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createRecognitionTier>>,
+  TError,
+  { data: BodyType<CreateRecognitionTierBody> },
+  TContext
+> => {
+  const mutationKey = ["createRecognitionTier"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createRecognitionTier>>,
+    { data: BodyType<CreateRecognitionTierBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createRecognitionTier(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateRecognitionTierMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createRecognitionTier>>
+>;
+export type CreateRecognitionTierMutationBody =
+  BodyType<CreateRecognitionTierBody>;
+export type CreateRecognitionTierMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a recognition tier
+ */
+export const useCreateRecognitionTier = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createRecognitionTier>>,
+    TError,
+    { data: BodyType<CreateRecognitionTierBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createRecognitionTier>>,
+  TError,
+  { data: BodyType<CreateRecognitionTierBody> },
+  TContext
+> => {
+  return useMutation(getCreateRecognitionTierMutationOptions(options));
+};
+
+/**
+ * @summary Update a recognition tier
+ */
+export const getUpdateRecognitionTierUrl = (id: number) => {
+  return `/api/behavior/recognition-tiers/${id}`;
+};
+
+export const updateRecognitionTier = async (
+  id: number,
+  updateRecognitionTierBody: UpdateRecognitionTierBody,
+  options?: RequestInit,
+): Promise<RecognitionTier> => {
+  return customFetch<RecognitionTier>(getUpdateRecognitionTierUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateRecognitionTierBody),
+  });
+};
+
+export const getUpdateRecognitionTierMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateRecognitionTier>>,
+    TError,
+    { id: number; data: BodyType<UpdateRecognitionTierBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateRecognitionTier>>,
+  TError,
+  { id: number; data: BodyType<UpdateRecognitionTierBody> },
+  TContext
+> => {
+  const mutationKey = ["updateRecognitionTier"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateRecognitionTier>>,
+    { id: number; data: BodyType<UpdateRecognitionTierBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateRecognitionTier(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateRecognitionTierMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateRecognitionTier>>
+>;
+export type UpdateRecognitionTierMutationBody =
+  BodyType<UpdateRecognitionTierBody>;
+export type UpdateRecognitionTierMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a recognition tier
+ */
+export const useUpdateRecognitionTier = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateRecognitionTier>>,
+    TError,
+    { id: number; data: BodyType<UpdateRecognitionTierBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateRecognitionTier>>,
+  TError,
+  { id: number; data: BodyType<UpdateRecognitionTierBody> },
+  TContext
+> => {
+  return useMutation(getUpdateRecognitionTierMutationOptions(options));
+};
+
+/**
+ * @summary Delete a recognition tier
+ */
+export const getDeleteRecognitionTierUrl = (id: number) => {
+  return `/api/behavior/recognition-tiers/${id}`;
+};
+
+export const deleteRecognitionTier = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteRecognitionTierUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteRecognitionTierMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteRecognitionTier>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteRecognitionTier>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteRecognitionTier"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteRecognitionTier>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteRecognitionTier(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteRecognitionTierMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteRecognitionTier>>
+>;
+
+export type DeleteRecognitionTierMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a recognition tier
+ */
+export const useDeleteRecognitionTier = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteRecognitionTier>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteRecognitionTier>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteRecognitionTierMutationOptions(options));
+};
+
+/**
+ * @summary List students who have crossed recognition tiers
+ */
+export const getListRecognitionQualifiersUrl = () => {
+  return `/api/behavior/recognition`;
+};
+
+export const listRecognitionQualifiers = async (
+  options?: RequestInit,
+): Promise<RecognitionQualifier[]> => {
+  return customFetch<RecognitionQualifier[]>(
+    getListRecognitionQualifiersUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListRecognitionQualifiersQueryKey = () => {
+  return [`/api/behavior/recognition`] as const;
+};
+
+export const getListRecognitionQualifiersQueryOptions = <
+  TData = Awaited<ReturnType<typeof listRecognitionQualifiers>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listRecognitionQualifiers>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListRecognitionQualifiersQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listRecognitionQualifiers>>
+  > = ({ signal }) => listRecognitionQualifiers({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listRecognitionQualifiers>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListRecognitionQualifiersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listRecognitionQualifiers>>
+>;
+export type ListRecognitionQualifiersQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List students who have crossed recognition tiers
+ */
+
+export function useListRecognitionQualifiers<
+  TData = Awaited<ReturnType<typeof listRecognitionQualifiers>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listRecognitionQualifiers>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListRecognitionQualifiersQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Get school settings

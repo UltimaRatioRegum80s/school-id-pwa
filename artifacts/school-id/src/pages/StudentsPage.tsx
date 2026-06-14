@@ -27,6 +27,7 @@ import {
   QrCode,
   GraduationCap,
   Users,
+  Award,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 
@@ -812,6 +813,50 @@ function StudentProfileContent({
             <p className="text-2xl font-bold text-red-600" data-testid="text-demerit-points">{s.behaviorSummary.totalDemerits}</p>
             <p className="text-xs text-muted-foreground mt-0.5">Demerit Points</p>
           </div>
+        </div>
+      )}
+
+      {((s.behaviorSummary.earnedTiers && s.behaviorSummary.earnedTiers.length > 0) || s.behaviorSummary.nextTier) && (
+        <div className="bg-card border border-border rounded-xl p-4 space-y-3" data-testid="panel-recognition">
+          <div className="flex items-center gap-2">
+            <Award className="w-4 h-4 text-amber-600" />
+            <h3 className="text-sm font-semibold text-foreground">Reward Recognition</h3>
+          </div>
+
+          {s.behaviorSummary.earnedTiers && s.behaviorSummary.earnedTiers.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5" data-testid="list-earned-tiers">
+              {s.behaviorSummary.earnedTiers.map((t) => (
+                <span
+                  key={t.id}
+                  className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-800"
+                  data-testid={`tier-earned-${t.id}`}
+                >
+                  {t.name}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">No recognition tier reached yet.</p>
+          )}
+
+          {s.behaviorSummary.nextTier && (
+            <div data-testid="next-tier-progress">
+              <div className="flex items-center justify-between text-xs mb-1">
+                <span className="text-muted-foreground">
+                  Next: <span className="font-medium text-foreground">{s.behaviorSummary.nextTier.name}</span>
+                </span>
+                <span className="text-muted-foreground">
+                  {s.behaviorSummary.totalMerits} / {s.behaviorSummary.nextTier.thresholdPoints} pts
+                </span>
+              </div>
+              <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-amber-500 rounded-full"
+                  style={{ width: `${Math.min(100, Math.round((s.behaviorSummary.totalMerits / s.behaviorSummary.nextTier.thresholdPoints) * 100))}%` }}
+                />
+              </div>
+            </div>
+          )}
         </div>
       )}
 

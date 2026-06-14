@@ -12,6 +12,11 @@ import {
   useListStudentIds,
   useListBehaviorCategories,
   useCreateBehaviorCategory,
+  useListRecognitionTiers,
+  useCreateRecognitionTier,
+  useUpdateRecognitionTier,
+  useDeleteRecognitionTier,
+  useListRecognitionQualifiers,
   useCreateStudent,
   useListActivities,
   useCreateActivity,
@@ -20,11 +25,13 @@ import {
   getGetSettingsQueryKey,
   getListUsersQueryKey,
   getListBehaviorCategoriesQueryKey,
+  getListRecognitionTiersQueryKey,
+  getListRecognitionQualifiersQueryKey,
   getListStudentsQueryKey,
   getListStudentIdsQueryKey,
   getListActivitiesQueryKey,
 } from "@workspace/api-client-react";
-import type { SchoolSettings, Activity, ImportStudentRow, ImportFailure } from "@workspace/api-client-react";
+import type { SchoolSettings, Activity, ImportStudentRow, ImportFailure, RecognitionTier } from "@workspace/api-client-react";
 import {
   Settings,
   Users,
@@ -50,6 +57,8 @@ import {
   Trash2,
   Clock,
   CreditCard,
+  Award,
+  Trophy,
 } from "lucide-react";
 
 type AdminView =
@@ -58,6 +67,8 @@ type AdminView =
   | "users"
   | "create-user"
   | "behavior-categories"
+  | "recognition-tiers"
+  | "reward-recognition"
   | "add-student"
   | "import-students"
   | "print-cards"
@@ -79,6 +90,8 @@ export default function AdminPage() {
   if (view === "users") return <UsersView onBack={() => setView("main")} onCreateUser={() => setView("create-user")} />;
   if (view === "create-user") return <CreateUserView onBack={() => setView("users")} />;
   if (view === "behavior-categories") return <BehaviorCategoriesView onBack={() => setView("main")} />;
+  if (view === "recognition-tiers") return <RecognitionTiersView onBack={() => setView("main")} />;
+  if (view === "reward-recognition") return <RewardRecognitionView onBack={() => setView("main")} />;
   if (view === "add-student") return <AddStudentView onBack={() => setView("main")} />;
   if (view === "import-students") return <ImportStudentsView onBack={() => setView("main")} />;
   if (view === "print-cards") return (
@@ -176,6 +189,20 @@ export default function AdminPage() {
                   description="Configure merit and demerit categories"
                   onClick={() => setView("behavior-categories")}
                   testId="button-nav-behavior-categories"
+                />
+                <MenuRow
+                  icon={<Award className="w-4 h-4 text-amber-500" />}
+                  label="Recognition Tiers"
+                  description="Set merit thresholds for letters, certificates, and nominations"
+                  onClick={() => setView("recognition-tiers")}
+                  testId="button-nav-recognition-tiers"
+                />
+                <MenuRow
+                  icon={<Trophy className="w-4 h-4 text-amber-600" />}
+                  label="Reward Recognition"
+                  description="See which students qualify for a recognition action"
+                  onClick={() => setView("reward-recognition")}
+                  testId="button-nav-reward-recognition"
                 />
               </div>
 
@@ -1096,6 +1123,248 @@ function BehaviorCategoriesView({ onBack }: { onBack: () => void }) {
                 </div>
               ))
             )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RecognitionTiersView({ onBack }: { onBack: () => void }) {
+  const queryClient = useQueryClient();
+  const { data: tiers, isLoading } = useListRecognitionTiers({
+    query: { queryKey: getListRecognitionTiersQueryKey() },
+  });
+
+  const [name, setName] = useState("");
+  const [threshold, setThreshold] = useState("10");
+  const [description, setDescription] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: getListRecognitionTiersQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getListRecognitionQualifiersQueryKey() });
+  };
+
+  const createMutation = useCreateRecognitionTier({
+    mutation: {
+      onSuccess: () => { invalidate(); resetForm(); },
+    },
+  });
+  const updateMutation = useUpdateRecognitionTier({
+    mutation: {
+      onSuccess: () => { invalidate(); resetForm(); },
+    },
+  });
+  const deleteMutation = useDeleteRecognitionTier({
+    mutation: { onSuccess: invalidate },
+  });
+
+  function resetForm() {
+    setName(""); setThreshold("10"); setDescription("");
+    setShowForm(false); setEditingId(null);
+  }
+
+  function startEdit(tier: RecognitionTier) {
+    setEditingId(tier.id);
+    setName(tier.name);
+    setThreshold(String(tier.thresholdPoints));
+    setDescription(tier.description ?? "");
+    setShowForm(true);
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const data = { name, thresholdPoints: parseInt(threshold, 10), description: description || null };
+    if (editingId != null) {
+      updateMutation.mutate({ id: editingId, data });
+    } else {
+      createMutation.mutate({ data });
+    }
+  }
+
+  const pending = createMutation.isPending || updateMutation.isPending;
+
+  return (
+    <div className="flex flex-col min-h-screen bg-background pb-20">
+      <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-0 z-40">
+        <div className="max-w-lg mx-auto flex items-center gap-3">
+          <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-muted transition-colors" data-testid="button-tiers-back">
+            <X className="w-4 h-4" />
+          </button>
+          <h1 className="text-base font-bold text-foreground flex-1">Recognition Tiers</h1>
+          <button
+            onClick={() => { if (showForm) { resetForm(); } else { setShowForm(true); } }}
+            className="bg-primary text-primary-foreground text-xs font-semibold px-3 py-1.5 rounded-lg"
+            data-testid="button-toggle-tier-form"
+          >
+            {showForm ? "Cancel" : "Add New"}
+          </button>
+        </div>
+      </div>
+
+      <div className="max-w-lg mx-auto w-full px-4 py-4 space-y-4">
+        <p className="text-xs text-muted-foreground">
+          Define the merit-point thresholds at which a student earns a recognition action — e.g. a letter to parents, a newsletter mention, a certificate, or a trophy nomination.
+        </p>
+
+        {showForm && (
+          <form onSubmit={handleSubmit} className="bg-card border border-border rounded-xl p-4 space-y-3" data-testid="form-create-tier">
+            <Field label="Action name">
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Letter to Parents"
+                required
+                className="input-field"
+                data-testid="input-tier-name"
+              />
+            </Field>
+            <Field label="Merit points threshold">
+              <input
+                type="number"
+                value={threshold}
+                onChange={(e) => setThreshold(e.target.value)}
+                min="1"
+                max="1000"
+                required
+                className="input-field"
+                data-testid="input-tier-threshold"
+              />
+            </Field>
+            <Field label="Description (optional)">
+              <input
+                type="text"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="What action staff should take..."
+                className="input-field"
+                data-testid="input-tier-description"
+              />
+            </Field>
+            <button
+              type="submit"
+              disabled={pending}
+              className="w-full bg-primary text-primary-foreground font-semibold py-2 rounded-lg disabled:opacity-50 text-sm"
+              data-testid="button-submit-tier"
+            >
+              {pending ? "Saving..." : editingId != null ? "Save Changes" : "Create Tier"}
+            </button>
+          </form>
+        )}
+
+        {isLoading ? (
+          <div className="text-center py-8 text-muted-foreground text-sm">Loading...</div>
+        ) : (
+          <div className="bg-card border border-border rounded-xl divide-y divide-border overflow-hidden" data-testid="list-recognition-tiers">
+            {(tiers ?? []).length === 0 ? (
+              <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                No recognition tiers yet. Add one above.
+              </div>
+            ) : (
+              (tiers ?? []).map((tier) => (
+                <div key={tier.id} className="px-4 py-3 flex items-center gap-3" data-testid={`row-tier-${tier.id}`}>
+                  <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <Award className="w-4 h-4 text-amber-600" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-foreground">{tier.name}</p>
+                    {tier.description && (
+                      <p className="text-xs text-muted-foreground truncate">{tier.description}</p>
+                    )}
+                  </div>
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 flex-shrink-0">
+                    {tier.thresholdPoints} pts
+                  </span>
+                  <button
+                    onClick={() => startEdit(tier)}
+                    className="p-1.5 rounded-lg hover:bg-muted transition-colors flex-shrink-0"
+                    data-testid={`button-edit-tier-${tier.id}`}
+                  >
+                    <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+                  </button>
+                  <button
+                    onClick={() => { if (confirm(`Delete "${tier.name}"?`)) deleteMutation.mutate({ id: tier.id }); }}
+                    className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors flex-shrink-0"
+                    data-testid={`button-delete-tier-${tier.id}`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RewardRecognitionView({ onBack }: { onBack: () => void }) {
+  const { data: qualifiers, isLoading } = useListRecognitionQualifiers({
+    query: { queryKey: getListRecognitionQualifiersQueryKey() },
+  });
+
+  return (
+    <div className="flex flex-col min-h-screen bg-background pb-20">
+      <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-0 z-40">
+        <div className="max-w-lg mx-auto flex items-center gap-3">
+          <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-muted transition-colors" data-testid="button-recognition-back">
+            <X className="w-4 h-4" />
+          </button>
+          <h1 className="text-base font-bold text-foreground flex-1">Reward Recognition</h1>
+        </div>
+      </div>
+
+      <div className="max-w-lg mx-auto w-full px-4 py-4 space-y-4">
+        <p className="text-xs text-muted-foreground">
+          Students who have crossed a recognition threshold and are due an action. Sorted by total merit points.
+        </p>
+
+        {isLoading ? (
+          <div className="text-center py-8 text-muted-foreground text-sm">Loading...</div>
+        ) : (qualifiers ?? []).length === 0 ? (
+          <div className="bg-card border border-border rounded-xl px-4 py-10 text-center" data-testid="empty-recognition">
+            <Trophy className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+            <p className="text-sm font-medium text-foreground">No students qualify yet</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Once students earn enough merit points, they'll appear here.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3" data-testid="list-recognition-qualifiers">
+            {(qualifiers ?? []).map((q) => (
+              <div key={q.studentId} className="bg-card border border-border rounded-xl p-4" data-testid={`row-qualifier-${q.studentId}`}>
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
+                    <Award className="w-4.5 h-4.5 text-amber-600" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-foreground truncate">{q.studentName}</p>
+                      <span className="text-xs font-bold text-green-600 flex-shrink-0">{q.totalMerits} pts</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{q.studentCode} · Grade {q.grade} {q.className}</p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {q.earnedTiers.map((t) => (
+                        <span
+                          key={t.id}
+                          className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                            t.id === q.highestTier.id
+                              ? "bg-amber-500 text-white"
+                              : "bg-amber-100 text-amber-800"
+                          }`}
+                        >
+                          {t.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

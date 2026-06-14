@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, ilike, and, or, sql, desc } from "drizzle-orm";
-import { db, studentsTable, scanEventsTable, schoolsTable, studentQrCodesTable, schoolSettingsTable } from "@workspace/db";
+import { db, studentsTable, scanEventsTable, schoolsTable, studentQrCodesTable, schoolSettingsTable, behaviorLogsTable, recognitionTiersTable } from "@workspace/db";
 import { CreateStudentBody, UpdateStudentBody } from "@workspace/api-zod";
 import { computeStudentState, isLateArrival } from "../lib/state-engine";
 import { requireAuth, requireAdmin } from "../lib/auth";
@@ -393,12 +393,35 @@ router.get("/students/:id", requireAuth, async (req, res): Promise<void> => {
     sql`SELECT bl.*, bc.name as category_name FROM behavior_logs bl LEFT JOIN behavior_categories bc ON bl.category_id = bc.id WHERE bl.student_id = ${id} AND bl.school_id = ${user.schoolId} ORDER BY bl.created_at DESC LIMIT 10`
   );
 
-  const totalMerits = (behaviorLogs.rows as Array<{ type: string; points: number }>)
-    .filter((b) => b.type === "merit")
-    .reduce((acc, b) => acc + (b.points ?? 0), 0);
-  const totalDemerits = (behaviorLogs.rows as Array<{ type: string; points: number }>)
-    .filter((b) => b.type === "demerit")
-    .reduce((acc, b) => acc + (b.points ?? 0), 0);
+  const [meritAgg] = await db
+    .select({ total: sql<number>`COALESCE(SUM(${behaviorLogsTable.points}), 0)` })
+    .from(behaviorLogsTable)
+    .where(and(eq(behaviorLogsTable.schoolId, user.schoolId), eq(behaviorLogsTable.studentId, id), eq(behaviorLogsTable.type, "merit")));
+  const [demeritAgg] = await db
+    .select({ total: sql<number>`COALESCE(SUM(${behaviorLogsTable.points}), 0)` })
+    .from(behaviorLogsTable)
+    .where(and(eq(behaviorLogsTable.schoolId, user.schoolId), eq(behaviorLogsTable.studentId, id), eq(behaviorLogsTable.type, "demerit")));
+
+  const totalMerits = Number(meritAgg?.total ?? 0);
+  const totalDemerits = Number(demeritAgg?.total ?? 0);
+
+  const tiers = await db
+    .select()
+    .from(recognitionTiersTable)
+    .where(eq(recognitionTiersTable.schoolId, user.schoolId))
+    .orderBy(recognitionTiersTable.thresholdPoints);
+
+  const formatTier = (t: typeof recognitionTiersTable.$inferSelect) => ({
+    id: t.id,
+    name: t.name,
+    thresholdPoints: t.thresholdPoints,
+    description: t.description,
+    sortOrder: t.sortOrder,
+    createdAt: t.createdAt.toISOString(),
+  });
+  const earnedTiers = tiers.filter((t) => totalMerits >= t.thresholdPoints).map(formatTier);
+  const nextTierRow = tiers.find((t) => totalMerits < t.thresholdPoints) ?? null;
+  const nextTier = nextTierRow ? formatTier(nextTierRow) : null;
 
   res.json({
     ...formatStudent(student, todayEvents),
@@ -427,6 +450,8 @@ router.get("/students/:id", requireAuth, async (req, res): Promise<void> => {
         createdAt: b.created_at,
         categoryName: b.category_name ?? null,
       })),
+      earnedTiers,
+      nextTier,
     },
     currentState: state,
     lastSeenAt: lastSeenAt?.toISOString() ?? null,

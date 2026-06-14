@@ -5,13 +5,15 @@
  * School ID App API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { BehaviorLog } from "./behaviorLog";
 import type { RecognitionTier } from "./recognitionTier";
 
-export interface BehaviorSummary {
+export interface RecognitionQualifier {
+  studentId: number;
+  studentName: string;
+  studentCode: string;
+  grade: string;
+  className: string;
   totalMerits: number;
-  totalDemerits: number;
-  recentLogs: BehaviorLog[];
+  highestTier: RecognitionTier;
   earnedTiers: RecognitionTier[];
-  nextTier?: RecognitionTier | null;
 }
