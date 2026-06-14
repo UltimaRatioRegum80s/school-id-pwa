@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
-import { X, Printer, FileDown, FileText } from "lucide-react";
+import { X, Printer, FileDown, FileText, ChevronDown, ChevronUp } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import {
   useGetStudentsForPrint,
@@ -18,6 +18,47 @@ const PALETTE_COLORS: Record<string, string> = {
 
 function getCardColor(palette: string): string {
   return PALETTE_COLORS[palette] ?? PALETTE_COLORS["navy-gold"];
+}
+
+type Orientation = "portrait" | "landscape";
+
+const CARD_DIMS: Record<Orientation, { w: number; h: number }> = {
+  landscape: { w: 85, h: 54 },
+  portrait: { w: 54, h: 85 },
+};
+
+const PAGE_DIMS: Record<Orientation, { w: number; h: number }> = {
+  portrait: { w: 210, h: 297 },
+  landscape: { w: 297, h: 210 },
+};
+
+const PAGE_PADDING_MM = 6;
+const GRID_GAP_MM = 3;
+
+type GridConfig = { cols: number; rows: number };
+
+// Derive the grid from the actual usable A4 area so cards always render at true
+// physical size and never overflow (and therefore never get clipped). Using
+// floor((usable + gap) / (card + gap)) guarantees
+//   cols * cardW + (cols - 1) * gap <= usableW   (same for rows/height),
+// so every card on the page fits within the printable area by construction.
+// With PAGE_PADDING_MM = 6 and GRID_GAP_MM = 3 this yields the standardized
+// grids: landscape/portrait 2x5, landscape/landscape 3x3,
+// portrait/portrait 3x3, portrait/landscape 5x2.
+function getGridConfig(card: Orientation, page: Orientation): GridConfig {
+  const cardDims = CARD_DIMS[card];
+  const pageDims = PAGE_DIMS[page];
+  const usableW = pageDims.w - PAGE_PADDING_MM * 2;
+  const usableH = pageDims.h - PAGE_PADDING_MM * 2;
+  const cols = Math.max(
+    1,
+    Math.floor((usableW + GRID_GAP_MM) / (cardDims.w + GRID_GAP_MM))
+  );
+  const rows = Math.max(
+    1,
+    Math.floor((usableH + GRID_GAP_MM) / (cardDims.h + GRID_GAP_MM))
+  );
+  return { cols, rows };
 }
 
 function SchoolLogoMark({ branding, size = 36 }: { branding: PrintCardBranding; size?: number }) {
@@ -60,28 +101,14 @@ function SchoolLogoMark({ branding, size = 36 }: { branding: PrintCardBranding; 
   );
 }
 
-function StudentCard({ student, branding }: { student: PrintCardStudent; branding: PrintCardBranding }) {
-  const color = getCardColor(branding.colorPalette);
+function gradeClassLabel(student: PrintCardStudent): string {
+  const grade = /^\d+$/.test(student.grade) ? `Grade ${student.grade}` : student.grade;
+  return `${grade} \u2022 ${student.className}`;
+}
 
+function LandscapeCard({ student, branding, color }: { student: PrintCardStudent; branding: PrintCardBranding; color: string }) {
   return (
-    <div
-      className="student-id-card"
-      style={{
-        width: "85mm",
-        height: "54mm",
-        border: "1px dashed #aaa",
-        borderRadius: "4px",
-        overflow: "hidden",
-        display: "flex",
-        flexDirection: "column",
-        boxSizing: "border-box",
-        background: "#fff",
-        pageBreakInside: "avoid",
-        breakInside: "avoid",
-        fontFamily: "system-ui, sans-serif",
-        flexShrink: 0,
-      }}
-    >
+    <>
       <div
         style={{
           background: color,
@@ -178,7 +205,7 @@ function StudentCard({ student, branding }: { student: PrintCardStudent; brandin
               fontWeight: 700,
             }}
           >
-            {/^\d+$/.test(student.grade) ? `Grade ${student.grade}` : student.grade} &bull; {student.className}
+            {gradeClassLabel(student)}
           </div>
         </div>
 
@@ -193,12 +220,7 @@ function StudentCard({ student, branding }: { student: PrintCardStudent; brandin
             marginRight: "8px",
           }}
         >
-          <QRCodeSVG
-            value={student.qrCode}
-            size={64}
-            level="M"
-            style={{ display: "block" }}
-          />
+          <QRCodeSVG value={student.qrCode} size={64} level="M" style={{ display: "block" }} />
         </div>
       </div>
 
@@ -214,13 +236,176 @@ function StudentCard({ student, branding }: { student: PrintCardStudent; brandin
           STUDENT IDENTIFICATION CARD &bull; {branding.schoolCode}
         </p>
       </div>
-    </div>
+    </>
   );
 }
 
-const CARDS_PER_ROW = 3;
-const ROWS_PER_PAGE = 5;
-const CARDS_PER_PAGE = CARDS_PER_ROW * ROWS_PER_PAGE;
+function PortraitCard({ student, branding, color }: { student: PrintCardStudent; branding: PrintCardBranding; color: string }) {
+  return (
+    <>
+      <div
+        style={{
+          background: color,
+          padding: "6px 8px",
+          display: "flex",
+          alignItems: "center",
+          gap: "6px",
+          flexShrink: 0,
+        }}
+      >
+        <SchoolLogoMark branding={branding} size={20} />
+        <span
+          style={{
+            color: "#fff",
+            fontSize: "7px",
+            fontWeight: 700,
+            lineHeight: 1.2,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            flex: 1,
+          }}
+        >
+          {branding.schoolName}
+        </span>
+      </div>
+
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "6px",
+          minHeight: 0,
+          padding: "6px 8px",
+        }}
+      >
+        <div
+          style={{
+            flexShrink: 0,
+            background: "#fff",
+            border: `1.5px solid ${color}33`,
+            borderRadius: "4px",
+            padding: "4px",
+          }}
+        >
+          <QRCodeSVG value={student.qrCode} size={88} level="M" style={{ display: "block" }} />
+        </div>
+
+        <p
+          style={{
+            margin: 0,
+            fontSize: "11px",
+            fontWeight: 800,
+            color: "#111",
+            lineHeight: 1.15,
+            textAlign: "center",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            maxWidth: "100%",
+          }}
+        >
+          {student.firstName} {student.lastName}
+        </p>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+          <span
+            style={{
+              fontSize: "6px",
+              fontWeight: 600,
+              color: color,
+              textTransform: "uppercase",
+              letterSpacing: "0.03em",
+            }}
+          >
+            ID
+          </span>
+          <p
+            style={{
+              margin: 0,
+              fontSize: "8px",
+              color: "#444",
+              fontFamily: "monospace",
+              fontWeight: 600,
+            }}
+          >
+            {student.studentId}
+          </p>
+        </div>
+
+        <div
+          style={{
+            display: "inline-flex",
+            background: color,
+            color: "#fff",
+            borderRadius: "3px",
+            padding: "1px 6px",
+            fontSize: "6.5px",
+            fontWeight: 700,
+          }}
+        >
+          {gradeClassLabel(student)}
+        </div>
+      </div>
+
+      <div
+        style={{
+          background: "#f9fafb",
+          borderTop: "1px solid #e5e7eb",
+          padding: "2px 8px",
+          flexShrink: 0,
+        }}
+      >
+        <p style={{ margin: 0, fontSize: "6.5px", color: "#9ca3af", textAlign: "center" }}>
+          STUDENT ID &bull; {branding.schoolCode}
+        </p>
+      </div>
+    </>
+  );
+}
+
+function StudentCard({
+  student,
+  branding,
+  orientation,
+}: {
+  student: PrintCardStudent;
+  branding: PrintCardBranding;
+  orientation: Orientation;
+}) {
+  const color = getCardColor(branding.colorPalette);
+  const dims = CARD_DIMS[orientation];
+
+  return (
+    <div
+      className="student-id-card"
+      style={{
+        width: `${dims.w}mm`,
+        height: `${dims.h}mm`,
+        border: "1px dashed #aaa",
+        borderRadius: "4px",
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+        boxSizing: "border-box",
+        background: "#fff",
+        pageBreakInside: "avoid",
+        breakInside: "avoid",
+        fontFamily: "system-ui, sans-serif",
+        flexShrink: 0,
+      }}
+    >
+      {orientation === "landscape" ? (
+        <LandscapeCard student={student} branding={branding} color={color} />
+      ) : (
+        <PortraitCard student={student} branding={branding} color={color} />
+      )}
+    </div>
+  );
+}
 
 function chunkArray<T>(arr: T[], size: number): T[][] {
   const result: T[][] = [];
@@ -234,12 +419,20 @@ function A4DocumentPreview({
   students,
   branding,
   pagesRef,
+  cardOrientation,
+  pageOrientation,
 }: {
   students: PrintCardStudent[];
   branding: PrintCardBranding;
   pagesRef: React.MutableRefObject<HTMLDivElement[]>;
+  cardOrientation: Orientation;
+  pageOrientation: Orientation;
 }) {
-  const pages = chunkArray(students, CARDS_PER_PAGE);
+  const grid = getGridConfig(cardOrientation, pageOrientation);
+  const cardsPerPage = grid.cols * grid.rows;
+  const pageDims = PAGE_DIMS[pageOrientation];
+  const cardDims = CARD_DIMS[cardOrientation];
+  const pages = chunkArray(students, cardsPerPage);
 
   return (
     <div
@@ -261,12 +454,12 @@ function A4DocumentPreview({
             if (el) pagesRef.current[pageIndex] = el;
           }}
           style={{
-            width: "297mm",
-            height: "210mm",
+            width: `${pageDims.w}mm`,
+            height: `${pageDims.h}mm`,
             background: "#fff",
             boxShadow: "0 4px 24px rgba(0,0,0,0.18)",
             borderRadius: "2px",
-            padding: "10mm",
+            padding: `${PAGE_PADDING_MM}mm`,
             boxSizing: "border-box",
             display: "flex",
             flexDirection: "column",
@@ -279,27 +472,33 @@ function A4DocumentPreview({
               flex: 1,
               display: "flex",
               alignItems: "flex-start",
+              justifyContent: "center",
               overflow: "hidden",
             }}
           >
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: `repeat(${CARDS_PER_ROW}, 85mm)`,
-                gap: "4mm",
-                transformOrigin: "top left",
-                transform: "scale(0.635)",
+                gridTemplateColumns: `repeat(${grid.cols}, ${cardDims.w}mm)`,
+                gridAutoRows: `${cardDims.h}mm`,
+                gap: `${GRID_GAP_MM}mm`,
+                justifyContent: "center",
               }}
             >
               {pageStudents.map((student) => (
-                <StudentCard key={student.id} student={student} branding={branding} />
+                <StudentCard
+                  key={student.id}
+                  student={student}
+                  branding={branding}
+                  orientation={cardOrientation}
+                />
               ))}
             </div>
           </div>
           <div
             style={{
               marginTop: "auto",
-              paddingTop: "4mm",
+              paddingTop: "3mm",
               borderTop: "1px solid #e5e7eb",
               fontSize: "8px",
               color: "#9ca3af",
@@ -321,12 +520,28 @@ function buildFileName(grade: string | null, cls: string | null, ext: string): s
   return parts.join("-") + "." + ext;
 }
 
+const SAMPLE_STUDENT: PrintCardStudent = {
+  id: -1,
+  studentId: "STU1001",
+  firstName: "Jane",
+  lastName: "Doe",
+  grade: "10",
+  className: "10A",
+  qrCode: "SCID-STU1001",
+};
+
 export default function PrintCardsPage({ onBack }: { onBack: () => void }) {
   const [selectedGrade, setSelectedGrade] = useState<string | null>(null);
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
+  const [cardOrientation, setCardOrientation] = useState<Orientation>("landscape");
+  const [pageOrientation, setPageOrientation] = useState<Orientation>("landscape");
+  const [previewExpanded, setPreviewExpanded] = useState(true);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isExportingWord, setIsExportingWord] = useState(false);
   const pagesRef = useRef<HTMLDivElement[]>([]);
+
+  const grid = getGridConfig(cardOrientation, pageOrientation);
+  const cardsPerPage = grid.cols * grid.rows;
 
   const { data, isLoading } = useGetStudentsForPrint(
     {},
@@ -367,7 +582,7 @@ export default function PrintCardsPage({ onBack }: { onBack: () => void }) {
 
   useEffect(() => {
     pagesRef.current = [];
-  }, [displayedStudents]);
+  }, [displayedStudents, cardOrientation, pageOrientation]);
 
   function handleGradeSelect(grade: string) {
     setSelectedGrade((prev) => (prev === grade ? null : grade));
@@ -385,8 +600,10 @@ export default function PrintCardsPage({ onBack }: { onBack: () => void }) {
       const html2canvas = (await import("html2canvas")).default;
       const { jsPDF } = await import("jspdf");
 
+      const pageDims = PAGE_DIMS[pageOrientation];
+
       const pdf = new jsPDF({
-        orientation: "landscape",
+        orientation: pageOrientation,
         unit: "mm",
         format: "a4",
       });
@@ -403,8 +620,8 @@ export default function PrintCardsPage({ onBack }: { onBack: () => void }) {
 
         const imgData = canvas.toDataURL("image/jpeg", 0.95);
 
-        if (i > 0) pdf.addPage("a4", "landscape");
-        pdf.addImage(imgData, "JPEG", 0, 0, 297, 210);
+        if (i > 0) pdf.addPage("a4", pageOrientation);
+        pdf.addImage(imgData, "JPEG", 0, 0, pageDims.w, pageDims.h);
       }
 
       const fileName = buildFileName(selectedGrade, selectedClass, "pdf");
@@ -412,7 +629,7 @@ export default function PrintCardsPage({ onBack }: { onBack: () => void }) {
     } finally {
       setIsExportingPdf(false);
     }
-  }, [selectedGrade, selectedClass]);
+  }, [selectedGrade, selectedClass, pageOrientation]);
 
   const handleDownloadWord = useCallback(async () => {
     if (displayedStudents.length === 0 || !data?.branding) return;
@@ -435,13 +652,18 @@ export default function PrintCardsPage({ onBack }: { onBack: () => void }) {
 
       const color = getCardColor(data.branding.colorPalette).replace("#", "");
 
-      const pages = chunkArray(displayedStudents, CARDS_PER_PAGE);
+      const cols = grid.cols;
+      const cellWidthPct = Math.floor(100 / cols);
+      const cardDims = CARD_DIMS[cardOrientation];
+      const rowHeightTwips = Math.round(cardDims.h * 56.7);
+
+      const pages = chunkArray(displayedStudents, cardsPerPage);
 
       const docSections: InstanceType<typeof Paragraph | typeof Table>[] = [];
 
       for (let p = 0; p < pages.length; p++) {
         const pageStudents = pages[p];
-        const rows = chunkArray(pageStudents, CARDS_PER_ROW);
+        const rows = chunkArray(pageStudents, cols);
 
         if (p > 0) {
           docSections.push(new Paragraph({ text: "", pageBreakBefore: true }));
@@ -450,7 +672,7 @@ export default function PrintCardsPage({ onBack }: { onBack: () => void }) {
         for (const rowStudents of rows) {
           const cells = rowStudents.map((student) =>
             new TableCell({
-              width: { size: 33, type: WidthType.PERCENTAGE },
+              width: { size: cellWidthPct, type: WidthType.PERCENTAGE },
               borders: {
                 top: { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" },
                 bottom: { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" },
@@ -496,7 +718,7 @@ export default function PrintCardsPage({ onBack }: { onBack: () => void }) {
                 new Paragraph({
                   children: [
                     new TextRun({
-                      text: `Grade ${student.grade} • ${student.className}`,
+                      text: `Grade ${student.grade} \u2022 ${student.className}`,
                       size: 14,
                       bold: true,
                       color: color,
@@ -508,7 +730,7 @@ export default function PrintCardsPage({ onBack }: { onBack: () => void }) {
                 new Paragraph({
                   children: [
                     new TextRun({
-                      text: `STUDENT IDENTIFICATION CARD • ${data.branding.schoolCode}`,
+                      text: `STUDENT IDENTIFICATION CARD \u2022 ${data.branding.schoolCode}`,
                       size: 10,
                       color: "9CA3AF",
                     }),
@@ -520,10 +742,10 @@ export default function PrintCardsPage({ onBack }: { onBack: () => void }) {
             })
           );
 
-          while (cells.length < CARDS_PER_ROW) {
+          while (cells.length < cols) {
             cells.push(
               new TableCell({
-                width: { size: 33, type: WidthType.PERCENTAGE },
+                width: { size: cellWidthPct, type: WidthType.PERCENTAGE },
                 borders: {
                   top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
                   bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
@@ -540,7 +762,7 @@ export default function PrintCardsPage({ onBack }: { onBack: () => void }) {
               width: { size: 100, type: WidthType.PERCENTAGE },
               rows: [
                 new TableRow({
-                  height: { value: 1400, rule: HeightRule.EXACT },
+                  height: { value: rowHeightTwips, rule: HeightRule.ATLEAST },
                   children: cells,
                 }),
               ],
@@ -550,12 +772,17 @@ export default function PrintCardsPage({ onBack }: { onBack: () => void }) {
         }
       }
 
+      const pageSize =
+        pageOrientation === "portrait"
+          ? { width: 11906, height: 16838 }
+          : { width: 16838, height: 11906 };
+
       const doc = new Document({
         sections: [
           {
             properties: {
               page: {
-                size: { width: 16838, height: 11906 },
+                size: pageSize,
                 margin: { top: 720, right: 720, bottom: 720, left: 720 },
               },
             },
@@ -574,12 +801,15 @@ export default function PrintCardsPage({ onBack }: { onBack: () => void }) {
     } finally {
       setIsExportingWord(false);
     }
-  }, [displayedStudents, data?.branding, selectedGrade, selectedClass]);
+  }, [displayedStudents, data?.branding, selectedGrade, selectedClass, cardOrientation, pageOrientation, grid.cols, cardsPerPage]);
+
+  const previewStudent = displayedStudents[0] ?? SAMPLE_STUDENT;
+  const previewCardDims = CARD_DIMS[cardOrientation];
 
   return (
     <div className="flex flex-col min-h-screen bg-background pb-20">
       <style>{`
-        @page { size: A4 landscape; margin: 8mm; }
+        @page { size: A4 ${pageOrientation}; margin: 0; }
         @media print {
           .no-print { display: none !important; }
           body { margin: 0; padding: 0; }
@@ -716,6 +946,93 @@ export default function PrintCardsPage({ onBack }: { onBack: () => void }) {
             </div>
           )}
 
+          {!isLoading && availableGrades.length > 0 && (
+            <div className="flex flex-wrap gap-6">
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                  ID Card Layout
+                </p>
+                <div className="inline-flex rounded-lg border border-border overflow-hidden" data-testid="card-orientation-toggle">
+                  {(["landscape", "portrait"] as Orientation[]).map((opt) => (
+                    <button
+                      key={opt}
+                      onClick={() => setCardOrientation(opt)}
+                      className={`px-4 py-1.5 text-sm font-semibold capitalize transition-colors ${
+                        cardOrientation === opt
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-card text-foreground hover:bg-muted/50"
+                      }`}
+                      data-testid={`button-card-${opt}`}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                  A4 Page View
+                </p>
+                <div className="inline-flex rounded-lg border border-border overflow-hidden" data-testid="page-orientation-toggle">
+                  {(["portrait", "landscape"] as Orientation[]).map((opt) => (
+                    <button
+                      key={opt}
+                      onClick={() => setPageOrientation(opt)}
+                      className={`px-4 py-1.5 text-sm font-semibold capitalize transition-colors ${
+                        pageOrientation === opt
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-card text-foreground hover:bg-muted/50"
+                      }`}
+                      data-testid={`button-page-${opt}`}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {data?.branding && !isLoading && availableGrades.length > 0 && (
+            <div className="border border-border rounded-xl overflow-hidden">
+              <button
+                onClick={() => setPreviewExpanded((v) => !v)}
+                className="w-full flex items-center justify-between px-4 py-2.5 bg-muted/40 hover:bg-muted/60 transition-colors"
+                data-testid="button-toggle-preview"
+              >
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Card Preview ({cardOrientation})
+                </span>
+                {previewExpanded ? (
+                  <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                )}
+              </button>
+              {previewExpanded && (
+                <div
+                  className="flex items-center justify-center bg-muted/10 py-6 overflow-auto"
+                  data-testid="single-card-preview"
+                >
+                  <div
+                    style={{
+                      transform: "scale(2)",
+                      transformOrigin: "center",
+                      margin: `${(previewCardDims.h * 3.78) / 2}px ${(previewCardDims.w * 3.78) / 2}px`,
+                    }}
+                  >
+                    <StudentCard
+                      student={previewStudent}
+                      branding={data.branding}
+                      orientation={cardOrientation}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {!selectedGrade && !isLoading && availableGrades.length > 0 && (
             <div className="bg-muted/30 border border-border rounded-xl px-4 py-8 text-center">
               <p className="text-sm text-muted-foreground">Select a grade to preview ID cards</p>
@@ -732,7 +1049,7 @@ export default function PrintCardsPage({ onBack }: { onBack: () => void }) {
             <div className="flex items-center justify-between">
               <p className="text-sm text-muted-foreground">
                 {displayedStudents.length} card{displayedStudents.length !== 1 ? "s" : ""} &mdash;{" "}
-                {Math.ceil(displayedStudents.length / CARDS_PER_PAGE)} page{Math.ceil(displayedStudents.length / CARDS_PER_PAGE) !== 1 ? "s" : ""}
+                {Math.ceil(displayedStudents.length / cardsPerPage)} page{Math.ceil(displayedStudents.length / cardsPerPage) !== 1 ? "s" : ""}
               </p>
             </div>
           )}
@@ -744,6 +1061,8 @@ export default function PrintCardsPage({ onBack }: { onBack: () => void }) {
               students={displayedStudents}
               branding={data.branding}
               pagesRef={pagesRef}
+              cardOrientation={cardOrientation}
+              pageOrientation={pageOrientation}
             />
           </div>
         )}
