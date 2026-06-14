@@ -1,1 +1,2 @@
 - [Post-merge codegen requirement](post-merge-codegen.md) — after any merge touching openapi.yaml or new generated hooks, run codegen + typecheck:libs or the app crashes.
+- [Production data migration constraints](prod-data-migration.md) — task agents can't write prod DB (read-only replica, secrets unreadable, endpoints not live till republish); migrate data via user-run SQL or a pasted prod connection string.
