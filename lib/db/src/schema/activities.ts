@@ -14,6 +14,8 @@ export const activitiesTable = pgTable("activities", {
   startTime: timestamp("start_time", { withTimezone: true }).notNull(),
   endTime: timestamp("end_time", { withTimezone: true }),
   status: text("status").notNull().default("upcoming"),
+  recurrencePattern: text("recurrence_pattern").notNull().default("none"),
+  recurrenceGroupId: text("recurrence_group_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

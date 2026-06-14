@@ -46,6 +46,8 @@ export * from "./markAttendanceBody";
 export * from "./printCardBranding";
 export * from "./printCardsResponse";
 export * from "./printCardStudent";
+export * from "./recurrenceRule";
+export * from "./recurrenceRuleFrequency";
 export * from "./registerSchoolBody";
 export * from "./requestUploadUrlBody";
 export * from "./requestUploadUrlResponse";

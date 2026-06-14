@@ -18,6 +18,10 @@ export interface Activity {
   /** @nullable */
   endTime?: string | null;
   status: string;
+  /** none | daily | weekly */
+  recurrencePattern?: string;
+  /** @nullable */
+  recurrenceGroupId?: string | null;
   createdAt: string;
   updatedAt: string;
 }

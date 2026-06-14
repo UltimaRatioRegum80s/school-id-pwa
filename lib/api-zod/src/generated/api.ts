@@ -783,6 +783,11 @@ export const ListActivitiesResponseItem = zod
     startTime: zod.string(),
     endTime: zod.string().nullish(),
     status: zod.string(),
+    recurrencePattern: zod
+      .string()
+      .optional()
+      .describe("none | daily | weekly"),
+    recurrenceGroupId: zod.string().nullish(),
     createdAt: zod.string(),
     updatedAt: zod.string(),
   })
@@ -799,6 +804,9 @@ export const ListActivitiesResponse = zod.array(ListActivitiesResponseItem);
 /**
  * @summary Create an activity
  */
+export const createActivityBodyRecurrenceTwoWeekdaysItemMin = 0;
+export const createActivityBodyRecurrenceTwoWeekdaysItemMax = 6;
+
 export const CreateActivityBody = zod.object({
   name: zod.string(),
   activityType: zod.string(),
@@ -807,6 +815,42 @@ export const CreateActivityBody = zod.object({
   startTime: zod.string(),
   endTime: zod.string().nullish(),
   status: zod.string().optional(),
+  recurrence: zod
+    .union([
+      zod.null(),
+      zod.object({
+        frequency: zod
+          .enum(["daily", "weekly"])
+          .describe("How often the event repeats."),
+        weekdays: zod
+          .array(
+            zod
+              .number()
+              .min(createActivityBodyRecurrenceTwoWeekdaysItemMin)
+              .max(createActivityBodyRecurrenceTwoWeekdaysItemMax),
+          )
+          .optional()
+          .describe(
+            "For weekly recurrence: days of week to repeat on (0=Sunday .. 6=Saturday).",
+          ),
+        until: zod
+          .string()
+          .nullish()
+          .describe(
+            "Inclusive end date (YYYY-MM-DD) for the recurrence. Provide until OR count.",
+          ),
+        count: zod
+          .number()
+          .nullish()
+          .describe(
+            "Number of occurrences to generate. Provide until OR count.",
+          ),
+      }),
+    ])
+    .optional()
+    .describe(
+      "Optional repeat schedule. When set, the server generates the corresponding occurrences.",
+    ),
 });
 
 /**
@@ -826,6 +870,11 @@ export const GetActivityResponse = zod
     startTime: zod.string(),
     endTime: zod.string().nullish(),
     status: zod.string(),
+    recurrencePattern: zod
+      .string()
+      .optional()
+      .describe("none | daily | weekly"),
+    recurrenceGroupId: zod.string().nullish(),
     createdAt: zod.string(),
     updatedAt: zod.string(),
   })
@@ -914,6 +963,8 @@ export const UpdateActivityResponse = zod.object({
   startTime: zod.string(),
   endTime: zod.string().nullish(),
   status: zod.string(),
+  recurrencePattern: zod.string().optional().describe("none | daily | weekly"),
+  recurrenceGroupId: zod.string().nullish(),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });

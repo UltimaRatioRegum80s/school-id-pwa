@@ -264,6 +264,10 @@ export interface Activity {
   /** @nullable */
   endTime?: string | null;
   status: string;
+  /** none | daily | weekly */
+  recurrencePattern?: string;
+  /** @nullable */
+  recurrenceGroupId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -281,6 +285,34 @@ export type ActivityDetail = ActivityWithCounts & {
   missingStudents: StudentWithState[];
 };
 
+/**
+ * How often the event repeats.
+ */
+export type RecurrenceRuleFrequency =
+  (typeof RecurrenceRuleFrequency)[keyof typeof RecurrenceRuleFrequency];
+
+export const RecurrenceRuleFrequency = {
+  daily: "daily",
+  weekly: "weekly",
+} as const;
+
+export interface RecurrenceRule {
+  /** How often the event repeats. */
+  frequency: RecurrenceRuleFrequency;
+  /** For weekly recurrence: days of week to repeat on (0=Sunday .. 6=Saturday). */
+  weekdays?: number[];
+  /**
+   * Inclusive end date (YYYY-MM-DD) for the recurrence. Provide until OR count.
+   * @nullable
+   */
+  until?: string | null;
+  /**
+   * Number of occurrences to generate. Provide until OR count.
+   * @nullable
+   */
+  count?: number | null;
+}
+
 export interface CreateActivityBody {
   name: string;
   activityType: string;
@@ -292,6 +324,8 @@ export interface CreateActivityBody {
   /** @nullable */
   endTime?: string | null;
   status?: string;
+  /** Optional repeat schedule. When set, the server generates the corresponding occurrences. */
+  recurrence?: null | RecurrenceRule;
 }
 
 export interface UpdateActivityBody {

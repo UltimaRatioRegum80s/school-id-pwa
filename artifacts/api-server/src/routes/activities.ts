@@ -25,9 +25,64 @@ function formatActivity(a: typeof activitiesTable.$inferSelect) {
     startTime: a.startTime.toISOString(),
     endTime: a.endTime?.toISOString() ?? null,
     status: a.status,
+    recurrencePattern: a.recurrencePattern,
+    recurrenceGroupId: a.recurrenceGroupId,
     createdAt: a.createdAt.toISOString(),
     updatedAt: a.updatedAt.toISOString(),
   };
+}
+
+const MAX_OCCURRENCES = 60;
+
+/**
+ * Build the list of start Date objects for a recurrence rule, beginning at the
+ * provided first start time. Returns at least the first occurrence.
+ */
+function buildOccurrenceStarts(
+  firstStart: Date,
+  recurrence: { frequency: string; weekdays?: number[]; until?: string | null; count?: number | null }
+): Date[] {
+  const starts: Date[] = [];
+  const { frequency } = recurrence;
+
+  let untilDate: Date | null = null;
+  if (recurrence.until) {
+    const parsed = new Date(`${recurrence.until}T23:59:59`);
+    if (!isNaN(parsed.getTime())) untilDate = parsed;
+  }
+  const count =
+    recurrence.count && recurrence.count > 0 ? Math.min(recurrence.count, MAX_OCCURRENCES) : null;
+
+  if (frequency === "weekly") {
+    const weekdays =
+      recurrence.weekdays && recurrence.weekdays.length > 0
+        ? [...new Set(recurrence.weekdays)].filter((d) => d >= 0 && d <= 6)
+        : [firstStart.getDay()];
+
+    const cursor = new Date(firstStart);
+    while (starts.length < MAX_OCCURRENCES) {
+      if (weekdays.includes(cursor.getDay()) && cursor.getTime() >= firstStart.getTime()) {
+        starts.push(new Date(cursor));
+        if (count && starts.length >= count) break;
+      }
+      cursor.setDate(cursor.getDate() + 1);
+      if (untilDate && cursor.getTime() > untilDate.getTime()) break;
+      if (!untilDate && !count && starts.length >= 1) break;
+    }
+  } else {
+    // daily
+    const cursor = new Date(firstStart);
+    while (starts.length < MAX_OCCURRENCES) {
+      starts.push(new Date(cursor));
+      if (count && starts.length >= count) break;
+      cursor.setDate(cursor.getDate() + 1);
+      if (untilDate && cursor.getTime() > untilDate.getTime()) break;
+      if (!untilDate && !count) break;
+    }
+  }
+
+  if (starts.length === 0) starts.push(new Date(firstStart));
+  return starts;
 }
 
 router.get("/activities", requireAuth, async (req, res): Promise<void> => {
@@ -74,14 +129,43 @@ router.post("/activities", requireAuth, async (req, res): Promise<void> => {
   }
   const user = (req as Request & { user: JwtPayload }).user;
 
+  const { recurrence, ...activityData } = parsed.data;
+  const firstStart = new Date(activityData.startTime);
+  const baseEnd = activityData.endTime ? new Date(activityData.endTime) : null;
+  const durationMs = baseEnd ? baseEnd.getTime() - firstStart.getTime() : null;
+
+  if (recurrence && (recurrence.frequency === "daily" || recurrence.frequency === "weekly")) {
+    const starts = buildOccurrenceStarts(firstStart, recurrence);
+    const groupId = `rec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const rows = starts.map((start) => ({
+      name: activityData.name,
+      activityType: activityData.activityType,
+      description: activityData.description ?? null,
+      responsibleStaffId: activityData.responsibleStaffId ?? null,
+      schoolId: user.schoolId,
+      startTime: start,
+      endTime: durationMs != null ? new Date(start.getTime() + durationMs) : null,
+      status: activityData.status ?? "upcoming",
+      recurrencePattern: recurrence.frequency,
+      recurrenceGroupId: groupId,
+    }));
+
+    const inserted = await db.insert(activitiesTable).values(rows).returning();
+    res.status(201).json(formatActivity(inserted[0]));
+    return;
+  }
+
   const [activity] = await db
     .insert(activitiesTable)
     .values({
-      ...parsed.data,
+      name: activityData.name,
+      activityType: activityData.activityType,
+      description: activityData.description ?? null,
+      responsibleStaffId: activityData.responsibleStaffId ?? null,
       schoolId: user.schoolId,
-      startTime: new Date(parsed.data.startTime),
-      endTime: parsed.data.endTime ? new Date(parsed.data.endTime) : null,
-      status: parsed.data.status ?? "upcoming",
+      startTime: firstStart,
+      endTime: baseEnd,
+      status: activityData.status ?? "upcoming",
     })
     .returning();
 

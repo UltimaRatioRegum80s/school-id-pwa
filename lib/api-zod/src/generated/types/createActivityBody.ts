@@ -5,6 +5,7 @@
  * School ID App API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { RecurrenceRule } from "./recurrenceRule";
 
 export interface CreateActivityBody {
   name: string;
@@ -17,4 +18,6 @@ export interface CreateActivityBody {
   /** @nullable */
   endTime?: string | null;
   status?: string;
+  /** Optional repeat schedule. When set, the server generates the corresponding occurrences. */
+  recurrence?: null | RecurrenceRule;
 }

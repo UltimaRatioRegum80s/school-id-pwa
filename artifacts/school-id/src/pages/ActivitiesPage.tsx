@@ -11,15 +11,23 @@ import {
   getListActivitiesQueryKey,
   getGetActivityQueryKey,
 } from "@workspace/api-client-react";
-import type { ActivityWithCounts } from "@workspace/api-client-react";
+import type { ActivityWithCounts, RecurrenceRule } from "@workspace/api-client-react";
 import {
   CalendarDays,
   ChevronRight,
   Plus,
-  CheckCircle2,
   X,
   Users,
   QrCode,
+  CalendarCheck,
+  Trophy,
+  Megaphone,
+  Clock3,
+  GraduationCap,
+  FlaskConical,
+  Sparkles,
+  CalendarPlus,
+  Repeat,
 } from "lucide-react";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -27,6 +35,13 @@ const STATUS_COLORS: Record<string, string> = {
   active: "bg-green-100 text-green-800",
   completed: "bg-slate-100 text-slate-600",
   cancelled: "bg-red-100 text-red-800",
+};
+
+const STATUS_ACCENT: Record<string, string> = {
+  upcoming: "border-l-blue-500",
+  active: "border-l-green-500",
+  completed: "border-l-slate-400",
+  cancelled: "border-l-red-500",
 };
 
 const TYPE_TABS = [
@@ -47,9 +62,82 @@ const ACTIVITY_TYPES = [
   { value: "club", label: "Club" },
 ];
 
+type EventTemplate = {
+  id: string;
+  name: string;
+  activityType: string;
+  description: string;
+  durationMinutes: number;
+  icon: React.ReactNode;
+  accent: string;
+  defaultRecurrence?: RecurrenceRule;
+};
+
+// Standard event templates available to every school (not seeded demo data).
+const EVENT_TEMPLATES: EventTemplate[] = [
+  {
+    id: "assembly",
+    name: "School Assembly",
+    activityType: "assembly",
+    description: "Whole-school morning assembly.",
+    durationMinutes: 30,
+    icon: <Megaphone className="w-5 h-5" />,
+    accent: "text-amber-600 bg-amber-50 border-amber-200",
+    defaultRecurrence: { frequency: "weekly", weekdays: [1] },
+  },
+  {
+    id: "sports-day",
+    name: "Sports Day",
+    activityType: "event",
+    description: "Inter-house sports competition.",
+    durationMinutes: 180,
+    icon: <Trophy className="w-5 h-5" />,
+    accent: "text-green-600 bg-green-50 border-green-200",
+  },
+  {
+    id: "detention",
+    name: "Detention",
+    activityType: "detention",
+    description: "After-school detention session.",
+    durationMinutes: 60,
+    icon: <Clock3 className="w-5 h-5" />,
+    accent: "text-red-600 bg-red-50 border-red-200",
+    defaultRecurrence: { frequency: "weekly", weekdays: [5] },
+  },
+  {
+    id: "exam",
+    name: "Exam Session",
+    activityType: "event",
+    description: "Supervised examination sitting.",
+    durationMinutes: 120,
+    icon: <CalendarCheck className="w-5 h-5" />,
+    accent: "text-purple-600 bg-purple-50 border-purple-200",
+  },
+  {
+    id: "class",
+    name: "Lesson / Class",
+    activityType: "class",
+    description: "Scheduled class period.",
+    durationMinutes: 45,
+    icon: <GraduationCap className="w-5 h-5" />,
+    accent: "text-blue-600 bg-blue-50 border-blue-200",
+    defaultRecurrence: { frequency: "weekly", weekdays: [1, 2, 3, 4, 5] },
+  },
+  {
+    id: "club",
+    name: "Club Meeting",
+    activityType: "club",
+    description: "Recurring club or society meeting.",
+    durationMinutes: 60,
+    icon: <FlaskConical className="w-5 h-5" />,
+    accent: "text-teal-600 bg-teal-50 border-teal-200",
+    defaultRecurrence: { frequency: "weekly", weekdays: [3] },
+  },
+];
+
 export default function ActivitiesPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [showCreate, setShowCreate] = useState(false);
+  const [createTemplate, setCreateTemplate] = useState<EventTemplate | null | "custom">(null);
   const [typeFilter, setTypeFilter] = useState("");
 
   const { data: activities, isLoading } = useListActivities(
@@ -71,40 +159,106 @@ export default function ActivitiesPage() {
     );
   }
 
-  if (showCreate) {
+  if (createTemplate !== null) {
     return (
       <CreateActivityView
-        onBack={() => setShowCreate(false)}
-        onCreated={() => setShowCreate(false)}
+        template={createTemplate === "custom" ? null : createTemplate}
+        onBack={() => setCreateTemplate(null)}
+        onCreated={() => setCreateTemplate(null)}
       />
     );
   }
 
-  const today = activities ?? [];
-  const active = today.filter((a) => a.status === "active");
-  const upcoming = today.filter((a) => a.status === "upcoming");
-  const past = today.filter((a) => a.status === "completed" || a.status === "cancelled");
+  const all = activities ?? [];
+  const active = all.filter((a) => a.status === "active");
+  const upcoming = all.filter((a) => a.status === "upcoming");
+  const past = all.filter((a) => a.status === "completed" || a.status === "cancelled");
+  const isEmpty = !isLoading && all.length === 0;
 
   return (
     <div className="flex flex-col min-h-screen bg-background pb-20 md:pb-6">
       <PageHeader
         title="Activities"
-        subtitle={`${active.length} active`}
+        subtitle={`${active.length} active · ${upcoming.length} upcoming`}
         showLogo={true}
         action={
           <button
-            onClick={() => setShowCreate(true)}
+            onClick={() => setCreateTemplate("custom")}
             className="p-1.5 rounded-lg bg-white/20 text-primary-foreground hover:bg-white/30 transition-colors"
             data-testid="button-create-activity"
+            aria-label="Create activity"
           >
             <Plus className="w-4 h-4" />
           </button>
         }
       />
 
-      {/* Type filter tabs */}
-      <div className="max-w-lg md:max-w-5xl mx-auto w-full px-4 md:px-6 pt-3 pb-1">
-        <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+      <div className="max-w-lg md:max-w-5xl mx-auto w-full px-4 md:px-6 py-4 space-y-5">
+        {/* Intro / description */}
+        <div className="bg-card border border-border rounded-xl p-4 md:p-5" data-testid="panel-activities-intro">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+              <CalendarDays className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-base font-bold text-foreground">Track attendance for school activities &amp; events</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Create one-off or recurring events, then scan students in to record attendance.
+                Standard events below come ready to use — just pick a date and time.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* KPI summary */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3" data-testid="grid-activity-kpis">
+          <KpiCard label="Total" value={all.length} accentClass="border-l-slate-400" testId="kpi-activities-total" />
+          <KpiCard label="Active Now" value={active.length} accentClass="border-l-green-500" testId="kpi-activities-active" />
+          <KpiCard label="Upcoming" value={upcoming.length} accentClass="border-l-blue-500" testId="kpi-activities-upcoming" />
+          <KpiCard label="Completed" value={past.length} accentClass="border-l-slate-400" testId="kpi-activities-completed" />
+        </div>
+
+        {/* Quick-start standard events */}
+        <div data-testid="panel-quick-start">
+          <div className="flex items-center gap-2 mb-2">
+            <Sparkles className="w-4 h-4 text-primary" />
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Quick start</h3>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {EVENT_TEMPLATES.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setCreateTemplate(t)}
+                className="bg-card border border-border rounded-xl p-3 text-left hover:border-primary/50 hover:shadow-sm transition-all"
+                data-testid={`card-template-${t.id}`}
+              >
+                <div className={`w-9 h-9 rounded-lg border flex items-center justify-center mb-2 ${t.accent}`}>
+                  {t.icon}
+                </div>
+                <p className="font-semibold text-foreground text-sm leading-tight">{t.name}</p>
+                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{t.description}</p>
+                {t.defaultRecurrence && (
+                  <span className="inline-flex items-center gap-1 text-[10px] text-primary font-medium mt-1.5">
+                    <Repeat className="w-3 h-3" /> Repeats
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Prominent create custom button */}
+        <button
+          onClick={() => setCreateTemplate("custom")}
+          className="w-full bg-primary text-primary-foreground font-semibold py-3 rounded-xl flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-sm"
+          data-testid="button-create-custom-activity"
+        >
+          <CalendarPlus className="w-5 h-5" />
+          Create custom event / activity
+        </button>
+
+        {/* Type filter tabs */}
+        <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide" data-testid="panel-type-tabs">
           {TYPE_TABS.map((tab) => (
             <button
               key={tab.value}
@@ -120,9 +274,7 @@ export default function ActivitiesPage() {
             </button>
           ))}
         </div>
-      </div>
 
-      <div className="max-w-lg md:max-w-5xl mx-auto w-full px-4 md:px-6 py-3 space-y-4">
         {isLoading && (
           <div className="text-center py-8 text-muted-foreground text-sm">Loading...</div>
         )}
@@ -151,14 +303,49 @@ export default function ActivitiesPage() {
           </Section>
         )}
 
-        {!isLoading && today.length === 0 && (
-          <div className="text-center py-16 text-muted-foreground">
-            <CalendarDays className="w-10 h-10 mx-auto mb-3 opacity-30" />
-            <p className="text-sm font-medium">No activities scheduled</p>
-            <p className="text-xs mt-1">Tap + to create one</p>
+        {isEmpty && (
+          <div
+            className="bg-card border border-dashed border-border rounded-xl px-6 py-10 text-center"
+            data-testid="panel-empty-state"
+          >
+            <div className="w-12 h-12 mx-auto rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-3">
+              <CalendarDays className="w-6 h-6" />
+            </div>
+            <p className="text-sm font-semibold text-foreground">No activities scheduled yet</p>
+            <p className="text-xs text-muted-foreground mt-1 max-w-xs mx-auto">
+              Get started fast by tapping one of the <span className="font-medium text-foreground">Quick start</span> events
+              above, or build your own with the button below.
+            </p>
+            <button
+              onClick={() => setCreateTemplate("custom")}
+              className="mt-4 inline-flex items-center gap-2 bg-primary text-primary-foreground text-sm font-semibold px-4 py-2 rounded-lg hover:opacity-90 transition-opacity"
+              data-testid="button-empty-create"
+            >
+              <CalendarPlus className="w-4 h-4" />
+              Create your first event
+            </button>
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function KpiCard({
+  label,
+  value,
+  accentClass,
+  testId,
+}: {
+  label: string;
+  value: number;
+  accentClass: string;
+  testId: string;
+}) {
+  return (
+    <div className={`bg-card border border-border border-l-4 ${accentClass} rounded-xl p-3 md:p-4`} data-testid={testId}>
+      <p className="text-xl md:text-2xl font-bold text-foreground leading-none">{value}</p>
+      <p className="text-[10px] md:text-xs text-muted-foreground mt-1 leading-tight">{label}</p>
     </div>
   );
 }
@@ -170,7 +357,7 @@ function Section({ title, count, children }: { title: string; count: number; chi
         <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{title}</h3>
         <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">{count}</span>
       </div>
-      <div className="space-y-2">{children}</div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">{children}</div>
     </div>
   );
 }
@@ -179,16 +366,18 @@ function ActivityCard({ activity, onClick }: { activity: ActivityWithCounts; onC
   const completion = activity.expectedCount > 0
     ? Math.round((activity.presentCount / activity.expectedCount) * 100)
     : 0;
+  const accent = STATUS_ACCENT[activity.status] ?? "border-l-slate-400";
+  const repeats = activity.recurrencePattern && activity.recurrencePattern !== "none";
 
   return (
     <button
       onClick={onClick}
-      className="w-full bg-card border border-border rounded-xl p-4 text-left hover:border-primary/50 transition-colors"
+      className={`w-full bg-card border border-border border-l-4 ${accent} rounded-xl p-4 text-left hover:border-primary/50 hover:shadow-sm transition-all`}
       data-testid={`card-activity-${activity.id}`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span
               className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                 STATUS_COLORS[activity.status] ?? "bg-muted text-muted-foreground"
@@ -198,6 +387,12 @@ function ActivityCard({ activity, onClick }: { activity: ActivityWithCounts; onC
               {activity.status}
             </span>
             <span className="text-xs text-muted-foreground capitalize">{activity.activityType}</span>
+            {repeats && (
+              <span className="inline-flex items-center gap-1 text-[10px] text-primary font-medium" data-testid={`badge-recurring-${activity.id}`}>
+                <Repeat className="w-3 h-3" />
+                {activity.recurrencePattern}
+              </span>
+            )}
           </div>
           <p className="font-semibold text-foreground truncate">{activity.name}</p>
           <p className="text-xs text-muted-foreground mt-0.5">
@@ -300,6 +495,12 @@ function ActivityDetailView({ id, onBack }: { id: number; onBack: () => void }) 
               </div>
             )}
           </div>
+          {data.recurrencePattern && data.recurrencePattern !== "none" && (
+            <p className="text-xs text-primary font-medium mt-3 pt-3 border-t border-border flex items-center gap-1">
+              <Repeat className="w-3 h-3" />
+              Part of a {data.recurrencePattern} series
+            </p>
+          )}
           {data.description && (
             <p className="text-sm text-muted-foreground mt-3 pt-3 border-t border-border">
               {data.description}
@@ -402,17 +603,59 @@ function ActivityDetailView({ id, onBack }: { id: number; onBack: () => void }) 
   );
 }
 
-function CreateActivityView({ onBack, onCreated }: { onBack: () => void; onCreated: () => void }) {
+const WEEKDAYS = [
+  { value: 0, label: "Sun" },
+  { value: 1, label: "Mon" },
+  { value: 2, label: "Tue" },
+  { value: 3, label: "Wed" },
+  { value: 4, label: "Thu" },
+  { value: 5, label: "Fri" },
+  { value: 6, label: "Sat" },
+];
+
+function localDateTimeValue(base: Date): string {
+  const off = base.getTimezoneOffset();
+  return new Date(base.getTime() - off * 60000).toISOString().slice(0, 16);
+}
+
+function nextHour(): Date {
+  const d = new Date();
+  d.setMinutes(0, 0, 0);
+  return d;
+}
+
+function CreateActivityView({
+  template,
+  onBack,
+  onCreated,
+}: {
+  template: EventTemplate | null;
+  onBack: () => void;
+  onCreated: () => void;
+}) {
   const queryClient = useQueryClient();
-  const [name, setName] = useState("");
-  const [type, setType] = useState("event");
-  const [description, setDescription] = useState("");
-  const [startTime, setStartTime] = useState(() => {
-    const d = new Date();
-    d.setMinutes(0, 0, 0);
-    return d.toISOString().slice(0, 16);
+  const [name, setName] = useState(template?.name ?? "");
+  const [type, setType] = useState(template?.activityType ?? "event");
+  const [description, setDescription] = useState(template?.description ?? "");
+  const [startTime, setStartTime] = useState(() => localDateTimeValue(nextHour()));
+  const [endTime, setEndTime] = useState(() => {
+    if (template?.durationMinutes) {
+      const start = nextHour();
+      return localDateTimeValue(new Date(start.getTime() + template.durationMinutes * 60000));
+    }
+    return "";
   });
-  const [endTime, setEndTime] = useState("");
+
+  // Scheduling
+  const [repeat, setRepeat] = useState<boolean>(!!template?.defaultRecurrence);
+  const [frequency, setFrequency] = useState<"daily" | "weekly">(
+    template?.defaultRecurrence?.frequency ?? "weekly"
+  );
+  const [weekdays, setWeekdays] = useState<number[]>(template?.defaultRecurrence?.weekdays ?? [1]);
+  const [endMode, setEndMode] = useState<"until" | "count">("until");
+  const [until, setUntil] = useState<string>("");
+  const [count, setCount] = useState<string>("8");
+
   const [error, setError] = useState("");
 
   const createMutation = useCreateActivity({
@@ -425,9 +668,40 @@ function CreateActivityView({ onBack, onCreated }: { onBack: () => void; onCreat
     },
   });
 
+  function toggleWeekday(d: number) {
+    setWeekdays((prev) =>
+      prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort((a, b) => a - b)
+    );
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) { setError("Name is required"); return; }
+
+    let recurrence: RecurrenceRule | null = null;
+    if (repeat) {
+      if (frequency === "weekly" && weekdays.length === 0) {
+        setError("Pick at least one weekday for a weekly event");
+        return;
+      }
+      if (endMode === "count") {
+        const n = parseInt(count, 10);
+        if (isNaN(n) || n < 1) { setError("Enter a valid number of occurrences"); return; }
+        recurrence = {
+          frequency,
+          ...(frequency === "weekly" ? { weekdays } : {}),
+          count: n,
+        };
+      } else {
+        if (!until) { setError("Pick an end date for the repeat schedule"); return; }
+        recurrence = {
+          frequency,
+          ...(frequency === "weekly" ? { weekdays } : {}),
+          until,
+        };
+      }
+    }
+
     createMutation.mutate({
       data: {
         name: name.trim(),
@@ -436,6 +710,7 @@ function CreateActivityView({ onBack, onCreated }: { onBack: () => void; onCreat
         startTime: new Date(startTime).toISOString(),
         endTime: endTime ? new Date(endTime).toISOString() : null,
         status: "upcoming",
+        recurrence,
       },
     });
   }
@@ -447,7 +722,9 @@ function CreateActivityView({ onBack, onCreated }: { onBack: () => void; onCreat
           <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-muted transition-colors" data-testid="button-create-back">
             <X className="w-4 h-4" />
           </button>
-          <h1 className="text-base font-bold text-foreground">New Activity</h1>
+          <h1 className="text-base font-bold text-foreground">
+            {template ? `New ${template.name}` : "New Activity"}
+          </h1>
         </div>
       </div>
 
@@ -455,6 +732,13 @@ function CreateActivityView({ onBack, onCreated }: { onBack: () => void; onCreat
         {error && (
           <div className="bg-destructive/10 border border-destructive/20 text-destructive text-sm px-4 py-3 rounded-lg" data-testid="text-create-error">
             {error}
+          </div>
+        )}
+
+        {template && (
+          <div className="bg-primary/5 border border-primary/20 rounded-lg px-4 py-3 flex items-center gap-2 text-sm text-foreground" data-testid="panel-template-banner">
+            <Sparkles className="w-4 h-4 text-primary flex-shrink-0" />
+            <span>Pre-filled from the <span className="font-semibold">{template.name}</span> template — just confirm the details.</span>
           </div>
         )}
 
@@ -513,13 +797,123 @@ function CreateActivityView({ onBack, onCreated }: { onBack: () => void; onCreat
           />
         </Field>
 
+        {/* Scheduling: one-off vs repeating */}
+        <Field label="Schedule">
+          <div className="grid grid-cols-2 gap-2" data-testid="toggle-schedule-mode">
+            <button
+              type="button"
+              onClick={() => setRepeat(false)}
+              className={`py-2 rounded-lg text-sm font-semibold transition-colors ${
+                !repeat ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"
+              }`}
+              data-testid="button-schedule-oneoff"
+            >
+              One-off
+            </button>
+            <button
+              type="button"
+              onClick={() => setRepeat(true)}
+              className={`py-2 rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5 transition-colors ${
+                repeat ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"
+              }`}
+              data-testid="button-schedule-repeat"
+            >
+              <Repeat className="w-4 h-4" />
+              Repeating
+            </button>
+          </div>
+        </Field>
+
+        {repeat && (
+          <div className="bg-muted/40 border border-border rounded-xl p-4 space-y-4" data-testid="panel-recurrence">
+            <Field label="Frequency">
+              <select
+                value={frequency}
+                onChange={(e) => setFrequency(e.target.value as "daily" | "weekly")}
+                className="input-field"
+                data-testid="select-recurrence-frequency"
+              >
+                <option value="daily">Every day</option>
+                <option value="weekly">Weekly on selected days</option>
+              </select>
+            </Field>
+
+            {frequency === "weekly" && (
+              <Field label="Repeat on">
+                <div className="flex flex-wrap gap-1.5" data-testid="panel-weekday-picker">
+                  {WEEKDAYS.map((w) => (
+                    <button
+                      key={w.value}
+                      type="button"
+                      onClick={() => toggleWeekday(w.value)}
+                      className={`w-10 h-10 rounded-lg text-xs font-semibold transition-colors ${
+                        weekdays.includes(w.value)
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-card border border-border text-muted-foreground hover:text-foreground"
+                      }`}
+                      data-testid={`button-weekday-${w.value}`}
+                    >
+                      {w.label}
+                    </button>
+                  ))}
+                </div>
+              </Field>
+            )}
+
+            <Field label="Ends">
+              <div className="grid grid-cols-2 gap-2 mb-2" data-testid="toggle-end-mode">
+                <button
+                  type="button"
+                  onClick={() => setEndMode("until")}
+                  className={`py-2 rounded-lg text-sm font-semibold transition-colors ${
+                    endMode === "until" ? "bg-primary text-primary-foreground" : "bg-card border border-border text-muted-foreground hover:text-foreground"
+                  }`}
+                  data-testid="button-end-until"
+                >
+                  On date
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEndMode("count")}
+                  className={`py-2 rounded-lg text-sm font-semibold transition-colors ${
+                    endMode === "count" ? "bg-primary text-primary-foreground" : "bg-card border border-border text-muted-foreground hover:text-foreground"
+                  }`}
+                  data-testid="button-end-count"
+                >
+                  After N times
+                </button>
+              </div>
+              {endMode === "until" ? (
+                <input
+                  type="date"
+                  value={until}
+                  onChange={(e) => setUntil(e.target.value)}
+                  className="input-field"
+                  data-testid="input-recurrence-until"
+                />
+              ) : (
+                <input
+                  type="number"
+                  min={1}
+                  max={60}
+                  value={count}
+                  onChange={(e) => setCount(e.target.value)}
+                  className="input-field"
+                  placeholder="Number of occurrences"
+                  data-testid="input-recurrence-count"
+                />
+              )}
+            </Field>
+          </div>
+        )}
+
         <button
           type="submit"
           disabled={createMutation.isPending}
           className="w-full bg-primary text-primary-foreground font-semibold py-2.5 rounded-lg disabled:opacity-50"
           data-testid="button-submit-create-activity"
         >
-          {createMutation.isPending ? "Creating..." : "Create Activity"}
+          {createMutation.isPending ? "Creating..." : repeat ? "Create Repeating Event" : "Create Activity"}
         </button>
       </form>
     </div>

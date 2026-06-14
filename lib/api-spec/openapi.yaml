@@ -1410,6 +1410,11 @@ components:
           type: ["string", "null"]
         status:
           type: string
+        recurrencePattern:
+          type: string
+          description: "none | daily | weekly"
+        recurrenceGroupId:
+          type: ["string", "null"]
         createdAt:
           type: string
         updatedAt:
@@ -1475,10 +1480,40 @@ components:
           type: ["string", "null"]
         status:
           type: string
+        recurrence:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/RecurrenceRule"
+          description: Optional repeat schedule. When set, the server generates the corresponding occurrences.
       required:
         - name
         - activityType
         - startTime
+
+    RecurrenceRule:
+      type: object
+      properties:
+        frequency:
+          type: string
+          enum:
+            - daily
+            - weekly
+          description: How often the event repeats.
+        weekdays:
+          type: array
+          description: "For weekly recurrence: days of week to repeat on (0=Sunday .. 6=Saturday)."
+          items:
+            type: integer
+            minimum: 0
+            maximum: 6
+        until:
+          type: ["string", "null"]
+          description: "Inclusive end date (YYYY-MM-DD) for the recurrence. Provide until OR count."
+        count:
+          type: ["integer", "null"]
+          description: Number of occurrences to generate. Provide until OR count.
+      required:
+        - frequency
 
     UpdateActivityBody:
       type: object
