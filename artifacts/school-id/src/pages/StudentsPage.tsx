@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { formatRelativeTime, getScanTypeLabel, formatTime } from "@/lib/status";
@@ -57,19 +57,6 @@ function gradeLabel(grade: string): string {
   return /^\d+$/.test(grade) ? `Grade ${grade}` : grade;
 }
 
-function readInitialFilters(): { grade: string; status: string; className: string } {
-  if (typeof window === "undefined") return { grade: "", status: "", className: "" };
-  const params = new URLSearchParams(window.location.search);
-  const g = params.get("grade") ?? "";
-  const s = params.get("status") ?? "";
-  const c = params.get("className") ?? "";
-  return {
-    grade: g,
-    status: VALID_STATUSES.has(s) ? s : "",
-    className: c,
-  };
-}
-
 interface CardStats {
   total: number;
   onCampus: number;
@@ -119,17 +106,90 @@ interface StatFilter {
   className: string | null;
 }
 
+const VALID_BUCKETS = new Set(Object.keys(STAT_BUCKETS));
+
+interface UrlState {
+  search: string;
+  status: string;
+  grade: string;
+  className: string;
+  selectedId: number | null;
+  statFilter: StatFilter | null;
+}
+
+function readInitialState(): UrlState {
+  const empty: UrlState = {
+    search: "",
+    status: "",
+    grade: "",
+    className: "",
+    selectedId: null,
+    statFilter: null,
+  };
+  if (typeof window === "undefined") return empty;
+  const params = new URLSearchParams(window.location.search);
+  const s = params.get("status") ?? "";
+  const studentRaw = params.get("student") ?? "";
+  const sb = params.get("sb") ?? "";
+  const sg = params.get("sg") ?? "";
+  const sc = params.get("sc") ?? "";
+  const statFilter: StatFilter | null =
+    VALID_BUCKETS.has(sb) && sg
+      ? { bucket: sb as StatBucket, grade: sg, className: sc || null }
+      : null;
+  return {
+    search: params.get("q") ?? "",
+    status: VALID_STATUSES.has(s) ? s : "",
+    grade: params.get("grade") ?? "",
+    className: params.get("className") ?? "",
+    selectedId: /^\d+$/.test(studentRaw) ? Number(studentRaw) : null,
+    statFilter,
+  };
+}
+
+function buildQueryString(state: UrlState): string {
+  const params = new URLSearchParams();
+  const trimmedSearch = state.search.trim();
+  if (trimmedSearch) params.set("q", trimmedSearch);
+  if (state.status) params.set("status", state.status);
+  if (state.grade) params.set("grade", state.grade);
+  if (state.className) params.set("className", state.className);
+  if (state.statFilter) {
+    params.set("sb", state.statFilter.bucket);
+    params.set("sg", state.statFilter.grade);
+    if (state.statFilter.className) params.set("sc", state.statFilter.className);
+  }
+  if (state.selectedId != null) params.set("student", String(state.selectedId));
+  return params.toString();
+}
+
 export default function StudentsPage() {
-  const initialFilters = readInitialFilters();
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState(initialFilters.status);
-  const [selectedGrade, setSelectedGrade] = useState<string | null>(initialFilters.grade || null);
-  const [selectedClass, setSelectedClass] = useState<string | null>(initialFilters.className || null);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [statFilter, setStatFilter] = useState<StatFilter | null>(null);
+  const [initialState] = useState(readInitialState);
+  const [search, setSearch] = useState(initialState.search);
+  const [status, setStatus] = useState(initialState.status);
+  const [selectedGrade, setSelectedGrade] = useState<string | null>(initialState.grade || null);
+  const [selectedClass, setSelectedClass] = useState<string | null>(initialState.className || null);
+  const [selectedId, setSelectedId] = useState<number | null>(initialState.selectedId);
+  const [statFilter, setStatFilter] = useState<StatFilter | null>(initialState.statFilter);
   const [showFilters, setShowFilters] = useState(
-    Boolean(initialFilters.grade || initialFilters.status || initialFilters.className)
+    Boolean(initialState.grade || initialState.status || initialState.className)
   );
+
+  useEffect(() => {
+    const qs = buildQueryString({
+      search,
+      status,
+      grade: selectedGrade ?? "",
+      className: selectedClass ?? "",
+      selectedId,
+      statFilter,
+    });
+    const newUrl = window.location.pathname + (qs ? `?${qs}` : "");
+    const current = window.location.pathname + window.location.search;
+    if (newUrl !== current) {
+      window.history.replaceState(window.history.state, "", newUrl);
+    }
+  }, [search, status, selectedGrade, selectedClass, selectedId, statFilter]);
 
   // Full roster — drives the grade/class drill-down aggregates (computed client-side).
   const { data: allStudents, isLoading } = useListStudents(undefined, {
