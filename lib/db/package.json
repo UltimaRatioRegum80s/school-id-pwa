@@ -11,6 +11,7 @@
     "push": "drizzle-kit push --config ./drizzle.config.ts",
     "push-force": "drizzle-kit push --force --config ./drizzle.config.ts",
     "migrate:qr-codes": "node --import tsx/esm src/migrate-qr-codes.ts",
+    "migrate:behavior-categories": "node --import tsx/esm src/migrate-behavior-categories.ts",
     "seed": "node --import tsx/esm src/seed.ts"
   },
   "dependencies": {
