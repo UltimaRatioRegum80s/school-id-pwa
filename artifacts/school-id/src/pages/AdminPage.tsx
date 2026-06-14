@@ -17,6 +17,8 @@ import {
   useUpdateRecognitionTier,
   useDeleteRecognitionTier,
   useListRecognitionQualifiers,
+  useAwardRecognition,
+  useRemoveRecognitionAward,
   useCreateStudent,
   useListActivities,
   useCreateActivity,
@@ -59,6 +61,8 @@ import {
   CreditCard,
   Award,
   Trophy,
+  CheckCircle2,
+  Undo2,
 } from "lucide-react";
 
 type AdminView =
@@ -1303,9 +1307,38 @@ function RecognitionTiersView({ onBack }: { onBack: () => void }) {
 }
 
 function RewardRecognitionView({ onBack }: { onBack: () => void }) {
+  const queryClient = useQueryClient();
   const { data: qualifiers, isLoading } = useListRecognitionQualifiers({
     query: { queryKey: getListRecognitionQualifiersQueryKey() },
   });
+  const [filter, setFilter] = useState<"pending" | "all">("pending");
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+
+  function refresh() {
+    queryClient.invalidateQueries({ queryKey: getListRecognitionQualifiersQueryKey() });
+  }
+
+  const awardMutation = useAwardRecognition({
+    mutation: { onSettled: () => { refresh(); setBusyKey(null); } },
+  });
+  const removeMutation = useRemoveRecognitionAward({
+    mutation: { onSettled: () => { refresh(); setBusyKey(null); } },
+  });
+
+  function markActioned(studentId: number, tierId: number) {
+    setBusyKey(`${studentId}:${tierId}`);
+    awardMutation.mutate({ data: { studentId, tierId } });
+  }
+
+  function undoActioned(studentId: number, tierId: number, awardId: number) {
+    setBusyKey(`${studentId}:${tierId}`);
+    removeMutation.mutate({ id: awardId });
+  }
+
+  const allQualifiers = qualifiers ?? [];
+  const visible = filter === "pending"
+    ? allQualifiers.filter((q) => q.pendingCount > 0)
+    : allQualifiers;
 
   return (
     <div className="flex flex-col min-h-screen bg-background pb-20">
@@ -1320,22 +1353,47 @@ function RewardRecognitionView({ onBack }: { onBack: () => void }) {
 
       <div className="max-w-lg mx-auto w-full px-4 py-4 space-y-4">
         <p className="text-xs text-muted-foreground">
-          Students who have crossed a recognition threshold and are due an action. Sorted by total merit points.
+          Students who have crossed a recognition threshold. Mark each tier as actioned once the letter, certificate, or nomination has been handled.
         </p>
+
+        <div className="flex gap-2" data-testid="recognition-filter-tabs">
+          <button
+            onClick={() => setFilter("pending")}
+            className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+              filter === "pending" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+            }`}
+            data-testid="button-filter-pending"
+          >
+            Pending action
+          </button>
+          <button
+            onClick={() => setFilter("all")}
+            className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+              filter === "all" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+            }`}
+            data-testid="button-filter-all"
+          >
+            All qualifiers
+          </button>
+        </div>
 
         {isLoading ? (
           <div className="text-center py-8 text-muted-foreground text-sm">Loading...</div>
-        ) : (qualifiers ?? []).length === 0 ? (
+        ) : visible.length === 0 ? (
           <div className="bg-card border border-border rounded-xl px-4 py-10 text-center" data-testid="empty-recognition">
             <Trophy className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-            <p className="text-sm font-medium text-foreground">No students qualify yet</p>
+            <p className="text-sm font-medium text-foreground">
+              {filter === "pending" ? "Nothing pending" : "No students qualify yet"}
+            </p>
             <p className="text-xs text-muted-foreground mt-1">
-              Once students earn enough merit points, they'll appear here.
+              {filter === "pending"
+                ? "All recognitions have been actioned. Switch to All qualifiers to review them."
+                : "Once students earn enough merit points, they'll appear here."}
             </p>
           </div>
         ) : (
           <div className="space-y-3" data-testid="list-recognition-qualifiers">
-            {(qualifiers ?? []).map((q) => (
+            {visible.map((q) => (
               <div key={q.studentId} className="bg-card border border-border rounded-xl p-4" data-testid={`row-qualifier-${q.studentId}`}>
                 <div className="flex items-start gap-3">
                   <div className="w-9 h-9 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
@@ -1347,21 +1405,59 @@ function RewardRecognitionView({ onBack }: { onBack: () => void }) {
                       <span className="text-xs font-bold text-green-600 flex-shrink-0">{q.totalMerits} pts</span>
                     </div>
                     <p className="text-xs text-muted-foreground">{q.studentCode} · Grade {q.grade} {q.className}</p>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {q.earnedTiers.map((t) => (
-                        <span
-                          key={t.id}
-                          className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                            t.id === q.highestTier.id
-                              ? "bg-amber-500 text-white"
-                              : "bg-amber-100 text-amber-800"
-                          }`}
-                        >
-                          {t.name}
-                        </span>
-                      ))}
-                    </div>
                   </div>
+                </div>
+
+                <div className="mt-3 space-y-1.5">
+                  {q.earnedTiers.map((t) => {
+                    const key = `${q.studentId}:${t.id}`;
+                    const busy = busyKey === key;
+                    return (
+                      <div
+                        key={t.id}
+                        className={`flex items-center gap-2 rounded-lg px-2.5 py-2 ${
+                          t.actioned ? "bg-green-50 border border-green-200" : "bg-muted/50 border border-border"
+                        }`}
+                        data-testid={`tier-row-${q.studentId}-${t.id}`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-semibold text-foreground truncate">{t.name}</span>
+                            {t.id === q.highestTier.id && (
+                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-500 text-white flex-shrink-0">Highest</span>
+                            )}
+                          </div>
+                          {t.actioned ? (
+                            <p className="text-[11px] text-green-700 mt-0.5" data-testid={`tier-actioned-${q.studentId}-${t.id}`}>
+                              Actioned{t.awardedAt ? ` ${new Date(t.awardedAt).toLocaleDateString()}` : ""}
+                              {t.awardedByName ? ` by ${t.awardedByName}` : ""}
+                            </p>
+                          ) : (
+                            <p className="text-[11px] text-muted-foreground mt-0.5">Threshold {t.thresholdPoints} pts · pending</p>
+                          )}
+                        </div>
+                        {t.actioned ? (
+                          <button
+                            onClick={() => t.awardId != null && undoActioned(q.studentId, t.id, t.awardId)}
+                            disabled={busy || t.awardId == null}
+                            className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50 flex-shrink-0"
+                            data-testid={`button-undo-${q.studentId}-${t.id}`}
+                          >
+                            <Undo2 className="w-3 h-3" /> Undo
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => markActioned(q.studentId, t.id)}
+                            disabled={busy}
+                            className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50 flex-shrink-0"
+                            data-testid={`button-mark-actioned-${q.studentId}-${t.id}`}
+                          >
+                            <CheckCircle2 className="w-3 h-3" /> Mark done
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ))}

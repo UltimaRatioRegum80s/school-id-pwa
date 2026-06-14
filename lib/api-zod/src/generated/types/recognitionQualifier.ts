@@ -5,6 +5,7 @@
  * School ID App API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { RecognitionEarnedTier } from "./recognitionEarnedTier";
 import type { RecognitionTier } from "./recognitionTier";
 
 export interface RecognitionQualifier {
@@ -15,5 +16,7 @@ export interface RecognitionQualifier {
   className: string;
   totalMerits: number;
   highestTier: RecognitionTier;
-  earnedTiers: RecognitionTier[];
+  earnedTiers: RecognitionEarnedTier[];
+  pendingCount: number;
+  actionedCount: number;
 }

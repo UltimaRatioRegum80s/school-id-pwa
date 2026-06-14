@@ -7,4 +7,5 @@ export * from "./scan_events";
 export * from "./activities";
 export * from "./behavior_logs";
 export * from "./recognition_tiers";
+export * from "./recognition_awards";
 export * from "./school_settings";

@@ -1232,12 +1232,41 @@ export const ListRecognitionQualifiersResponseItem = zod.object({
       description: zod.string().nullish(),
       sortOrder: zod.number(),
       createdAt: zod.string(),
+      actioned: zod.boolean(),
+      awardId: zod.number().nullish(),
+      awardedAt: zod.string().nullish(),
+      awardedByName: zod.string().nullish(),
     }),
   ),
+  pendingCount: zod.number(),
+  actionedCount: zod.number(),
 });
 export const ListRecognitionQualifiersResponse = zod.array(
   ListRecognitionQualifiersResponseItem,
 );
+
+/**
+ * @summary Mark a recognition tier as actioned for a student
+ */
+export const AwardRecognitionBody = zod.object({
+  studentId: zod.number(),
+  tierId: zod.number(),
+});
+
+export const AwardRecognitionResponse = zod.object({
+  id: zod.number(),
+  studentId: zod.number(),
+  tierId: zod.number(),
+  awardedById: zod.number().nullish(),
+  awardedAt: zod.string(),
+});
+
+/**
+ * @summary Undo a recognition action (mark as not yet actioned)
+ */
+export const RemoveRecognitionAwardParams = zod.object({
+  id: zod.coerce.number(),
+});
 
 /**
  * @summary Get school settings

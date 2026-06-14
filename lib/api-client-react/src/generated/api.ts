@@ -21,6 +21,7 @@ import type {
   ActivityDetail,
   ActivityWithCounts,
   AttendanceRecord,
+  AwardRecognitionBody,
   BehaviorCategory,
   BehaviorLog,
   CreateActivityBody,
@@ -47,6 +48,7 @@ import type {
   LoginResponse,
   MarkAttendanceBody,
   PrintCardsResponse,
+  RecognitionAward,
   RecognitionQualifier,
   RecognitionTier,
   RegisterSchoolBody,
@@ -3460,6 +3462,176 @@ export function useListRecognitionQualifiers<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Mark a recognition tier as actioned for a student
+ */
+export const getAwardRecognitionUrl = () => {
+  return `/api/behavior/recognition/award`;
+};
+
+export const awardRecognition = async (
+  awardRecognitionBody: AwardRecognitionBody,
+  options?: RequestInit,
+): Promise<RecognitionAward> => {
+  return customFetch<RecognitionAward>(getAwardRecognitionUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(awardRecognitionBody),
+  });
+};
+
+export const getAwardRecognitionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof awardRecognition>>,
+    TError,
+    { data: BodyType<AwardRecognitionBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof awardRecognition>>,
+  TError,
+  { data: BodyType<AwardRecognitionBody> },
+  TContext
+> => {
+  const mutationKey = ["awardRecognition"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof awardRecognition>>,
+    { data: BodyType<AwardRecognitionBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return awardRecognition(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AwardRecognitionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof awardRecognition>>
+>;
+export type AwardRecognitionMutationBody = BodyType<AwardRecognitionBody>;
+export type AwardRecognitionMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Mark a recognition tier as actioned for a student
+ */
+export const useAwardRecognition = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof awardRecognition>>,
+    TError,
+    { data: BodyType<AwardRecognitionBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof awardRecognition>>,
+  TError,
+  { data: BodyType<AwardRecognitionBody> },
+  TContext
+> => {
+  return useMutation(getAwardRecognitionMutationOptions(options));
+};
+
+/**
+ * @summary Undo a recognition action (mark as not yet actioned)
+ */
+export const getRemoveRecognitionAwardUrl = (id: number) => {
+  return `/api/behavior/recognition/award/${id}`;
+};
+
+export const removeRecognitionAward = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getRemoveRecognitionAwardUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getRemoveRecognitionAwardMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeRecognitionAward>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof removeRecognitionAward>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["removeRecognitionAward"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof removeRecognitionAward>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return removeRecognitionAward(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RemoveRecognitionAwardMutationResult = NonNullable<
+  Awaited<ReturnType<typeof removeRecognitionAward>>
+>;
+
+export type RemoveRecognitionAwardMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Undo a recognition action (mark as not yet actioned)
+ */
+export const useRemoveRecognitionAward = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeRecognitionAward>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof removeRecognitionAward>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getRemoveRecognitionAwardMutationOptions(options));
+};
 
 /**
  * @summary Get school settings

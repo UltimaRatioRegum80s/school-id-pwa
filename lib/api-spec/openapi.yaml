@@ -838,6 +838,40 @@ paths:
                 items:
                   $ref: "#/components/schemas/RecognitionQualifier"
 
+  /behavior/recognition/award:
+    post:
+      operationId: awardRecognition
+      tags: [behavior]
+      summary: Mark a recognition tier as actioned for a student
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AwardRecognitionBody"
+      responses:
+        "200":
+          description: Recognition award recorded (idempotent)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecognitionAward"
+
+  /behavior/recognition/award/{id}:
+    delete:
+      operationId: removeRecognitionAward
+      tags: [behavior]
+      summary: Undo a recognition action (mark as not yet actioned)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Award removed
+
   /settings:
     get:
       operationId: getSettings
@@ -1821,6 +1855,37 @@ components:
         sortOrder:
           type: integer
 
+    RecognitionEarnedTier:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        thresholdPoints:
+          type: integer
+        description:
+          type: ["string", "null"]
+        sortOrder:
+          type: integer
+        createdAt:
+          type: string
+        actioned:
+          type: boolean
+        awardId:
+          type: ["integer", "null"]
+        awardedAt:
+          type: ["string", "null"]
+        awardedByName:
+          type: ["string", "null"]
+      required:
+        - id
+        - name
+        - thresholdPoints
+        - sortOrder
+        - createdAt
+        - actioned
+
     RecognitionQualifier:
       type: object
       properties:
@@ -1841,7 +1906,11 @@ components:
         earnedTiers:
           type: array
           items:
-            $ref: "#/components/schemas/RecognitionTier"
+            $ref: "#/components/schemas/RecognitionEarnedTier"
+        pendingCount:
+          type: integer
+        actionedCount:
+          type: integer
       required:
         - studentId
         - studentName
@@ -1851,6 +1920,38 @@ components:
         - totalMerits
         - highestTier
         - earnedTiers
+        - pendingCount
+        - actionedCount
+
+    AwardRecognitionBody:
+      type: object
+      properties:
+        studentId:
+          type: integer
+        tierId:
+          type: integer
+      required:
+        - studentId
+        - tierId
+
+    RecognitionAward:
+      type: object
+      properties:
+        id:
+          type: integer
+        studentId:
+          type: integer
+        tierId:
+          type: integer
+        awardedById:
+          type: ["integer", "null"]
+        awardedAt:
+          type: string
+      required:
+        - id
+        - studentId
+        - tierId
+        - awardedAt
 
     SchoolBranding:
       type: object

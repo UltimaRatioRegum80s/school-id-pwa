@@ -443,6 +443,23 @@ export interface UpdateRecognitionTierBody {
   sortOrder?: number;
 }
 
+export interface RecognitionEarnedTier {
+  id: number;
+  name: string;
+  thresholdPoints: number;
+  /** @nullable */
+  description?: string | null;
+  sortOrder: number;
+  createdAt: string;
+  actioned: boolean;
+  /** @nullable */
+  awardId?: number | null;
+  /** @nullable */
+  awardedAt?: string | null;
+  /** @nullable */
+  awardedByName?: string | null;
+}
+
 export interface RecognitionQualifier {
   studentId: number;
   studentName: string;
@@ -451,7 +468,23 @@ export interface RecognitionQualifier {
   className: string;
   totalMerits: number;
   highestTier: RecognitionTier;
-  earnedTiers: RecognitionTier[];
+  earnedTiers: RecognitionEarnedTier[];
+  pendingCount: number;
+  actionedCount: number;
+}
+
+export interface AwardRecognitionBody {
+  studentId: number;
+  tierId: number;
+}
+
+export interface RecognitionAward {
+  id: number;
+  studentId: number;
+  tierId: number;
+  /** @nullable */
+  awardedById?: number | null;
+  awardedAt: string;
 }
 
 export interface SchoolBranding {
