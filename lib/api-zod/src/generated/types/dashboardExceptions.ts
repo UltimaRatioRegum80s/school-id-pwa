@@ -8,8 +8,5 @@
 import type { StudentWithState } from "./studentWithState";
 
 export interface DashboardExceptions {
-  missingFromClass: StudentWithState[];
-  unaccountedStudents: StudentWithState[];
-  lateArrivals: StudentWithState[];
-  checkedOutWithoutReason: StudentWithState[];
+  absentStudents: StudentWithState[];
 }

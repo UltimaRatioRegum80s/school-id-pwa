@@ -1,8 +1,8 @@
 import { Router, type IRouter } from "express";
 import { requireAuth } from "../lib/auth";
 import { eq, desc, sql, and } from "drizzle-orm";
-import { db, studentsTable, scanEventsTable, schoolSettingsTable } from "@workspace/db";
-import { computeStudentState, isLateArrival, formatScanType } from "../lib/state-engine";
+import { db, studentsTable, scanEventsTable } from "@workspace/db";
+import { computeStudentState, formatScanType } from "../lib/state-engine";
 import type { Request } from "express";
 import type { JwtPayload } from "../lib/auth";
 
@@ -41,12 +41,6 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
   const { grade, className } = req.query as { grade?: string; className?: string };
   const todayStartDate = todayStart();
   const user = (req as Request & { user: JwtPayload }).user;
-
-  const [settingsRow] = await db
-    .select()
-    .from(schoolSettingsTable)
-    .where(eq(schoolSettingsTable.schoolId, user.schoolId));
-  const schoolStartTime = settingsRow?.startTime ?? "07:30";
 
   const allActiveStudents = await db
     .select()
@@ -92,78 +86,46 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
   }));
 
   const total = students.length;
-  const notArrived = studentsWithState.filter((s) => s.state === "not_arrived");
-  const onCampus = studentsWithState.filter((s) => s.state === "on_campus");
-  const inClass = studentsWithState.filter((s) => s.state === "in_class");
-  const atEvent = studentsWithState.filter((s) => s.state === "at_event");
-  const checkedOut = studentsWithState.filter((s) => s.state === "checked_out");
-  const unaccounted = studentsWithState.filter((s) => s.state === "unaccounted");
-
-  const present = total - notArrived.length;
-  const lateArrivals = studentsWithState.filter(
-    (s) => s.state !== "not_arrived" && isLateArrival(s.events, schoolStartTime)
-  );
+  const presentList = studentsWithState.filter((s) => s.state === "present");
+  const absentList = studentsWithState.filter((s) => s.state === "absent");
 
   const kpis = {
     total,
-    present,
-    absent: notArrived.length,
-    late: lateArrivals.length,
-    checkedOut: checkedOut.length,
-    unaccounted: unaccounted.length,
-    onCampus: onCampus.length,
-    inClass: inClass.length,
-    atEvent: atEvent.length,
+    present: presentList.length,
+    absent: absentList.length,
   };
 
   const statusDistribution = [
-    { state: "not_arrived", count: notArrived.length },
-    { state: "on_campus", count: onCampus.length },
-    { state: "in_class", count: inClass.length },
-    { state: "at_event", count: atEvent.length },
-    { state: "checked_out", count: checkedOut.length },
-    { state: "unaccounted", count: unaccounted.length },
+    { state: "present", count: presentList.length },
+    { state: "absent", count: absentList.length },
   ];
 
-  const gradeStatMap: Record<string, { present: number; notArrived: number; total: number }> = {};
+  const gradeStatMap: Record<string, { present: number; absent: number; total: number }> = {};
   for (const sw of studentsWithState) {
     const g = sw.student.grade;
-    if (!gradeStatMap[g]) gradeStatMap[g] = { present: 0, notArrived: 0, total: 0 };
+    if (!gradeStatMap[g]) gradeStatMap[g] = { present: 0, absent: 0, total: 0 };
     gradeStatMap[g].total += 1;
-    if (sw.state === "not_arrived") {
-      gradeStatMap[g].notArrived += 1;
-    } else if (sw.state === "on_campus" || sw.state === "in_class" || sw.state === "at_event") {
+    if (sw.state === "present") {
       gradeStatMap[g].present += 1;
+    } else {
+      gradeStatMap[g].absent += 1;
     }
   }
   const byGrade = Object.entries(gradeStatMap)
-    .map(([grade, v]) => ({ grade, present: v.present, notArrived: v.notArrived, total: v.total }))
+    .map(([grade, v]) => ({ grade, present: v.present, absent: v.absent, total: v.total }))
     .sort((a, b) =>
       a.grade.localeCompare(b.grade, undefined, { numeric: true, sensitivity: "base" })
     );
 
   const exceptions = {
-    missingFromClass: notArrived
-      .slice(0, 10)
-      .map((s) => formatStudentWithState(s.student, s.events)),
-    unaccountedStudents: unaccounted.map((s) => formatStudentWithState(s.student, s.events)),
-    lateArrivals: lateArrivals.slice(0, 10).map((s) => formatStudentWithState(s.student, s.events)),
-    checkedOutWithoutReason: checkedOut
-      .filter((s) => {
-        const checkout = s.events.find(
-          (e) => e.scanType === "gate_out" || e.scanType === "checkout"
-        );
-        return checkout && !checkout.notes;
-      })
+    absentStudents: absentList
+      .slice(0, 20)
       .map((s) => formatStudentWithState(s.student, s.events)),
   };
 
-  const presentStudents = [...onCampus, ...inClass, ...atEvent];
   const studentsByState = {
-    present: presentStudents.slice(0, 8).map((s) => formatStudentWithState(s.student, s.events)),
-    notArrived: notArrived.slice(0, 8).map((s) => formatStudentWithState(s.student, s.events)),
-    late: lateArrivals.slice(0, 8).map((s) => formatStudentWithState(s.student, s.events)),
-    unaccounted: unaccounted.slice(0, 8).map((s) => formatStudentWithState(s.student, s.events)),
+    present: presentList.slice(0, 8).map((s) => formatStudentWithState(s.student, s.events)),
+    absent: absentList.slice(0, 8).map((s) => formatStudentWithState(s.student, s.events)),
   };
 
   const studentNameMap: Record<number, string> = {};
@@ -224,12 +186,6 @@ router.get("/dashboard/trends", requireAuth, async (req, res): Promise<void> => 
     : 7;
   const user = (req as Request & { user: JwtPayload }).user;
 
-  const [settingsRow] = await db
-    .select()
-    .from(schoolSettingsTable)
-    .where(eq(schoolSettingsTable.schoolId, user.schoolId));
-  const schoolStartTime = settingsRow?.startTime ?? "07:30";
-
   let students = await db
     .select()
     .from(studentsTable)
@@ -267,8 +223,7 @@ router.get("/dashboard/trends", requireAuth, async (req, res): Promise<void> => 
   const points: Array<{
     date: string;
     present: number;
-    late: number;
-    notArrived: number;
+    absent: number;
     total: number;
   }> = [];
 
@@ -279,16 +234,13 @@ router.get("/dashboard/trends", requireAuth, async (req, res): Promise<void> => 
     const byStudent = eventsByDay[key] ?? {};
 
     let present = 0;
-    let late = 0;
     for (const s of students) {
       const studentEvents = byStudent[s.id] ?? [];
       const { state } = computeStudentState(studentEvents);
-      if (state === "not_arrived") continue;
-      present += 1;
-      if (isLateArrival(studentEvents, schoolStartTime, dayDate)) late += 1;
+      if (state === "present") present += 1;
     }
 
-    points.push({ date: key, present, late, notArrived: total - present, total });
+    points.push({ date: key, present, absent: total - present, total });
   }
 
   res.json(points);

@@ -190,9 +190,7 @@ export interface ScanResult {
 
 export interface DashboardStudentsByState {
   present: StudentWithState[];
-  notArrived: StudentWithState[];
-  late: StudentWithState[];
-  unaccounted: StudentWithState[];
+  absent: StudentWithState[];
 }
 
 /**
@@ -206,19 +204,10 @@ export interface DashboardKpis {
   total: number;
   present: number;
   absent: number;
-  late: number;
-  checkedOut: number;
-  unaccounted: number;
-  onCampus: number;
-  inClass: number;
-  atEvent: number;
 }
 
 export interface DashboardExceptions {
-  missingFromClass: StudentWithState[];
-  unaccountedStudents: StudentWithState[];
-  lateArrivals: StudentWithState[];
-  checkedOutWithoutReason: StudentWithState[];
+  absentStudents: StudentWithState[];
 }
 
 export interface StatusCount {
@@ -229,7 +218,7 @@ export interface StatusCount {
 export interface DashboardGradeStat {
   grade: string;
   present: number;
-  notArrived: number;
+  absent: number;
   total: number;
 }
 
@@ -247,7 +236,7 @@ export interface DashboardSummary {
   exceptions: DashboardExceptions;
   studentsByState: DashboardStudentsByState;
   statusDistribution: StatusCount[];
-  /** Per-grade attendance breakdown (present vs not arrived) */
+  /** Per-grade attendance breakdown (present vs absent) */
   byGrade: DashboardGradeStat[];
   recentFeed: FeedItem[];
   lastUpdated: string;
@@ -259,8 +248,7 @@ export interface DashboardTrendPoint {
   /** Day in YYYY-MM-DD format */
   date: string;
   present: number;
-  late: number;
-  notArrived: number;
+  absent: number;
   total: number;
 }
 

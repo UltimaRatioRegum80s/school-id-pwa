@@ -18,7 +18,7 @@ export interface DashboardSummary {
   exceptions: DashboardExceptions;
   studentsByState: DashboardStudentsByState;
   statusDistribution: StatusCount[];
-  /** Per-grade attendance breakdown (present vs not arrived) */
+  /** Per-grade attendance breakdown (present vs absent) */
   byGrade: DashboardGradeStat[];
   recentFeed: FeedItem[];
   lastUpdated: string;

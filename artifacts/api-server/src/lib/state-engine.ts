@@ -1,12 +1,6 @@
 import type { ScanEvent } from "@workspace/db";
 
-export type StudentState =
-  | "not_arrived"
-  | "on_campus"
-  | "in_class"
-  | "at_event"
-  | "checked_out"
-  | "unaccounted";
+export type StudentState = "present" | "absent";
 
 export function computeStudentState(events: ScanEvent[]): {
   state: StudentState;
@@ -14,7 +8,7 @@ export function computeStudentState(events: ScanEvent[]): {
   lastSeenLocation: string | null;
 } {
   if (!events || events.length === 0) {
-    return { state: "not_arrived", lastSeenAt: null, lastSeenLocation: null };
+    return { state: "absent", lastSeenAt: null, lastSeenLocation: null };
   }
 
   const sorted = [...events].sort(
@@ -28,26 +22,20 @@ export function computeStudentState(events: ScanEvent[]): {
   let state: StudentState;
 
   switch (last.scanType) {
-    case "gate_in":
-      state = "on_campus";
-      break;
     case "gate_out":
     case "checkout":
-      state = "checked_out";
+      state = "absent";
       break;
+    case "gate_in":
     case "class":
-      state = "in_class";
-      break;
     case "event":
     case "assembly":
     case "activity":
     case "detention":
     case "club":
-      state = "at_event";
-      break;
     default:
-      // Unknown scan type after gate-in: student is on campus but location unclear
-      state = "unaccounted";
+      // Any "at school" scan means the student is physically present.
+      state = "present";
   }
 
   return { state, lastSeenAt, lastSeenLocation };
@@ -92,22 +80,4 @@ export function formatScanType(scanType: string): string {
     club: "registered for club",
   };
   return map[scanType] ?? scanType;
-}
-
-export function isLateArrival(
-  events: ScanEvent[],
-  schoolStartTime: string,
-  referenceDate?: Date
-): boolean {
-  const gateIns = events.filter((e) => e.scanType === "gate_in");
-  if (gateIns.length === 0) return false;
-  const earliestGateIn = gateIns.reduce((earliest, e) =>
-    new Date(e.createdAt) < new Date(earliest.createdAt) ? e : earliest
-  );
-
-  const [hours, minutes] = schoolStartTime.split(":").map(Number);
-  const startTime = new Date(referenceDate ?? new Date());
-  startTime.setHours(hours, minutes + 15, 0, 0);
-
-  return new Date(earliestGateIn.createdAt) > startTime;
 }

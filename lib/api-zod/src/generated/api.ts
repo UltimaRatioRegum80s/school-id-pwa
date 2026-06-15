@@ -498,84 +498,9 @@ export const GetDashboardSummaryResponse = zod.object({
     total: zod.number(),
     present: zod.number(),
     absent: zod.number(),
-    late: zod.number(),
-    checkedOut: zod.number(),
-    unaccounted: zod.number(),
-    onCampus: zod.number(),
-    inClass: zod.number(),
-    atEvent: zod.number(),
   }),
   exceptions: zod.object({
-    missingFromClass: zod.array(
-      zod
-        .object({
-          id: zod.number(),
-          studentId: zod.string(),
-          firstName: zod.string(),
-          lastName: zod.string(),
-          grade: zod.string(),
-          className: zod.string(),
-          photoUrl: zod.string().nullish(),
-          qrCode: zod.string(),
-          isActive: zod.number(),
-          createdAt: zod.string(),
-          updatedAt: zod.string(),
-        })
-        .and(
-          zod.object({
-            currentState: zod.string(),
-            lastSeenAt: zod.string().nullish(),
-            lastSeenLocation: zod.string().nullish(),
-          }),
-        ),
-    ),
-    unaccountedStudents: zod.array(
-      zod
-        .object({
-          id: zod.number(),
-          studentId: zod.string(),
-          firstName: zod.string(),
-          lastName: zod.string(),
-          grade: zod.string(),
-          className: zod.string(),
-          photoUrl: zod.string().nullish(),
-          qrCode: zod.string(),
-          isActive: zod.number(),
-          createdAt: zod.string(),
-          updatedAt: zod.string(),
-        })
-        .and(
-          zod.object({
-            currentState: zod.string(),
-            lastSeenAt: zod.string().nullish(),
-            lastSeenLocation: zod.string().nullish(),
-          }),
-        ),
-    ),
-    lateArrivals: zod.array(
-      zod
-        .object({
-          id: zod.number(),
-          studentId: zod.string(),
-          firstName: zod.string(),
-          lastName: zod.string(),
-          grade: zod.string(),
-          className: zod.string(),
-          photoUrl: zod.string().nullish(),
-          qrCode: zod.string(),
-          isActive: zod.number(),
-          createdAt: zod.string(),
-          updatedAt: zod.string(),
-        })
-        .and(
-          zod.object({
-            currentState: zod.string(),
-            lastSeenAt: zod.string().nullish(),
-            lastSeenLocation: zod.string().nullish(),
-          }),
-        ),
-    ),
-    checkedOutWithoutReason: zod.array(
+    absentStudents: zod.array(
       zod
         .object({
           id: zod.number(),
@@ -623,53 +548,7 @@ export const GetDashboardSummaryResponse = zod.object({
           }),
         ),
     ),
-    notArrived: zod.array(
-      zod
-        .object({
-          id: zod.number(),
-          studentId: zod.string(),
-          firstName: zod.string(),
-          lastName: zod.string(),
-          grade: zod.string(),
-          className: zod.string(),
-          photoUrl: zod.string().nullish(),
-          qrCode: zod.string(),
-          isActive: zod.number(),
-          createdAt: zod.string(),
-          updatedAt: zod.string(),
-        })
-        .and(
-          zod.object({
-            currentState: zod.string(),
-            lastSeenAt: zod.string().nullish(),
-            lastSeenLocation: zod.string().nullish(),
-          }),
-        ),
-    ),
-    late: zod.array(
-      zod
-        .object({
-          id: zod.number(),
-          studentId: zod.string(),
-          firstName: zod.string(),
-          lastName: zod.string(),
-          grade: zod.string(),
-          className: zod.string(),
-          photoUrl: zod.string().nullish(),
-          qrCode: zod.string(),
-          isActive: zod.number(),
-          createdAt: zod.string(),
-          updatedAt: zod.string(),
-        })
-        .and(
-          zod.object({
-            currentState: zod.string(),
-            lastSeenAt: zod.string().nullish(),
-            lastSeenLocation: zod.string().nullish(),
-          }),
-        ),
-    ),
-    unaccounted: zod.array(
+    absent: zod.array(
       zod
         .object({
           id: zod.number(),
@@ -704,11 +583,11 @@ export const GetDashboardSummaryResponse = zod.object({
       zod.object({
         grade: zod.string(),
         present: zod.number(),
-        notArrived: zod.number(),
+        absent: zod.number(),
         total: zod.number(),
       }),
     )
-    .describe("Per-grade attendance breakdown (present vs not arrived)"),
+    .describe("Per-grade attendance breakdown (present vs absent)"),
   recentFeed: zod.array(
     zod.object({
       id: zod.number(),
@@ -752,8 +631,7 @@ export const GetDashboardTrendsQueryParams = zod.object({
 export const GetDashboardTrendsResponseItem = zod.object({
   date: zod.string().describe("Day in YYYY-MM-DD format"),
   present: zod.number(),
-  late: zod.number(),
-  notArrived: zod.number(),
+  absent: zod.number(),
   total: zod.number(),
 });
 export const GetDashboardTrendsResponse = zod.array(

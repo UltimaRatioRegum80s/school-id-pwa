@@ -44,14 +44,12 @@ Three ways for staff to join a school:
 3. **Invite link**: Admin generates invite link from Staff Accounts panel. Sharing `/join/:token` takes recipient to pre-filled form for their school. Account created as "active" immediately (no approval needed). Links can expire and be revoked.
 
 ## Student State Engine
-States: `not_arrived` | `on_campus` | `in_class` | `at_event` | `checked_out` | `unaccounted`
+Binary model — every student is either `present` or `absent`.
+States: `present` | `absent`
 
-State transitions based on scan type:
-- `gate_in` → on_campus
-- `gate_out` / `checkout` → checked_out
-- `class` → in_class
-- `event` / `assembly` / `activity` / `detention` / `club` → at_event
-- No scans → not_arrived
+Rules:
+- Anyone physically at school (latest scan is a check-in / on-campus type) → `present`
+- No scans today, or latest scan is `gate_out` / `checkout` → `absent`
 
 ## API Routes
 - `POST /api/auth/login` - JWT login (returns mustChangePassword flag)
@@ -91,9 +89,9 @@ Socket.IO on path `/api/socket.io` emits:
 
 ## Frontend Pages (Bottom Tab Navigation)
 1. **Scan** (`/scan`) - QR/barcode scan interface, manual ID entry, demo "Simulate Scan" buttons (SCID-STU1001/1002/1003), contextual post-scan action buttons (Check In, Check Out, Class, Event, Merit, Demerit), recent scan result display
-2. **Dashboard** (`/dashboard`) - Exceptions panel first (unaccounted/missing), Live KPIs grid, status breakdown, Socket.IO real-time updates
+2. **Dashboard** (`/dashboard`) - Needs Attention panel first (absent students), Live KPIs grid (Total/Present/Absent), Present vs Absent breakdown, Socket.IO real-time updates
 3. **Activities** (`/activities`) - Type filter tabs (All/Class/Event/Assembly/Club/Detention), activity detail with attendance + Start Scanning shortcut, create/edit modal
-4. **Students** (`/students`) - Student list with search/filter by grade/class/state, student profile with today's timeline + behavior log
+4. **Students** (`/students`) - Grade/class drill-down; class roster shows two side-by-side columns (Present | Absent) with counts; search/filter by grade/class/state (Present/Absent), student profile with today's timeline + behavior log
 5. **Admin** (`/admin`) - School settings, staff accounts, behavior categories CRUD, Add Student form, bulk Import Students (CSV/Excel/Word), Sign Out
 
 ## API Client
@@ -113,12 +111,8 @@ All frontend pages use generated React Query hooks from `@workspace/api-client-r
 - School: "Westbrook Academy", 07:30-14:30, Africa/Johannesburg
 
 ## Status Color Coding
-- Green = On Campus
-- Blue = In Class
-- Yellow = At Event
-- Grey/Slate = Not Arrived
-- Muted = Checked Out
-- Red = Unaccounted
+- Green = Present
+- Grey/Slate = Absent
 
 ## PWA Configuration
 - Service worker with auto-update

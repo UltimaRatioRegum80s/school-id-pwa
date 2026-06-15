@@ -10,7 +10,6 @@ export interface DashboardTrendPoint {
   /** Day in YYYY-MM-DD format */
   date: string;
   present: number;
-  late: number;
-  notArrived: number;
+  absent: number;
   total: number;
 }

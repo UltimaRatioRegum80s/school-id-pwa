@@ -9,6 +9,6 @@
 export interface DashboardGradeStat {
   grade: string;
   present: number;
-  notArrived: number;
+  absent: number;
   total: number;
 }

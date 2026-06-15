@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { io } from "socket.io-client";
 import { PageHeader } from "@/components/PageHeader";
-import { formatRelativeTime, getStateLabel } from "@/lib/status";
+import { formatRelativeTime } from "@/lib/status";
 import {
   useGetDashboardSummary,
   useGetDashboardTrends,
@@ -27,28 +27,15 @@ import {
   Users,
   CheckCircle,
   Clock,
-  AlertTriangle,
   RefreshCw,
-  TrendingUp,
-  LogOut,
   X,
   ChevronDown,
   ChevronUp,
   ChevronRight,
 } from "lucide-react";
 
-const STATE_COLORS: Record<string, string> = {
-  on_campus: "#22c55e",
-  in_class: "#3b82f6",
-  at_event: "#eab308",
-  checked_out: "#94a3b8",
-  unaccounted: "#ef4444",
-  not_arrived: "#cbd5e1",
-};
-
 const COLOR_PRESENT = "#22c55e";
-const COLOR_LATE = "#f59e0b";
-const COLOR_NOT_ARRIVED = "#cbd5e1";
+const COLOR_ABSENT = "#94a3b8";
 
 function sortGrades(grades: string[]): string[] {
   return [...grades].sort((a, b) =>
@@ -203,26 +190,22 @@ export default function DashboardPage() {
   );
   const isEmpty = d.kpis.total === 0;
 
-  const onTime = Math.max(0, d.kpis.present - d.kpis.late);
-  const onCampusCount = d.kpis.onCampus + d.kpis.inClass + d.kpis.atEvent;
-  const onCampusPct = d.kpis.total > 0 ? Math.round((onCampusCount / d.kpis.total) * 100) : 0;
+  const presentPct = d.kpis.total > 0 ? Math.round((d.kpis.present / d.kpis.total) * 100) : 0;
   const donutData = [
-    { name: "On Time", value: onTime, color: COLOR_PRESENT },
-    { name: "Late", value: d.kpis.late, color: COLOR_LATE },
-    { name: "Not Arrived", value: d.kpis.absent, color: COLOR_NOT_ARRIVED },
+    { name: "Present", value: d.kpis.present, color: COLOR_PRESENT },
+    { name: "Absent", value: d.kpis.absent, color: COLOR_ABSENT },
   ].filter((s) => s.value > 0);
 
   const byGradeData = d.byGrade.map((g) => ({
     grade: gradeLabel(g.grade),
     Present: g.present,
-    "Not Arrived": g.notArrived,
+    Absent: g.absent,
   }));
 
   const trendChartData = (trendData ?? []).map((p) => ({
     date: trendDateLabel(p.date),
-    "On Time": Math.max(0, p.present - p.late),
-    Late: p.late,
-    "Not Arrived": p.notArrived,
+    Present: p.present,
+    Absent: p.absent,
   }));
   const hasTrendData = trendChartData.length > 0;
 
@@ -286,7 +269,7 @@ export default function DashboardPage() {
           <p className="text-xs text-muted-foreground mt-1">Try selecting a different grade or All Grades</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3" data-testid="grid-kpis">
+        <div className="grid grid-cols-3 gap-3" data-testid="grid-kpis">
           <KpiCard
             label="Total"
             value={d.kpis.total}
@@ -305,28 +288,12 @@ export default function DashboardPage() {
             testId="kpi-present"
           />
           <KpiCard
-            label="Late"
-            value={d.kpis.late}
-            total={d.kpis.total}
-            icon={<TrendingUp className="w-4 h-4 text-amber-500" />}
-            accentClass="border-l-amber-500"
-            testId="kpi-late"
-          />
-          <KpiCard
-            label="Not Arrived"
+            label="Absent"
             value={d.kpis.absent}
             total={d.kpis.total}
-            icon={<Clock className="w-4 h-4 text-red-500" />}
-            accentClass="border-l-red-500"
-            testId="kpi-absent"
-          />
-          <KpiCard
-            label="Checked Out"
-            value={d.kpis.checkedOut}
-            total={d.kpis.total}
-            icon={<LogOut className="w-4 h-4 text-slate-500" />}
+            icon={<Clock className="w-4 h-4 text-slate-500" />}
             accentClass="border-l-slate-400"
-            testId="kpi-checked-out"
+            testId="kpi-absent"
           />
         </div>
       )}
@@ -364,10 +331,10 @@ export default function DashboardPage() {
               </PieChart>
             </ResponsiveContainer>
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <span className="text-3xl font-bold text-foreground leading-none" data-testid="text-oncampus-pct">
-                {onCampusPct}%
+              <span className="text-3xl font-bold text-foreground leading-none" data-testid="text-present-pct">
+                {presentPct}%
               </span>
-              <span className="text-xs text-muted-foreground mt-1">on campus</span>
+              <span className="text-xs text-muted-foreground mt-1">present</span>
             </div>
           </div>
           <div className="flex justify-center gap-4 mt-3 flex-wrap">
@@ -413,7 +380,7 @@ export default function DashboardPage() {
                 />
                 <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(148,163,184,0.12)" }} />
                 <Bar dataKey="Present" stackId="a" fill={COLOR_PRESENT} maxBarSize={44} />
-                <Bar dataKey="Not Arrived" stackId="a" fill={COLOR_NOT_ARRIVED} radius={[4, 4, 0, 0]} maxBarSize={44} />
+                <Bar dataKey="Absent" stackId="a" fill={COLOR_ABSENT} radius={[4, 4, 0, 0]} maxBarSize={44} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -423,8 +390,8 @@ export default function DashboardPage() {
               <span className="text-xs text-muted-foreground">Present</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLOR_NOT_ARRIVED }} />
-              <span className="text-xs text-muted-foreground">Not Arrived</span>
+              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLOR_ABSENT }} />
+              <span className="text-xs text-muted-foreground">Absent</span>
             </div>
           </div>
         </>
@@ -485,7 +452,7 @@ export default function DashboardPage() {
                 <Tooltip content={<ChartTooltip />} />
                 <Line
                   type="monotone"
-                  dataKey="On Time"
+                  dataKey="Present"
                   stroke={COLOR_PRESENT}
                   strokeWidth={2}
                   dot={false}
@@ -493,16 +460,8 @@ export default function DashboardPage() {
                 />
                 <Line
                   type="monotone"
-                  dataKey="Late"
-                  stroke={COLOR_LATE}
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 4 }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="Not Arrived"
-                  stroke={COLOR_NOT_ARRIVED}
+                  dataKey="Absent"
+                  stroke={COLOR_ABSENT}
                   strokeWidth={2}
                   dot={false}
                   activeDot={{ r: 4 }}
@@ -512,9 +471,8 @@ export default function DashboardPage() {
           </div>
           <div className="flex justify-center gap-4 mt-3 flex-wrap">
             {[
-              { name: "On Time", color: COLOR_PRESENT },
-              { name: "Late", color: COLOR_LATE },
-              { name: "Not Arrived", color: COLOR_NOT_ARRIVED },
+              { name: "Present", color: COLOR_PRESENT },
+              { name: "Absent", color: COLOR_ABSENT },
             ].map((e) => (
               <div key={e.name} className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: e.color }} />
@@ -556,34 +514,20 @@ export default function DashboardPage() {
 
   const exceptionsSection = (
     <div className="bg-card border border-border rounded-xl p-4" data-testid="panel-exceptions">
-      <h3 className="text-sm font-semibold text-foreground mb-2">Exceptions</h3>
+      <h3 className="text-sm font-semibold text-foreground mb-2">Needs Attention</h3>
       <div className="divide-y divide-border">
         <ExceptionRow
-          label="Late today"
-          count={d.kpis.late}
-          dotColor={COLOR_LATE}
-          onClick={() => goToStudents("late")}
-          testId="exception-late"
-        />
-        <ExceptionRow
-          label="Not yet arrived"
+          label="Absent today"
           count={d.kpis.absent}
-          dotColor={COLOR_NOT_ARRIVED}
-          onClick={() => goToStudents("not_arrived")}
-          testId="exception-not-arrived"
-        />
-        <ExceptionRow
-          label="Unaccounted"
-          count={d.kpis.unaccounted}
-          dotColor={STATE_COLORS.unaccounted}
-          onClick={() => goToStudents("unaccounted")}
-          testId="exception-unaccounted"
+          dotColor={COLOR_ABSENT}
+          onClick={() => goToStudents("absent")}
+          testId="exception-absent"
         />
       </div>
-      {d.kpis.late === 0 && d.kpis.absent === 0 && d.kpis.unaccounted === 0 && (
+      {d.kpis.absent === 0 && (
         <div className="flex items-center gap-2 mt-2 pt-2 text-sm text-green-600 dark:text-green-400">
           <CheckCircle className="w-4 h-4" />
-          <span>All students accounted for</span>
+          <span>All students present</span>
         </div>
       )}
     </div>
@@ -767,7 +711,6 @@ function StudentSummarySection({
   grade: string;
   kpis: DashboardKpis;
 }) {
-  const onCampusCount = kpis.onCampus + kpis.inClass + kpis.atEvent;
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden" data-testid="panel-student-summary">
       <div className="px-4 py-2.5 border-b border-border">
@@ -777,37 +720,21 @@ function StudentSummarySection({
         <div className="divide-y divide-border">
           <StudentSummaryGroup
             label="Present"
-            totalCount={onCampusCount}
+            totalCount={kpis.present}
             students={studentsByState.present}
             colorClass="text-green-700 dark:text-green-400"
             bgClass="bg-green-100 dark:bg-green-900/30"
             testId="summary-group-present"
           />
-          <StudentSummaryGroup
-            label="Not Arrived"
-            totalCount={kpis.absent}
-            students={studentsByState.notArrived}
-            colorClass="text-slate-600 dark:text-slate-400"
-            bgClass="bg-slate-100 dark:bg-slate-800/50"
-            testId="summary-group-not-arrived"
-          />
         </div>
         <div className="divide-y divide-border border-t md:border-t-0 border-border">
           <StudentSummaryGroup
-            label="Late"
-            totalCount={kpis.late}
-            students={studentsByState.late}
-            colorClass="text-yellow-700 dark:text-yellow-400"
-            bgClass="bg-yellow-100 dark:bg-yellow-900/30"
-            testId="summary-group-late"
-          />
-          <StudentSummaryGroup
-            label="Unaccounted"
-            totalCount={kpis.unaccounted}
-            students={studentsByState.unaccounted}
-            colorClass="text-red-700 dark:text-red-400"
-            bgClass="bg-red-100 dark:bg-red-900/30"
-            testId="summary-group-unaccounted"
+            label="Absent"
+            totalCount={kpis.absent}
+            students={studentsByState.absent}
+            colorClass="text-slate-600 dark:text-slate-400"
+            bgClass="bg-slate-100 dark:bg-slate-800/50"
+            testId="summary-group-absent"
           />
         </div>
       </div>

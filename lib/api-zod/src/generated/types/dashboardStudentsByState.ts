@@ -9,7 +9,5 @@ import type { StudentWithState } from "./studentWithState";
 
 export interface DashboardStudentsByState {
   present: StudentWithState[];
-  notArrived: StudentWithState[];
-  late: StudentWithState[];
-  unaccounted: StudentWithState[];
+  absent: StudentWithState[];
 }

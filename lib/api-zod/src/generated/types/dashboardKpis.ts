@@ -10,10 +10,4 @@ export interface DashboardKpis {
   total: number;
   present: number;
   absent: number;
-  late: number;
-  checkedOut: number;
-  unaccounted: number;
-  onCampus: number;
-  inClass: number;
-  atEvent: number;
 }

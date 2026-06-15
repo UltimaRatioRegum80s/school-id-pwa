@@ -1331,23 +1331,13 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/StudentWithState"
-        notArrived:
-          type: array
-          items:
-            $ref: "#/components/schemas/StudentWithState"
-        late:
-          type: array
-          items:
-            $ref: "#/components/schemas/StudentWithState"
-        unaccounted:
+        absent:
           type: array
           items:
             $ref: "#/components/schemas/StudentWithState"
       required:
         - present
-        - notArrived
-        - late
-        - unaccounted
+        - absent
 
     DashboardSummary:
       type: object
@@ -1366,7 +1356,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DashboardGradeStat"
-          description: "Per-grade attendance breakdown (present vs not arrived)"
+          description: "Per-grade attendance breakdown (present vs absent)"
         recentFeed:
           type: array
           items:
@@ -1397,14 +1387,14 @@ components:
           type: string
         present:
           type: integer
-        notArrived:
+        absent:
           type: integer
         total:
           type: integer
       required:
         - grade
         - present
-        - notArrived
+        - absent
         - total
 
     DashboardTrendPoint:
@@ -1415,17 +1405,14 @@ components:
           description: "Day in YYYY-MM-DD format"
         present:
           type: integer
-        late:
-          type: integer
-        notArrived:
+        absent:
           type: integer
         total:
           type: integer
       required:
         - date
         - present
-        - late
-        - notArrived
+        - absent
         - total
 
     DashboardKpis:
@@ -1437,53 +1424,20 @@ components:
           type: integer
         absent:
           type: integer
-        late:
-          type: integer
-        checkedOut:
-          type: integer
-        unaccounted:
-          type: integer
-        onCampus:
-          type: integer
-        inClass:
-          type: integer
-        atEvent:
-          type: integer
       required:
         - total
         - present
         - absent
-        - late
-        - checkedOut
-        - unaccounted
-        - onCampus
-        - inClass
-        - atEvent
 
     DashboardExceptions:
       type: object
       properties:
-        missingFromClass:
-          type: array
-          items:
-            $ref: "#/components/schemas/StudentWithState"
-        unaccountedStudents:
-          type: array
-          items:
-            $ref: "#/components/schemas/StudentWithState"
-        lateArrivals:
-          type: array
-          items:
-            $ref: "#/components/schemas/StudentWithState"
-        checkedOutWithoutReason:
+        absentStudents:
           type: array
           items:
             $ref: "#/components/schemas/StudentWithState"
       required:
-        - missingFromClass
-        - unaccountedStudents
-        - lateArrivals
-        - checkedOutWithoutReason
+        - absentStudents
 
     StatusCount:
       type: object

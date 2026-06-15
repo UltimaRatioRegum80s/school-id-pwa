@@ -1,35 +1,18 @@
-export type StudentState =
-  | "not_arrived"
-  | "on_campus"
-  | "in_class"
-  | "at_event"
-  | "checked_out"
-  | "unaccounted";
+export type StudentState = "present" | "absent";
 
 export function getStateLabel(state: string): string {
   const map: Record<string, string> = {
-    not_arrived: "Not Arrived",
-    on_campus: "On Campus",
-    in_class: "In Class",
-    at_event: "At Event",
-    checked_out: "Checked Out",
-    unaccounted: "Unaccounted",
+    present: "Present",
+    absent: "Absent",
   };
   return map[state] ?? state;
 }
 
 export function getStateColor(state: string): string {
   switch (state) {
-    case "on_campus":
+    case "present":
       return "bg-green-100 text-green-800 border-green-200";
-    case "in_class":
-      return "bg-blue-100 text-blue-800 border-blue-200";
-    case "at_event":
-      return "bg-yellow-100 text-yellow-800 border-yellow-200";
-    case "checked_out":
-      return "bg-gray-100 text-gray-600 border-gray-200";
-    case "unaccounted":
-      return "bg-red-100 text-red-800 border-red-200";
+    case "absent":
     default:
       return "bg-slate-100 text-slate-500 border-slate-200";
   }
@@ -37,18 +20,11 @@ export function getStateColor(state: string): string {
 
 export function getStateDot(state: string): string {
   switch (state) {
-    case "on_campus":
+    case "present":
       return "bg-green-500";
-    case "in_class":
-      return "bg-blue-500";
-    case "at_event":
-      return "bg-yellow-500";
-    case "checked_out":
-      return "bg-gray-400";
-    case "unaccounted":
-      return "bg-red-500";
+    case "absent":
     default:
-      return "bg-slate-300";
+      return "bg-slate-400";
   }
 }
 

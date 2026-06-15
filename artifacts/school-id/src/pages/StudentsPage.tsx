@@ -33,13 +33,8 @@ import { QRCodeSVG } from "qrcode.react";
 
 const STATES = [
   { value: "", label: "All" },
-  { value: "not_arrived", label: "Not Arrived" },
-  { value: "late", label: "Late" },
-  { value: "on_campus", label: "On Campus" },
-  { value: "in_class", label: "In Class" },
-  { value: "at_event", label: "At Event" },
-  { value: "checked_out", label: "Checked Out" },
-  { value: "unaccounted", label: "Unaccounted" },
+  { value: "present", label: "Present" },
+  { value: "absent", label: "Absent" },
 ];
 
 const VALID_STATUSES = new Set(STATES.map((s) => s.value).filter(Boolean));
@@ -59,43 +54,23 @@ function gradeLabel(grade: string): string {
 
 interface CardStats {
   total: number;
-  onCampus: number;
-  notArrived: number;
-  checkedOut: number;
-  unaccounted: number;
+  present: number;
+  absent: number;
 }
 
 function computeStats(students: StudentWithState[]): CardStats {
-  let onCampus = 0;
-  let notArrived = 0;
-  let checkedOut = 0;
-  let unaccounted = 0;
+  let present = 0;
+  let absent = 0;
   for (const s of students) {
-    switch (s.currentState) {
-      case "on_campus":
-      case "in_class":
-      case "at_event":
-        onCampus++;
-        break;
-      case "not_arrived":
-        notArrived++;
-        break;
-      case "checked_out":
-        checkedOut++;
-        break;
-      case "unaccounted":
-        unaccounted++;
-        break;
-    }
+    if (s.currentState === "present") present++;
+    else absent++;
   }
-  return { total: students.length, onCampus, notArrived, checkedOut, unaccounted };
+  return { total: students.length, present, absent };
 }
 
 const STAT_BUCKETS = {
-  onCampus: { label: "On Campus", states: ["on_campus", "in_class", "at_event"], dot: "bg-green-500" },
-  notArrived: { label: "Not Arrived", states: ["not_arrived"], dot: "bg-slate-400" },
-  checkedOut: { label: "Checked Out", states: ["checked_out"], dot: "bg-gray-400" },
-  unaccounted: { label: "Unaccounted", states: ["unaccounted"], dot: "bg-red-500" },
+  present: { label: "Present", states: ["present"], dot: "bg-green-500" },
+  absent: { label: "Absent", states: ["absent"], dot: "bg-slate-400" },
 } as const;
 
 type StatBucket = keyof typeof STAT_BUCKETS;
@@ -201,9 +176,11 @@ export default function StudentsPage() {
   const isSearching = trimmedSearch !== "";
   const isFiltering = status !== "";
 
-  // Flat results: when searching or status-filtering, query the server so the
-  // "late" status (not present on currentState) is resolved correctly.
+  // Flat results: when searching or status-filtering outside a class roster,
+  // query the server. Inside a class roster the search/status filter is applied
+  // locally so the two-column Present/Absent layout is preserved.
   const flatParams = useMemo(() => {
+    if (selectedClass != null) return undefined;
     if (isSearching) {
       const p: { search: string; status?: string } = { search: trimmedSearch };
       if (status) p.status = status;
@@ -212,7 +189,6 @@ export default function StudentsPage() {
     if (isFiltering) {
       const p: { status: string; grade?: string; className?: string } = { status };
       if (selectedGrade) p.grade = selectedGrade;
-      if (selectedClass) p.className = selectedClass;
       return p;
     }
     return undefined;
@@ -277,11 +253,38 @@ export default function StudentsPage() {
   }, [all, statFilter]);
 
   const studentLevel = statActive || flatEnabled || selectedClass != null;
+
+  // Roster: a class is open and we're not in a stat or flat (global search) view.
+  // Search and status filter are applied locally so the two-column layout stays.
+  const isRoster = selectedClass != null && !statActive && !flatEnabled;
+
+  const rosterStudents = useMemo(() => {
+    if (!isRoster) return [];
+    const q = trimmedSearch.toLowerCase();
+    return classStudents.filter((s) => {
+      if (status && s.currentState !== status) return false;
+      if (q) {
+        const name = `${s.firstName} ${s.lastName}`.toLowerCase();
+        if (!name.includes(q) && !s.studentId.toLowerCase().includes(q)) return false;
+      }
+      return true;
+    });
+  }, [isRoster, classStudents, trimmedSearch, status]);
+
+  const rosterPresent = useMemo(
+    () => rosterStudents.filter((s) => s.currentState === "present"),
+    [rosterStudents]
+  );
+  const rosterAbsent = useMemo(
+    () => rosterStudents.filter((s) => s.currentState !== "present"),
+    [rosterStudents]
+  );
+
   const studentLevelList = statActive
     ? statFilteredList
     : flatEnabled
       ? flatData ?? []
-      : classStudents;
+      : rosterStudents;
   const studentLevelLoading = flatEnabled ? flatLoading : isLoading;
 
   function selectGrade(g: string | null) {
@@ -330,8 +333,8 @@ export default function StudentsPage() {
     ? `${gradeLabel(statFilter.grade)}${statFilter.className ? ` · ${statFilter.className}` : ""} · ${studentLevelList.length} ${STAT_BUCKETS[statFilter.bucket].label}`
     : flatEnabled
       ? `${studentLevelList.length} found`
-      : studentLevel
-        ? `${selectedClass} · ${studentLevelList.length} students`
+      : isRoster
+        ? `${selectedClass} · ${rosterPresent.length} present · ${rosterAbsent.length} absent`
         : selectedGrade
           ? `${gradeLabel(selectedGrade)} · ${classesForGrade.length} classes`
           : `${all.length} students · ${grades.length} grades`;
@@ -430,7 +433,15 @@ export default function StudentsPage() {
                 {filtersRow}
                 {contextRow}
               </div>
-              {studentLevel ? (
+              {isRoster ? (
+                <RosterColumns
+                  present={rosterPresent}
+                  absent={rosterAbsent}
+                  isLoading={studentLevelLoading}
+                  selectedId={selectedId}
+                  onSelect={setSelectedId}
+                />
+              ) : studentLevel ? (
                 <StudentListRows
                   list={studentLevelList}
                   isLoading={studentLevelLoading}
@@ -458,7 +469,24 @@ export default function StudentsPage() {
           {filtersRow}
         </div>
 
-        {studentLevel ? (
+        {isRoster ? (
+          <div className="flex flex-1 overflow-hidden">
+            <div className="flex-1 overflow-y-auto px-6 py-5">
+              <RosterColumns
+                present={rosterPresent}
+                absent={rosterAbsent}
+                isLoading={studentLevelLoading}
+                selectedId={selectedId}
+                onSelect={setSelectedId}
+              />
+            </div>
+            {selectedId && (
+              <div className="w-[400px] flex-none border-l border-border overflow-y-auto bg-background">
+                <StudentProfilePanel id={selectedId} />
+              </div>
+            )}
+          </div>
+        ) : studentLevel ? (
           <div className="flex flex-1 overflow-hidden">
             <div className="flex flex-col w-[380px] flex-none border-r border-border overflow-y-auto">
               <StudentListRows
@@ -637,10 +665,8 @@ function StatFilterBar({
 function SegBar({ stats }: { stats: CardStats }) {
   const total = stats.total || 1;
   const segs = [
-    { v: stats.onCampus, c: "bg-green-500" },
-    { v: stats.notArrived, c: "bg-slate-300" },
-    { v: stats.checkedOut, c: "bg-gray-400" },
-    { v: stats.unaccounted, c: "bg-red-500" },
+    { v: stats.present, c: "bg-green-500" },
+    { v: stats.absent, c: "bg-slate-300" },
   ];
   return (
     <div className="flex h-1.5 w-full rounded-full overflow-hidden bg-muted mt-3">
@@ -664,10 +690,8 @@ function StatGrid({
   testId: string;
 }) {
   const items = [
-    { bucket: "onCampus" as const, label: "On Campus", value: stats.onCampus, dot: "bg-green-500" },
-    { bucket: "notArrived" as const, label: "Not Arrived", value: stats.notArrived, dot: "bg-slate-400" },
-    { bucket: "checkedOut" as const, label: "Checked Out", value: stats.checkedOut, dot: "bg-gray-400" },
-    { bucket: "unaccounted" as const, label: "Unaccounted", value: stats.unaccounted, dot: "bg-red-500" },
+    { bucket: "present" as const, label: "Present", value: stats.present, dot: "bg-green-500" },
+    { bucket: "absent" as const, label: "Absent", value: stats.absent, dot: "bg-slate-400" },
   ];
   return (
     <div className="grid grid-cols-2 gap-x-2 gap-y-1 mt-3">
@@ -886,6 +910,105 @@ function StudentListRows({
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+function RosterColumns({
+  present,
+  absent,
+  isLoading,
+  selectedId,
+  onSelect,
+}: {
+  present: StudentWithState[];
+  absent: StudentWithState[];
+  isLoading: boolean;
+  selectedId: number | null;
+  onSelect: (id: number) => void;
+}) {
+  if (isLoading) {
+    return <div className="text-center py-8 text-muted-foreground text-sm px-4">Loading...</div>;
+  }
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 px-4 py-3 md:px-0 md:py-0">
+      <RosterColumn
+        label="Present"
+        dot="bg-green-500"
+        list={present}
+        selectedId={selectedId}
+        onSelect={onSelect}
+        testId="roster-column-present"
+      />
+      <RosterColumn
+        label="Absent"
+        dot="bg-slate-400"
+        list={absent}
+        selectedId={selectedId}
+        onSelect={onSelect}
+        testId="roster-column-absent"
+      />
+    </div>
+  );
+}
+
+function RosterColumn({
+  label,
+  dot,
+  list,
+  selectedId,
+  onSelect,
+  testId,
+}: {
+  label: string;
+  dot: string;
+  list: StudentWithState[];
+  selectedId: number | null;
+  onSelect: (id: number) => void;
+  testId: string;
+}) {
+  return (
+    <div className="bg-card border border-border rounded-xl overflow-hidden" data-testid={testId}>
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-muted/30">
+        <span className={`w-2 h-2 rounded-full ${dot} flex-shrink-0`} />
+        <h3 className="text-sm font-semibold text-foreground">{label}</h3>
+        <span className="text-sm font-bold text-foreground ml-auto" data-testid={`${testId}-count`}>
+          {list.length}
+        </span>
+      </div>
+      {list.length === 0 ? (
+        <div className="text-center py-10 text-muted-foreground px-4">
+          <p className="text-sm">No students</p>
+        </div>
+      ) : (
+        <div className="divide-y divide-border">
+          {list.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => onSelect(s.id)}
+              className={`w-full px-4 py-3 flex items-center gap-3 hover:bg-muted/30 transition-colors text-left ${selectedId === s.id ? "bg-primary/5 border-l-2 border-l-primary" : ""}`}
+              data-testid={`row-student-${s.id}`}
+            >
+              <div className="w-9 h-9 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                {s.photoUrl ? (
+                  <img src={s.photoUrl} alt="" className="w-9 h-9 rounded-full object-cover" />
+                ) : (
+                  <span className="text-xs font-bold text-primary">
+                    {s.firstName[0]}{s.lastName[0]}
+                  </span>
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-foreground" data-testid={`text-student-name-${s.id}`}>
+                  {s.firstName} {s.lastName}
+                </p>
+                <p className="text-xs text-muted-foreground">{s.studentId}</p>
+              </div>
+              <ChevronRight className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
