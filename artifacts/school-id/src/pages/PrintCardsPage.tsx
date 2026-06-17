@@ -161,10 +161,12 @@ function LandscapeCard({ student, branding, color }: { student: PrintCardStudent
               fontSize: "11px",
               fontWeight: 800,
               color: "#111",
-              lineHeight: 1.15,
-              whiteSpace: "nowrap",
+              lineHeight: 1.2,
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical",
               overflow: "hidden",
-              textOverflow: "ellipsis",
+              wordBreak: "break-word",
             }}
           >
             {student.firstName} {student.lastName}
@@ -300,11 +302,13 @@ function PortraitCard({ student, branding, color }: { student: PrintCardStudent;
             fontSize: "11px",
             fontWeight: 800,
             color: "#111",
-            lineHeight: 1.15,
+            lineHeight: 1.2,
             textAlign: "center",
-            whiteSpace: "nowrap",
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical",
             overflow: "hidden",
-            textOverflow: "ellipsis",
+            wordBreak: "break-word",
             maxWidth: "100%",
           }}
         >
@@ -613,12 +617,17 @@ export default function PrintCardsPage({ onBack }: { onBack: () => void }) {
         if (!pageEl) continue;
 
         const canvas = await html2canvas(pageEl, {
-          scale: 2,
+          scale: 3,
           useCORS: true,
           backgroundColor: "#ffffff",
+          logging: false,
+          scrollX: 0,
+          scrollY: 0,
+          width: pageEl.offsetWidth,
+          height: pageEl.offsetHeight,
         });
 
-        const imgData = canvas.toDataURL("image/jpeg", 0.95);
+        const imgData = canvas.toDataURL("image/jpeg", 0.97);
 
         if (i > 0) pdf.addPage("a4", pageOrientation);
         pdf.addImage(imgData, "JPEG", 0, 0, pageDims.w, pageDims.h);
