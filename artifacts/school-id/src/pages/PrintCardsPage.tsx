@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { X, Printer, FileDown, FileText, ChevronDown, ChevronUp } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
+import type { jsPDF as JsPdfDoc } from "jspdf";
 import {
   useGetStudentsForPrint,
   getGetStudentsForPrintQueryKey,
@@ -104,6 +105,328 @@ function SchoolLogoMark({ branding, size = 36 }: { branding: PrintCardBranding; 
 function gradeClassLabel(student: PrintCardStudent): string {
   const grade = /^\d+$/.test(student.grade) ? `Grade ${student.grade}` : student.grade;
   return `${grade} \u2022 ${student.className}`;
+}
+
+// ---------------------------------------------------------------------------
+// Native PDF rendering
+//
+// The cards are drawn directly into the PDF with jsPDF's vector text/shape API
+// rather than rasterizing the DOM with html2canvas. html2canvas miscomputes
+// line-box heights at the tiny font sizes used on these cards and clips the
+// bottom of every line of text (names, school name, grade badge). Native PDF
+// text is true vector output and can never be clipped this way.
+// ---------------------------------------------------------------------------
+
+function hexToRgb(hex: string): [number, number, number] {
+  const h = hex.replace("#", "");
+  const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+  return [
+    parseInt(full.slice(0, 2), 16),
+    parseInt(full.slice(2, 4), 16),
+    parseInt(full.slice(4, 6), 16),
+  ];
+}
+
+// Replace characters that the jsPDF standard (WinAnsi) fonts do not render
+// reliably. The bullet used in the UI becomes a middot in the PDF.
+function pdfSafe(text: string): string {
+  return text.replace(/\u2022/g, "\u00B7");
+}
+
+function schoolInitials(name: string): string {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join("");
+}
+
+// Load an external image (e.g. a school logo) into a PNG data URL so it can be
+// embedded in the PDF. Returns null on any failure (missing image, CORS taint)
+// so the caller can fall back to drawing initials.
+function loadImageAsDataUrl(url: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth || 128;
+        canvas.height = img.naturalHeight || 128;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return resolve(null);
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL("image/png"));
+      } catch {
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+}
+
+// Find the largest font size (between minPt and maxPt) at which `text` fits on a
+// single line within maxWidth. If it still does not fit at minPt, truncate with
+// an ellipsis. The font family/style must be set before calling.
+function fitOrTruncate(
+  pdf: JsPdfDoc,
+  text: string,
+  maxWidth: number,
+  maxPt: number,
+  minPt: number
+): { text: string; pt: number } {
+  let pt = maxPt;
+  pdf.setFontSize(pt);
+  while (pt > minPt && pdf.getTextWidth(text) > maxWidth) {
+    pt -= 0.25;
+    pdf.setFontSize(pt);
+  }
+  if (pdf.getTextWidth(text) <= maxWidth) return { text, pt };
+  let truncated = text;
+  while (truncated.length > 1 && pdf.getTextWidth(truncated + "...") > maxWidth) {
+    truncated = truncated.slice(0, -1);
+  }
+  return { text: truncated + "...", pt: minPt };
+}
+
+type CardDrawContext = {
+  student: PrintCardStudent;
+  branding: PrintCardBranding;
+  rgb: [number, number, number];
+  qrDataUrl: string | null;
+  logoDataUrl: string | null;
+};
+
+function drawLogoMark(
+  pdf: JsPdfDoc,
+  cx: number,
+  cy: number,
+  size: number,
+  ctx: CardDrawContext
+): void {
+  pdf.setFillColor(255, 255, 255);
+  pdf.circle(cx, cy, size / 2, "F");
+  if (ctx.logoDataUrl) {
+    const s = size * 0.86;
+    try {
+      pdf.addImage(ctx.logoDataUrl, "PNG", cx - s / 2, cy - s / 2, s, s);
+      return;
+    } catch {
+      // fall through to initials
+    }
+  }
+  const initials = schoolInitials(ctx.branding.schoolName);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(size * 1.4);
+  pdf.setTextColor(ctx.rgb[0], ctx.rgb[1], ctx.rgb[2]);
+  pdf.text(initials, cx, cy, { align: "center", baseline: "middle" });
+}
+
+function drawCardFooter(
+  pdf: JsPdfDoc,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  footerH: number,
+  label: string
+): void {
+  const footerY = y + h - footerH;
+  pdf.setFillColor(249, 250, 251);
+  pdf.rect(x, footerY, w, footerH, "F");
+  pdf.setDrawColor(229, 231, 235);
+  pdf.setLineWidth(0.2);
+  pdf.line(x, footerY, x + w, footerY);
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(5.5);
+  pdf.setTextColor(156, 163, 175);
+  pdf.text(pdfSafe(label), x + w / 2, footerY + footerH / 2, {
+    align: "center",
+    baseline: "middle",
+  });
+}
+
+function drawPortraitCardPdf(
+  pdf: JsPdfDoc,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  ctx: CardDrawContext
+): void {
+  const [r, g, b] = ctx.rgb;
+  const headerH = 9;
+  const footerH = 5;
+
+  // Header
+  pdf.setFillColor(r, g, b);
+  pdf.rect(x, y, w, headerH, "F");
+  const logoSize = 6;
+  drawLogoMark(pdf, x + 2.5 + logoSize / 2, y + headerH / 2, logoSize, ctx);
+  pdf.setFont("helvetica", "bold");
+  pdf.setTextColor(255, 255, 255);
+  const snX = x + 2.5 + logoSize + 2;
+  const snMaxW = x + w - 3 - snX;
+  const sn = fitOrTruncate(pdf, ctx.branding.schoolName, snMaxW, 6.5, 3.5);
+  pdf.setFontSize(sn.pt);
+  pdf.text(sn.text, snX, y + headerH / 2, { baseline: "middle" });
+
+  // QR
+  const qrSize = 28;
+  const qrX = x + (w - qrSize) / 2;
+  const qrY = y + headerH + 4;
+  if (ctx.qrDataUrl) {
+    pdf.setDrawColor(r, g, b);
+    pdf.setLineWidth(0.3);
+    pdf.roundedRect(qrX - 1.5, qrY - 1.5, qrSize + 3, qrSize + 3, 1, 1, "S");
+    pdf.addImage(ctx.qrDataUrl, "PNG", qrX, qrY, qrSize, qrSize);
+  }
+
+  let cursorY = qrY + qrSize + 6;
+
+  // Name (up to 2 wrapped lines)
+  pdf.setFont("helvetica", "bold");
+  pdf.setTextColor(17, 17, 17);
+  pdf.setFontSize(10);
+  const nameLines = pdf
+    .splitTextToSize(`${ctx.student.firstName} ${ctx.student.lastName}`, w - 6)
+    .slice(0, 2);
+  for (const line of nameLines) {
+    pdf.text(line, x + w / 2, cursorY, { align: "center", baseline: "top" });
+    cursorY += 4.2;
+  }
+  cursorY += 1.5;
+
+  // ID
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(7);
+  pdf.setTextColor(110, 110, 110);
+  pdf.text(`ID ${ctx.student.studentId}`, x + w / 2, cursorY, {
+    align: "center",
+    baseline: "top",
+  });
+  cursorY += 5;
+
+  // Grade badge (bounded so an unusually long label can never overflow)
+  pdf.setFont("helvetica", "bold");
+  const badgeFit = fitOrTruncate(pdf, pdfSafe(gradeClassLabel(ctx.student)), w - 11, 7, 5);
+  const badgeText = badgeFit.text;
+  pdf.setFontSize(badgeFit.pt);
+  const badgeH = 5;
+  const badgeW = pdf.getTextWidth(badgeText) + 5;
+  const badgeX = x + (w - badgeW) / 2;
+  pdf.setFillColor(r, g, b);
+  pdf.roundedRect(badgeX, cursorY, badgeW, badgeH, 1.2, 1.2, "F");
+  pdf.setTextColor(255, 255, 255);
+  pdf.text(badgeText, x + w / 2, cursorY + badgeH / 2, {
+    align: "center",
+    baseline: "middle",
+  });
+
+  drawCardFooter(pdf, x, y, w, h, footerH, `STUDENT ID \u2022 ${ctx.branding.schoolCode}`);
+
+  pdf.setDrawColor(209, 213, 219);
+  pdf.setLineWidth(0.2);
+  pdf.rect(x, y, w, h, "S");
+}
+
+function drawLandscapeCardPdf(
+  pdf: JsPdfDoc,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  ctx: CardDrawContext
+): void {
+  const [r, g, b] = ctx.rgb;
+  const headerH = 9;
+  const footerH = 5;
+
+  // Header
+  pdf.setFillColor(r, g, b);
+  pdf.rect(x, y, w, headerH, "F");
+  const logoSize = 6;
+  drawLogoMark(pdf, x + 3 + logoSize / 2, y + headerH / 2, logoSize, ctx);
+  pdf.setFont("helvetica", "bold");
+  pdf.setTextColor(255, 255, 255);
+  const snX = x + 3 + logoSize + 2.5;
+  const snMaxW = x + w - 4 - snX;
+  const sn = fitOrTruncate(pdf, ctx.branding.schoolName, snMaxW, 7, 4);
+  pdf.setFontSize(sn.pt);
+  pdf.text(sn.text, snX, y + headerH / 2, { baseline: "middle" });
+
+  const contentTop = y + headerH;
+  const contentBottom = y + h - footerH;
+
+  // QR on the right
+  const qrSize = 27;
+  const qrX = x + w - qrSize - 6;
+  const qrY = contentTop + (contentBottom - contentTop - qrSize) / 2;
+  if (ctx.qrDataUrl) {
+    pdf.setDrawColor(r, g, b);
+    pdf.setLineWidth(0.3);
+    pdf.roundedRect(qrX - 1.5, qrY - 1.5, qrSize + 3, qrSize + 3, 1, 1, "S");
+    pdf.addImage(ctx.qrDataUrl, "PNG", qrX, qrY, qrSize, qrSize);
+  }
+
+  // Accent bar
+  pdf.setFillColor(r, g, b);
+  pdf.rect(x + 4, contentTop + 4, 1, contentBottom - contentTop - 8, "F");
+
+  const leftX = x + 8;
+  const textMaxW = qrX - 3 - leftX;
+
+  // Name (up to 2 wrapped lines)
+  pdf.setFont("helvetica", "bold");
+  pdf.setTextColor(17, 17, 17);
+  pdf.setFontSize(11);
+  const nameLines = pdf
+    .splitTextToSize(`${ctx.student.firstName} ${ctx.student.lastName}`, textMaxW)
+    .slice(0, 2);
+  let cursorY = contentTop + 8;
+  for (const line of nameLines) {
+    pdf.text(line, leftX, cursorY, { baseline: "top" });
+    cursorY += 4.6;
+  }
+  cursorY += 1.5;
+
+  // ID
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(7.5);
+  pdf.setTextColor(90, 90, 90);
+  pdf.text(`ID  ${ctx.student.studentId}`, leftX, cursorY, { baseline: "top" });
+  cursorY += 5.5;
+
+  // Grade badge (bounded to the left text column so it can never overlap the QR)
+  pdf.setFont("helvetica", "bold");
+  const badgeFit = fitOrTruncate(pdf, pdfSafe(gradeClassLabel(ctx.student)), textMaxW - 5, 7, 5);
+  const badgeText = badgeFit.text;
+  pdf.setFontSize(badgeFit.pt);
+  const badgeH = 5;
+  const badgeW = pdf.getTextWidth(badgeText) + 5;
+  pdf.setFillColor(r, g, b);
+  pdf.roundedRect(leftX, cursorY, badgeW, badgeH, 1.2, 1.2, "F");
+  pdf.setTextColor(255, 255, 255);
+  pdf.text(badgeText, leftX + badgeW / 2, cursorY + badgeH / 2, {
+    align: "center",
+    baseline: "middle",
+  });
+
+  drawCardFooter(
+    pdf,
+    x,
+    y,
+    w,
+    h,
+    footerH,
+    `STUDENT IDENTIFICATION CARD \u2022 ${ctx.branding.schoolCode}`
+  );
+
+  pdf.setDrawColor(209, 213, 219);
+  pdf.setLineWidth(0.2);
+  pdf.rect(x, y, w, h, "S");
 }
 
 function LandscapeCard({ student, branding, color }: { student: PrintCardStudent; branding: PrintCardBranding; color: string }) {
@@ -598,13 +921,39 @@ export default function PrintCardsPage({ onBack }: { onBack: () => void }) {
   }
 
   const handleDownloadPdf = useCallback(async () => {
-    if (pagesRef.current.length === 0) return;
+    if (displayedStudents.length === 0 || !data?.branding) return;
     setIsExportingPdf(true);
     try {
-      const html2canvas = (await import("html2canvas")).default;
       const { jsPDF } = await import("jspdf");
+      const QRCode = (await import("qrcode")).default;
 
-      const pageDims = PAGE_DIMS[pageOrientation];
+      const branding = data.branding;
+      const rgb = hexToRgb(getCardColor(branding.colorPalette));
+      const logoDataUrl = branding.logoUrl
+        ? await loadImageAsDataUrl(branding.logoUrl)
+        : null;
+
+      // Generate crisp QR images deterministically from each student's code.
+      // This avoids any reliance on off-screen DOM canvases / ref timing.
+      const qrDataUrls = new Map<string, string>();
+      await Promise.all(
+        displayedStudents.map(async (s) => {
+          try {
+            const url = await QRCode.toDataURL(s.qrCode, {
+              errorCorrectionLevel: "M",
+              margin: 1,
+              width: 320,
+            });
+            qrDataUrls.set(s.qrCode, url);
+          } catch {
+            /* leave unset; card renders without QR rather than failing */
+          }
+        }),
+      );
+
+      const cardDims = CARD_DIMS[cardOrientation];
+      const { cols } = grid;
+      const perPage = cardsPerPage;
 
       const pdf = new jsPDF({
         orientation: pageOrientation,
@@ -612,27 +961,31 @@ export default function PrintCardsPage({ onBack }: { onBack: () => void }) {
         format: "a4",
       });
 
-      for (let i = 0; i < pagesRef.current.length; i++) {
-        const pageEl = pagesRef.current[i];
-        if (!pageEl) continue;
+      const pages = chunkArray(displayedStudents, perPage);
+      for (let p = 0; p < pages.length; p++) {
+        if (p > 0) pdf.addPage("a4", pageOrientation);
+        const pageStudents = pages[p];
+        for (let idx = 0; idx < pageStudents.length; idx++) {
+          const student = pageStudents[idx];
+          const col = idx % cols;
+          const row = Math.floor(idx / cols);
+          const x = PAGE_PADDING_MM + col * (cardDims.w + GRID_GAP_MM);
+          const y = PAGE_PADDING_MM + row * (cardDims.h + GRID_GAP_MM);
 
-        const canvas = await html2canvas(pageEl, {
-          scale: 3,
-          useCORS: true,
-          backgroundColor: "#ffffff",
-          logging: false,
-          scrollX: window.scrollX,
-          scrollY: window.scrollY,
-          windowWidth: document.documentElement.scrollWidth,
-          windowHeight: document.documentElement.scrollHeight,
-          width: pageEl.offsetWidth,
-          height: pageEl.offsetHeight,
-        });
+          const ctx: CardDrawContext = {
+            student,
+            branding,
+            rgb,
+            qrDataUrl: qrDataUrls.get(student.qrCode) ?? null,
+            logoDataUrl,
+          };
 
-        const imgData = canvas.toDataURL("image/jpeg", 0.97);
-
-        if (i > 0) pdf.addPage("a4", pageOrientation);
-        pdf.addImage(imgData, "JPEG", 0, 0, pageDims.w, pageDims.h);
+          if (cardOrientation === "landscape") {
+            drawLandscapeCardPdf(pdf, x, y, cardDims.w, cardDims.h, ctx);
+          } else {
+            drawPortraitCardPdf(pdf, x, y, cardDims.w, cardDims.h, ctx);
+          }
+        }
       }
 
       const fileName = buildFileName(selectedGrade, selectedClass, "pdf");
@@ -640,7 +993,16 @@ export default function PrintCardsPage({ onBack }: { onBack: () => void }) {
     } finally {
       setIsExportingPdf(false);
     }
-  }, [selectedGrade, selectedClass, pageOrientation]);
+  }, [
+    displayedStudents,
+    data?.branding,
+    selectedGrade,
+    selectedClass,
+    pageOrientation,
+    cardOrientation,
+    grid,
+    cardsPerPage,
+  ]);
 
   const handleDownloadWord = useCallback(async () => {
     if (displayedStudents.length === 0 || !data?.branding) return;

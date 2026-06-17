@@ -1,2 +1,3 @@
 - [Post-merge codegen requirement](post-merge-codegen.md) — after any merge touching openapi.yaml or new generated hooks, run codegen + typecheck:libs or the app crashes.
 - [Production data migration constraints](prod-data-migration.md) — task agents can't write prod DB (read-only replica, secrets unreadable, endpoints not live till republish); migrate data via user-run SQL or a pasted prod connection string.
+- [ID card PDF export rendering](idcard-pdf-export.md) — export cards with native jsPDF vector drawing, never html2canvas; html2canvas clips small-font descenders so text crops in the PDF despite looking fine in preview.
