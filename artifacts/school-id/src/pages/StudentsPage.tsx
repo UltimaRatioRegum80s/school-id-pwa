@@ -176,9 +176,9 @@ export default function StudentsPage() {
   const isSearching = trimmedSearch !== "";
   const isFiltering = status !== "";
 
-  // Flat results: when searching or status-filtering outside a class roster,
-  // query the server. Inside a class roster the search/status filter is applied
-  // locally so the two-column Present/Absent layout is preserved.
+  // Flat results: only when searching (status-only filter keeps the card layout).
+  // Inside a class roster, search/status filter is applied locally so the
+  // two-column Present/Absent layout is preserved.
   const flatParams = useMemo(() => {
     if (selectedClass != null) return undefined;
     if (isSearching) {
@@ -186,13 +186,8 @@ export default function StudentsPage() {
       if (status) p.status = status;
       return p;
     }
-    if (isFiltering) {
-      const p: { status: string; grade?: string; className?: string } = { status };
-      if (selectedGrade) p.grade = selectedGrade;
-      return p;
-    }
     return undefined;
-  }, [isSearching, isFiltering, trimmedSearch, status, selectedGrade, selectedClass]);
+  }, [isSearching, trimmedSearch, status, selectedClass]);
 
   const flatEnabled = flatParams !== undefined;
 
@@ -236,6 +231,24 @@ export default function StudentsPage() {
       (s) => (s.grade || "—") === selectedGrade && (s.className || "—") === selectedClass
     );
   }, [all, selectedGrade, selectedClass]);
+
+  // Status-filtered views of grades and classes — used when a status filter is
+  // active without a text search so the card layout is preserved.
+  const filteredGrades = useMemo(() => {
+    if (!isFiltering) return grades;
+    return grades.map(({ grade, students }) => {
+      const filtered = students.filter((s) => s.currentState === status);
+      return { grade, students: filtered, stats: computeStats(filtered) };
+    });
+  }, [grades, isFiltering, status]);
+
+  const filteredClassesForGrade = useMemo(() => {
+    if (!isFiltering) return classesForGrade;
+    return classesForGrade.map(({ className, students }) => {
+      const filtered = students.filter((s) => s.currentState === status);
+      return { className, students: filtered, stats: computeStats(filtered) };
+    });
+  }, [classesForGrade, isFiltering, status]);
 
   const gradeOptions = useMemo(() => grades.map((g) => g.grade), [grades]);
 
@@ -329,6 +342,11 @@ export default function StudentsPage() {
     setSelectedId(null);
   }
 
+  const filteredTotal = useMemo(
+    () => filteredGrades.reduce((acc, g) => acc + g.stats.total, 0),
+    [filteredGrades]
+  );
+
   const subtitle = statActive
     ? `${gradeLabel(statFilter.grade)}${statFilter.className ? ` · ${statFilter.className}` : ""} · ${studentLevelList.length} ${STAT_BUCKETS[statFilter.bucket].label}`
     : flatEnabled
@@ -336,8 +354,12 @@ export default function StudentsPage() {
       : isRoster
         ? `${selectedClass} · ${rosterPresent.length} present · ${rosterAbsent.length} absent`
         : selectedGrade
-          ? `${gradeLabel(selectedGrade)} · ${classesForGrade.length} classes`
-          : `${all.length} students · ${grades.length} grades`;
+          ? isFiltering
+            ? `${gradeLabel(selectedGrade)} · ${filteredClassesForGrade.length} classes · ${filteredClassesForGrade.reduce((acc, c) => acc + c.stats.total, 0)} ${status}`
+            : `${gradeLabel(selectedGrade)} · ${classesForGrade.length} classes`
+          : isFiltering
+            ? `${filteredTotal} ${status} · ${grades.length} grades`
+            : `${all.length} students · ${grades.length} grades`;
 
   const filterAction = (
     <button
@@ -408,8 +430,8 @@ export default function StudentsPage() {
   const cardsContent = (
     <DrillCards
       level={selectedGrade ? "classes" : "grades"}
-      grades={grades}
-      classes={classesForGrade}
+      grades={filteredGrades}
+      classes={filteredClassesForGrade}
       isLoading={isLoading}
       onSelectGrade={selectGrade}
       onSelectClass={selectClass}
