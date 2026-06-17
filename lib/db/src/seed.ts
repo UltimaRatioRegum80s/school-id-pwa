@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import * as schema from "./schema";
 import { SEED_BEHAVIOR_CATEGORIES } from "./data/behavior-categories";
 import { SEED_RECOGNITION_TIERS } from "./data/recognition-tiers";
+import { refreshDemoTimeSensitiveData } from "./data/demo-time-sensitive";
 
 const { Pool } = pg;
 
@@ -19,8 +20,6 @@ const {
   usersTable,
   studentsTable,
   studentQrCodesTable,
-  scanEventsTable,
-  activitiesTable,
   schoolSettingsTable,
   behaviorCategoriesTable,
   recognitionTiersTable,
@@ -162,63 +161,12 @@ async function seed() {
     SEED_RECOGNITION_TIERS.map((t) => ({ ...t, schoolId: demoSchool.id }))
   );
 
-  const now = new Date();
-  const today7am = new Date(now);
-  today7am.setHours(7, 0, 0, 0);
-
-  const halfStudents = insertedStudents.slice(0, Math.floor(insertedStudents.length * 0.75));
-  const scanEvents = halfStudents.map((s, i) => {
-    const minutesAfterOpen = Math.floor(Math.random() * 45);
-    const scanTime = new Date(today7am.getTime() + minutesAfterOpen * 60000 + i * 1000);
-    return {
-      schoolId: demoSchool.id,
-      studentId: s.id,
-      scanType: "gate_in" as const,
-      location: "Main Gate",
-      activityId: null as number | null,
-      notes: null as string | null,
-      createdAt: scanTime,
-    };
-  });
-
-  if (scanEvents.length > 0) {
-    await db.insert(scanEventsTable).values(scanEvents);
-  }
-
-  const assembly = await db.insert(activitiesTable).values({
+  const { scanEvents, activities } = await refreshDemoTimeSensitiveData(db, {
     schoolId: demoSchool.id,
-    name: "Morning Assembly",
-    activityType: "assembly",
-    description: "Daily morning assembly for all students",
-    responsibleStaffId: admin.id,
-    startTime: new Date(today7am.getTime() + 30 * 60000),
-    endTime: new Date(today7am.getTime() + 60 * 60000),
-    status: "active",
-  }).returning();
-
-  await db.insert(activitiesTable).values({
-    schoolId: demoSchool.id,
-    name: "Inter-House Sports",
-    activityType: "event",
-    description: "Annual inter-house sports competition",
-    responsibleStaffId: admin.id,
-    startTime: new Date(now.getTime() + 2 * 60 * 60000),
-    endTime: new Date(now.getTime() + 5 * 60 * 60000),
-    status: "upcoming",
+    adminId: admin.id,
+    students: insertedStudents,
   });
-
-  await db.insert(activitiesTable).values({
-    schoolId: demoSchool.id,
-    name: "Science Club",
-    activityType: "club",
-    description: "Weekly science club meeting",
-    responsibleStaffId: admin.id,
-    startTime: new Date(now.getTime() + 24 * 60 * 60000),
-    endTime: new Date(now.getTime() + 25 * 60 * 60000),
-    status: "upcoming",
-  });
-
-  console.log("Activities created");
+  console.log(`Created ${scanEvents} scan events and ${activities} activities (relative to today)`);
   console.log("Seed completed!");
   console.log("\nDemo credentials:");
   console.log("  Admin: admin / admin123");

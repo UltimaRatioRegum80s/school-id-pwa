@@ -14,7 +14,8 @@
     "migrate:behavior-categories": "node --import tsx/esm src/migrate-behavior-categories.ts",
     "migrate:recognition-tiers": "node --import tsx/esm src/migrate-recognition-tiers.ts",
     "apply:pss-categories": "node --import tsx/esm src/apply-pss-categories.ts",
-    "seed": "node --import tsx/esm src/seed.ts"
+    "seed": "node --import tsx/esm src/seed.ts",
+    "refresh": "node --import tsx/esm src/refresh.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
