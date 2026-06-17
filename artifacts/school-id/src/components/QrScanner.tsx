@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Html5Qrcode } from "html5-qrcode";
+import { BrowserMultiFormatReader } from "@zxing/browser";
 import { Camera, X } from "lucide-react";
 
 interface QrScannerProps {
@@ -22,16 +22,18 @@ export function QrScanner({
   active,
   onStop,
   continuous = false,
-  cooldownMs = 1500,
+  cooldownMs = 700,
 }: QrScannerProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const readerRef = useRef<BrowserMultiFormatReader | null>(null);
+  const controlsRef = useRef<{ stop: () => void } | null>(null);
   const [status, setStatus] = useState<"idle" | "starting" | "scanning" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState<string>("");
   const scannedRef = useRef(false);
   const cooldownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const continuousRef = useRef(continuous);
   const cooldownMsRef = useRef(cooldownMs);
+  const stoppedRef = useRef(false);
 
   useEffect(() => {
     continuousRef.current = continuous;
@@ -50,43 +52,44 @@ export function QrScanner({
   }, [active]);
 
   async function startScanner() {
-    if (!containerRef.current) return;
+    if (!videoRef.current) return;
     setStatus("starting");
     scannedRef.current = false;
+    stoppedRef.current = false;
 
     try {
-      const scannerId = "qr-scanner-" + Math.random().toString(36).slice(2);
-      if (containerRef.current) {
-        containerRef.current.id = scannerId;
-      }
-
-      const scanner = new Html5Qrcode(scannerId, { verbose: false });
-      scannerRef.current = scanner;
-
-      const cameras = await Html5Qrcode.getCameras();
-      if (!cameras || cameras.length === 0) {
+      const devices = await BrowserMultiFormatReader.listVideoInputDevices();
+      if (!devices || devices.length === 0) {
         throw new Error("No camera found on this device.");
       }
 
-      const backCamera = cameras.find(
-        (c) =>
-          c.label.toLowerCase().includes("back") ||
-          c.label.toLowerCase().includes("rear") ||
-          c.label.toLowerCase().includes("environment")
+      const backCamera = devices.find(
+        (d) =>
+          d.label.toLowerCase().includes("back") ||
+          d.label.toLowerCase().includes("rear") ||
+          d.label.toLowerCase().includes("environment")
       );
-      const cameraId = backCamera ? backCamera.id : cameras[cameras.length - 1].id;
+      const deviceId = backCamera ? backCamera.deviceId : devices[devices.length - 1].deviceId;
 
-      await scanner.start(
-        cameraId,
-        {
-          fps: 10,
-          qrbox: { width: 220, height: 220 },
-          aspectRatio: 1.333,
-          disableFlip: false,
-        },
-        (decodedText) => {
+      const reader = new BrowserMultiFormatReader();
+      readerRef.current = reader;
+
+      const controls = await reader.decodeFromVideoDevice(
+        deviceId,
+        videoRef.current,
+        (result, err) => {
+          if (stoppedRef.current) return;
+          if (err) {
+            // NotFoundException = no QR code visible yet; all other errors are
+            // transient and self-resolve, so silently skip them all.
+            return;
+          }
+          if (!result) return;
           if (scannedRef.current) return;
+
+          const decodedText = result.getText();
           scannedRef.current = true;
+
           if (continuousRef.current) {
             onScan(decodedText);
             if (cooldownTimerRef.current) clearTimeout(cooldownTimerRef.current);
@@ -98,15 +101,20 @@ export function QrScanner({
               onScan(decodedText);
             });
           }
-        },
-        () => {}
+        }
       );
 
-      setStatus("scanning");
+      if (!stoppedRef.current) {
+        controlsRef.current = controls;
+        setStatus("scanning");
+      } else {
+        controls.stop();
+      }
     } catch (err: unknown) {
+      if (stoppedRef.current) return;
       const msg =
         err instanceof Error
-          ? err.message.includes("Permission")
+          ? err.message.includes("Permission") || err.message.includes("NotAllowed")
             ? "Camera permission denied. Please allow camera access."
             : err.message
           : "Could not start camera.";
@@ -117,22 +125,20 @@ export function QrScanner({
   }
 
   async function stopScanner() {
+    stoppedRef.current = true;
     if (cooldownTimerRef.current) {
       clearTimeout(cooldownTimerRef.current);
       cooldownTimerRef.current = null;
     }
-    if (scannerRef.current) {
+    if (controlsRef.current) {
       try {
-        const state = scannerRef.current.getState();
-        if (state === 2) {
-          await scannerRef.current.stop();
-        }
-        scannerRef.current.clear();
+        controlsRef.current.stop();
       } catch {
         // ignore
       }
-      scannerRef.current = null;
+      controlsRef.current = null;
     }
+    readerRef.current = null;
     setStatus("idle");
   }
 
@@ -143,10 +149,12 @@ export function QrScanner({
 
   return (
     <div className="relative w-full rounded-2xl overflow-hidden bg-black" style={{ aspectRatio: "4/3" }}>
-      <div
-        ref={containerRef}
-        className="w-full h-full"
-        style={{ minHeight: "100%" }}
+      <video
+        ref={videoRef}
+        className="w-full h-full object-cover"
+        muted
+        playsInline
+        autoPlay
       />
 
       {status === "starting" && (

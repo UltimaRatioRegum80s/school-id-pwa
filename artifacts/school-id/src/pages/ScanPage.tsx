@@ -258,7 +258,7 @@ export default function ScanPage() {
         onScan={handleQrScan}
         onStop={() => setCameraActive(false)}
         continuous={scanMode === "rapid"}
-        cooldownMs={RAPID_DEBOUNCE_MS}
+        cooldownMs={700}
       />
       {scanMode === "rapid" && rapidFeedback && (
         <RapidFlash feedback={rapidFeedback} />
