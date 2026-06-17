@@ -68,6 +68,7 @@ export * from "./student";
 export * from "./studentProfile";
 export * from "./studentQrCode";
 export * from "./studentWithState";
+export * from "./todayCheckpoint";
 export * from "./updateActivityBody";
 export * from "./updateAttendanceBody";
 export * from "./updateBehaviorLogBody";

@@ -8,7 +8,7 @@ import {
   useGetDashboardSummary,
   useGetDashboardTrends,
 } from "@workspace/api-client-react";
-import type { StudentWithState, DashboardStudentsByState, DashboardKpis } from "@workspace/api-client-react";
+import type { StudentWithState, DashboardStudentsByState, DashboardKpis, TodayCheckpoint } from "@workspace/api-client-react";
 import {
   PieChart,
   Pie,
@@ -32,6 +32,12 @@ import {
   ChevronDown,
   ChevronUp,
   ChevronRight,
+  LogIn,
+  BookOpen,
+  Calendar,
+  Star,
+  AlertCircle,
+  Megaphone,
 } from "lucide-react";
 
 const COLOR_PRESENT = "#22c55e";
@@ -485,27 +491,15 @@ export default function DashboardPage() {
     </div>
   );
 
-  const feedSection = (
-    <div className="bg-card border border-border rounded-xl p-4" data-testid="panel-recent-feed">
-      <h3 className="text-sm font-semibold text-foreground mb-3">Recent Activity</h3>
-      {d.recentFeed.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-4">No activity today yet</p>
+  const checkpointsSection = (
+    <div className="bg-card border border-border rounded-xl p-4" data-testid="panel-today-checkpoints">
+      <h3 className="text-sm font-semibold text-foreground mb-3">Today's Checkpoints</h3>
+      {d.todayCheckpoints.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-4">No checkpoints scheduled today</p>
       ) : (
         <div className="space-y-0 divide-y divide-border">
-          {d.recentFeed.slice(0, 10).map((item) => (
-            <div key={item.id} className="py-2.5 flex items-start gap-3" data-testid={`feed-item-${item.id}`}>
-              <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                <span className="text-[11px] font-semibold text-primary">
-                  {initials(item.studentName) || "?"}
-                </span>
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm text-foreground leading-tight">{item.message}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {formatRelativeTime(item.createdAt)}
-                </p>
-              </div>
-            </div>
+          {d.todayCheckpoints.map((cp) => (
+            <CheckpointRow key={cp.id} checkpoint={cp} />
           ))}
         </div>
       )}
@@ -571,7 +565,7 @@ export default function DashboardPage() {
         {studentSummarySection}
         {!isEmpty && trendsSection}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-5">
-          {feedSection}
+          {checkpointsSection}
           {exceptionsSection}
         </div>
       </div>
@@ -663,6 +657,91 @@ function KpiCard({
       </div>
       <p className="text-xl md:text-2xl font-bold text-foreground leading-none">{value}</p>
       <p className="text-[10px] text-muted-foreground mt-1 leading-tight">{label}</p>
+    </div>
+  );
+}
+
+function checkpointVisualState(cp: TodayCheckpoint): "done" | "in_progress" | "upcoming" {
+  if (cp.status === "completed") return "done";
+  const scheduled = new Date(cp.scheduledTime);
+  const now = new Date();
+  if (scheduled > now && cp.scannedCount === 0) return "upcoming";
+  return "in_progress";
+}
+
+function checkpointTypeIcon(type: string) {
+  switch (type) {
+    case "gate_in": return <LogIn className="w-3.5 h-3.5" />;
+    case "assembly": return <Megaphone className="w-3.5 h-3.5" />;
+    case "class": return <BookOpen className="w-3.5 h-3.5" />;
+    case "event": return <Calendar className="w-3.5 h-3.5" />;
+    case "club": return <Star className="w-3.5 h-3.5" />;
+    case "detention": return <AlertCircle className="w-3.5 h-3.5" />;
+    default: return <Clock className="w-3.5 h-3.5" />;
+  }
+}
+
+function formatCheckpointTime(isoString: string): string {
+  const d = new Date(isoString);
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+function CheckpointRow({ checkpoint: cp }: { checkpoint: TodayCheckpoint }) {
+  const state = checkpointVisualState(cp);
+  const typeName = cp.type === "gate_in" ? "Gate In" : cp.type.charAt(0).toUpperCase() + cp.type.slice(1);
+
+  const stateStyles = {
+    done: {
+      dot: "bg-green-500",
+      badge: "text-green-700 bg-green-100 dark:text-green-400 dark:bg-green-900/30",
+      label: "Done",
+      progress: "text-green-700 dark:text-green-400",
+    },
+    in_progress: {
+      dot: "bg-primary animate-pulse",
+      badge: "text-primary bg-primary/10",
+      label: "In progress",
+      progress: "text-foreground",
+    },
+    upcoming: {
+      dot: "bg-muted-foreground/40",
+      badge: "text-muted-foreground bg-muted/60",
+      label: "Upcoming",
+      progress: "text-muted-foreground",
+    },
+  }[state];
+
+  const progressText =
+    cp.totalStudents != null
+      ? `${cp.scannedCount} / ${cp.totalStudents} scanned`
+      : `${cp.scannedCount} scanned`;
+
+  return (
+    <div
+      className="py-3 flex items-center gap-3"
+      data-testid={`checkpoint-row-${cp.id}`}
+    >
+      <div className={`w-2 h-2 rounded-full flex-shrink-0 ${stateStyles.dot}`} />
+      <div className="w-7 h-7 rounded-lg bg-muted/60 flex items-center justify-center flex-shrink-0 text-muted-foreground">
+        {checkpointTypeIcon(cp.type)}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-medium text-foreground leading-tight truncate">{cp.name}</span>
+          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 ${stateStyles.badge}`}>
+            {typeName}
+          </span>
+        </div>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="text-xs text-muted-foreground">{formatCheckpointTime(cp.scheduledTime)}</span>
+          {state !== "upcoming" && (
+            <>
+              <span className="text-muted-foreground/40 text-xs">·</span>
+              <span className={`text-xs font-medium ${stateStyles.progress}`}>{progressText}</span>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

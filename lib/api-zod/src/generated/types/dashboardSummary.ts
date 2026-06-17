@@ -12,6 +12,7 @@ import type { DashboardStudentsByState } from "./dashboardStudentsByState";
 import type { DashboardSummaryAvailableClassesByGrade } from "./dashboardSummaryAvailableClassesByGrade";
 import type { FeedItem } from "./feedItem";
 import type { StatusCount } from "./statusCount";
+import type { TodayCheckpoint } from "./todayCheckpoint";
 
 export interface DashboardSummary {
   kpis: DashboardKpis;
@@ -21,6 +22,8 @@ export interface DashboardSummary {
   /** Per-grade attendance breakdown (present vs absent) */
   byGrade: DashboardGradeStat[];
   recentFeed: FeedItem[];
+  /** Gate In + today's scheduled activities with scan progress */
+  todayCheckpoints: TodayCheckpoint[];
   lastUpdated: string;
   /** Mapping of grade to available class names for filter chip population */
   availableClassesByGrade: DashboardSummaryAvailableClassesByGrade;

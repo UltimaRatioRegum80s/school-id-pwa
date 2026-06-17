@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { requireAuth } from "../lib/auth";
 import { eq, desc, sql, and } from "drizzle-orm";
-import { db, studentsTable, scanEventsTable } from "@workspace/db";
+import { db, studentsTable, scanEventsTable, activitiesTable, schoolSettingsTable } from "@workspace/db";
 import { computeStudentState, formatScanType } from "../lib/state-engine";
 import type { Request } from "express";
 import type { JwtPayload } from "../lib/auth";
@@ -159,6 +159,71 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
     studentId: e.studentId,
   }));
 
+  // --- Today's Checkpoints ---
+  const filteredStudentIdSet = new Set(students.map((s) => s.id));
+
+  const [schoolSettings] = await db
+    .select()
+    .from(schoolSettingsTable)
+    .where(eq(schoolSettingsTable.schoolId, user.schoolId));
+
+  const tomorrowStart = new Date(todayStartDate.getTime() + 24 * 60 * 60 * 1000);
+  const todayActivities = await db
+    .select()
+    .from(activitiesTable)
+    .where(
+      and(
+        eq(activitiesTable.schoolId, user.schoolId),
+        sql`${activitiesTable.startTime} >= ${todayStartDate}`,
+        sql`${activitiesTable.startTime} < ${tomorrowStart}`,
+        sql`${activitiesTable.status} != 'cancelled'`
+      )
+    )
+    .orderBy(activitiesTable.startTime);
+
+  const gateInTime = schoolSettings?.startTime ?? "07:30";
+  const [gateHH, gateMM] = gateInTime.split(":").map(Number);
+  const gateInDate = new Date(todayStartDate);
+  gateInDate.setHours(gateHH ?? 7, gateMM ?? 30, 0, 0);
+
+  const now = new Date();
+
+  const gateInStudentIds = new Set<number>();
+  for (const e of todayEvents) {
+    if (e.scanType === "gate_in" && filteredStudentIdSet.has(e.studentId)) {
+      gateInStudentIds.add(e.studentId);
+    }
+  }
+
+  const todayCheckpoints = [
+    {
+      id: "gate_in",
+      name: "Gate In",
+      type: "gate_in",
+      scheduledTime: gateInDate.toISOString(),
+      status: now >= gateInDate ? "active" : "upcoming",
+      scannedCount: gateInStudentIds.size,
+      totalStudents: students.length,
+    },
+    ...todayActivities.map((activity) => {
+      const activityScanStudentIds = new Set<number>();
+      for (const e of todayEvents) {
+        if (e.activityId === activity.id && filteredStudentIdSet.has(e.studentId)) {
+          activityScanStudentIds.add(e.studentId);
+        }
+      }
+      return {
+        id: String(activity.id),
+        name: activity.name,
+        type: activity.activityType,
+        scheduledTime: activity.startTime.toISOString(),
+        status: activity.status,
+        scannedCount: activityScanStudentIds.size,
+        totalStudents: null as number | null,
+      };
+    }),
+  ];
+
   res.json({
     kpis,
     exceptions,
@@ -166,6 +231,7 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
     statusDistribution,
     byGrade,
     recentFeed,
+    todayCheckpoints,
     availableClassesByGrade,
     lastUpdated: new Date().toISOString(),
   });

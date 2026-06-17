@@ -608,6 +608,28 @@ export const GetDashboardSummaryResponse = zod.object({
       studentId: zod.number(),
     }),
   ),
+  todayCheckpoints: zod
+    .array(
+      zod.object({
+        id: zod.string().describe("gate_in or stringified activity id"),
+        name: zod.string(),
+        type: zod
+          .string()
+          .describe("gate_in, assembly, class, event, club, detention, etc."),
+        scheduledTime: zod
+          .string()
+          .describe("ISO 8601 datetime for the checkpoint's scheduled start"),
+        status: zod.string().describe("upcoming, active, completed"),
+        scannedCount: zod.number(),
+        totalStudents: zod
+          .number()
+          .nullable()
+          .describe(
+            "Total students in scope (set for gate_in, null for activities)",
+          ),
+      }),
+    )
+    .describe("Gate In + today's scheduled activities with scan progress"),
   lastUpdated: zod.string(),
   availableClassesByGrade: zod
     .record(zod.string(), zod.array(zod.string()))

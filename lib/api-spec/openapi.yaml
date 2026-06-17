@@ -1339,6 +1339,37 @@ components:
         - present
         - absent
 
+    TodayCheckpoint:
+      type: object
+      properties:
+        id:
+          type: string
+          description: "gate_in or stringified activity id"
+        name:
+          type: string
+        type:
+          type: string
+          description: "gate_in, assembly, class, event, club, detention, etc."
+        scheduledTime:
+          type: string
+          description: "ISO 8601 datetime for the checkpoint's scheduled start"
+        status:
+          type: string
+          description: "upcoming, active, completed"
+        scannedCount:
+          type: integer
+        totalStudents:
+          type: ["integer", "null"]
+          description: "Total students in scope (set for gate_in, null for activities)"
+      required:
+        - id
+        - name
+        - type
+        - scheduledTime
+        - status
+        - scannedCount
+        - totalStudents
+
     DashboardSummary:
       type: object
       properties:
@@ -1361,6 +1392,11 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/FeedItem"
+        todayCheckpoints:
+          type: array
+          items:
+            $ref: "#/components/schemas/TodayCheckpoint"
+          description: "Gate In + today's scheduled activities with scan progress"
         lastUpdated:
           type: string
         availableClassesByGrade:
@@ -1377,6 +1413,7 @@ components:
         - statusDistribution
         - byGrade
         - recentFeed
+        - todayCheckpoints
         - lastUpdated
         - availableClassesByGrade
 

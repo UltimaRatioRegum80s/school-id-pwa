@@ -193,6 +193,24 @@ export interface DashboardStudentsByState {
   absent: StudentWithState[];
 }
 
+export interface TodayCheckpoint {
+  /** gate_in or stringified activity id */
+  id: string;
+  name: string;
+  /** gate_in, assembly, class, event, club, detention, etc. */
+  type: string;
+  /** ISO 8601 datetime for the checkpoint's scheduled start */
+  scheduledTime: string;
+  /** upcoming, active, completed */
+  status: string;
+  scannedCount: number;
+  /**
+   * Total students in scope (set for gate_in, null for activities)
+   * @nullable
+   */
+  totalStudents: number | null;
+}
+
 /**
  * Mapping of grade to available class names for filter chip population
  */
@@ -239,6 +257,8 @@ export interface DashboardSummary {
   /** Per-grade attendance breakdown (present vs absent) */
   byGrade: DashboardGradeStat[];
   recentFeed: FeedItem[];
+  /** Gate In + today's scheduled activities with scan progress */
+  todayCheckpoints: TodayCheckpoint[];
   lastUpdated: string;
   /** Mapping of grade to available class names for filter chip population */
   availableClassesByGrade: DashboardSummaryAvailableClassesByGrade;
