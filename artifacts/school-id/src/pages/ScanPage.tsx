@@ -23,6 +23,9 @@ import {
   CalendarDays,
   ThumbsUp,
   ThumbsDown,
+  Zap,
+  IdCard,
+  XCircle,
 } from "lucide-react";
 
 const SCAN_TYPES = [
@@ -36,6 +39,28 @@ const SCAN_TYPES = [
   { value: "club", label: "Club" },
 ];
 
+type ScanMode = "detailed" | "rapid";
+const SCAN_MODE_STORAGE_KEY = "school-id-scan-mode";
+
+// Ignore the same code re-scanned within this window (rapid mode).
+const RAPID_DEBOUNCE_MS = 3000;
+// How long the green-tick / red-error flash stays before re-arming.
+const RAPID_FLASH_MS = 900;
+// How many recent names to keep in the strip.
+const RAPID_RECENT_LIMIT = 6;
+
+interface RapidFeedback {
+  status: "success" | "error";
+  name: string;
+  detail?: string;
+}
+
+interface RapidRecentEntry {
+  id: string;
+  name: string;
+  time: string;
+}
+
 export default function ScanPage() {
   const queryClient = useQueryClient();
   const [scanType, setScanType] = useState("gate_in");
@@ -45,7 +70,30 @@ export default function ScanPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [behaviorMessage, setBehaviorMessage] = useState<string | null>(null);
   const [cameraActive, setCameraActive] = useState(true);
+  const [scanMode, setScanMode] = useState<ScanMode>(() => {
+    if (typeof window === "undefined") return "detailed";
+    const stored = window.sessionStorage.getItem(SCAN_MODE_STORAGE_KEY);
+    return stored === "rapid" ? "rapid" : "detailed";
+  });
+  const [rapidFeedback, setRapidFeedback] = useState<RapidFeedback | null>(null);
+  const [rapidCount, setRapidCount] = useState(0);
+  const [rapidRecent, setRapidRecent] = useState<RapidRecentEntry[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Refs so the mutation callbacks always read the current mode / debounce state.
+  const scanModeRef = useRef(scanMode);
+  const recentScansRef = useRef<Map<string, number>>(new Map());
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    scanModeRef.current = scanMode;
+  }, [scanMode]);
+
+  useEffect(() => {
+    return () => {
+      if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (!cameraActive) {
@@ -53,14 +101,51 @@ export default function ScanPage() {
     }
   }, [cameraActive]);
 
+  function scheduleRapidClear() {
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+    flashTimerRef.current = setTimeout(() => {
+      setRapidFeedback(null);
+      if (!cameraActive) {
+        inputRef.current?.focus();
+      }
+    }, RAPID_FLASH_MS);
+  }
+
   const scanMutation = useProcessScan({
     mutation: {
       onSuccess: (data) => {
+        setManualInput("");
+        queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
+        if (scanModeRef.current === "rapid") {
+          const name = `${data.student.firstName} ${data.student.lastName}`;
+          setRapidFeedback({ status: "success", name });
+          setRapidCount((c) => c + 1);
+          setRapidRecent((prev) =>
+            [
+              {
+                id: `${data.scanEvent.id}`,
+                name,
+                time: formatTime(data.scanEvent.createdAt),
+              },
+              ...prev,
+            ].slice(0, RAPID_RECENT_LIMIT)
+          );
+          scheduleRapidClear();
+          return;
+        }
         setResult(data);
         setSheetOpen(true);
-        setManualInput("");
         setBehaviorMessage(null);
-        queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
+      },
+      onError: () => {
+        if (scanModeRef.current === "rapid") {
+          setRapidFeedback({
+            status: "error",
+            name: "Not recognized",
+            detail: "Check the code and try again",
+          });
+          scheduleRapidClear();
+        }
       },
     },
   });
@@ -76,10 +161,20 @@ export default function ScanPage() {
   });
 
   function processScan(code: string) {
-    if (!code.trim()) return;
+    const trimmed = code.trim();
+    if (!trimmed) return;
+    if (scanModeRef.current === "rapid") {
+      const now = Date.now();
+      const last = recentScansRef.current.get(trimmed);
+      if (last && now - last < RAPID_DEBOUNCE_MS) {
+        // Same code scanned again too soon — ignore to avoid double-counting.
+        return;
+      }
+      recentScansRef.current.set(trimmed, now);
+    }
     scanMutation.mutate({
       data: {
-        qrCode: code.trim(),
+        qrCode: trimmed,
         scanType: scanType as ScanType,
         location: location || undefined,
       },
@@ -87,8 +182,34 @@ export default function ScanPage() {
   }
 
   function handleQrScan(code: string) {
+    if (scanMode === "rapid") {
+      // Keep the camera armed for the next student.
+      processScan(code);
+      return;
+    }
     setCameraActive(false);
     processScan(code);
+  }
+
+  function handleModeChange(mode: ScanMode) {
+    if (mode === scanMode) return;
+    setScanMode(mode);
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem(SCAN_MODE_STORAGE_KEY, mode);
+    }
+    // Reset the rapid session whenever the mode changes.
+    setRapidFeedback(null);
+    setRapidCount(0);
+    setRapidRecent([]);
+    recentScansRef.current.clear();
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+    if (mode === "rapid") {
+      // Dismiss any open detailed result and re-arm the camera.
+      setSheetOpen(false);
+      setResult(null);
+      setBehaviorMessage(null);
+      setCameraActive(true);
+    }
   }
 
   function handleManualSubmit(e: React.FormEvent) {
@@ -131,12 +252,17 @@ export default function ScanPage() {
   }
 
   const cameraPanel = cameraActive ? (
-    <div data-testid="panel-camera-placeholder">
+    <div data-testid="panel-camera-placeholder" className="relative">
       <QrScanner
         active={cameraActive}
         onScan={handleQrScan}
         onStop={() => setCameraActive(false)}
+        continuous={scanMode === "rapid"}
+        cooldownMs={RAPID_DEBOUNCE_MS}
       />
+      {scanMode === "rapid" && rapidFeedback && (
+        <RapidFlash feedback={rapidFeedback} />
+      )}
     </div>
   ) : (
     <div
@@ -158,11 +284,115 @@ export default function ScanPage() {
       <div className="absolute top-6 right-6 w-8 h-8 border-t-2 border-r-2 border-white/30 rounded-tr" />
       <div className="absolute bottom-6 left-6 w-8 h-8 border-b-2 border-l-2 border-white/30 rounded-bl" />
       <div className="absolute bottom-6 right-6 w-8 h-8 border-b-2 border-r-2 border-white/30 rounded-br" />
+      {scanMode === "rapid" && rapidFeedback && (
+        <RapidFlash feedback={rapidFeedback} />
+      )}
     </div>
   );
 
+  const modeToggle = (
+    <div>
+      <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+        Scan Mode
+      </label>
+      <div
+        className="grid grid-cols-2 gap-1 bg-muted rounded-lg p-1"
+        role="group"
+        aria-label="Scan mode"
+        data-testid="toggle-scan-mode"
+      >
+        <button
+          type="button"
+          onClick={() => handleModeChange("detailed")}
+          aria-pressed={scanMode === "detailed"}
+          className={`flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-semibold transition-colors ${
+            scanMode === "detailed"
+              ? "bg-card text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+          data-testid="button-mode-detailed"
+        >
+          <IdCard className="w-4 h-4" />
+          Detailed
+        </button>
+        <button
+          type="button"
+          onClick={() => handleModeChange("rapid")}
+          aria-pressed={scanMode === "rapid"}
+          className={`flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-semibold transition-colors ${
+            scanMode === "rapid"
+              ? "bg-amber-500 text-white shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+          data-testid="button-mode-rapid"
+        >
+          <Zap className="w-4 h-4" />
+          Rapid
+        </button>
+      </div>
+      <p className="text-xs text-muted-foreground mt-1.5">
+        {scanMode === "rapid"
+          ? "Camera stays armed — scan students back-to-back."
+          : "Full result card with quick actions for each student."}
+      </p>
+    </div>
+  );
+
+  const rapidStatsPanel =
+    scanMode === "rapid" ? (
+      <div
+        className="bg-card border border-border rounded-xl p-4"
+        data-testid="panel-rapid-stats"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Zap className="w-4 h-4 text-amber-500" />
+            <span className="text-sm font-semibold text-foreground">
+              {getScanTypeLabel(scanType)} session
+            </span>
+          </div>
+          <div className="text-right">
+            <span
+              className="text-2xl font-bold text-foreground tabular-nums leading-none"
+              data-testid="text-rapid-count"
+            >
+              {rapidCount}
+            </span>
+            <span className="text-xs text-muted-foreground ml-1">scanned</span>
+          </div>
+        </div>
+
+        {rapidRecent.length > 0 ? (
+          <ul className="mt-3 space-y-1.5" data-testid="list-rapid-recent">
+            {rapidRecent.map((entry) => (
+              <li
+                key={entry.id}
+                className="flex items-center justify-between gap-2 text-sm bg-muted/50 rounded-lg px-3 py-1.5"
+              >
+                <span className="flex items-center gap-2 min-w-0">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
+                  <span className="font-medium text-foreground truncate">
+                    {entry.name}
+                  </span>
+                </span>
+                <span className="text-xs text-muted-foreground flex-shrink-0">
+                  {entry.time}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xs text-muted-foreground mt-3">
+            Scanned students will appear here.
+          </p>
+        )}
+      </div>
+    ) : null;
+
   const controlsPanel = (
     <div className="space-y-4">
+      {modeToggle}
+
       {/* Scan Type + Location row */}
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -231,7 +461,7 @@ export default function ScanPage() {
           </button>
         </form>
 
-        {scanMutation.isError && (
+        {scanMutation.isError && scanMode === "detailed" && (
           <div
             className="mt-3 flex items-center gap-2 text-destructive text-sm bg-destructive/10 border border-destructive/20 px-3 py-2 rounded-lg"
             data-testid="text-scan-error"
@@ -248,19 +478,25 @@ export default function ScanPage() {
     <div className="flex flex-col min-h-screen bg-background pb-20 md:pb-6">
       <PageHeader
         title="Scan"
-        subtitle={`Mode: ${getScanTypeLabel(scanType)}`}
+        subtitle={`${getScanTypeLabel(scanType)} · ${
+          scanMode === "rapid" ? "Rapid (Bulk)" : "Detailed (Single)"
+        }`}
         showLogo={true}
       />
 
       {/* Mobile: single column */}
       <div className="md:hidden max-w-lg mx-auto w-full px-4 py-4 space-y-4">
         {cameraPanel}
+        {rapidStatsPanel}
         {controlsPanel}
       </div>
 
       {/* Desktop: two-column layout */}
       <div className="hidden md:grid md:grid-cols-2 md:gap-6 px-6 py-5">
-        <div>{cameraPanel}</div>
+        <div className="space-y-4">
+          {cameraPanel}
+          {rapidStatsPanel}
+        </div>
         <div className="space-y-4">
           {controlsPanel}
           {/* Desktop inline result card */}
@@ -344,6 +580,33 @@ export default function ScanPage() {
             </div>
           </div>
         </>
+      )}
+    </div>
+  );
+}
+
+function RapidFlash({ feedback }: { feedback: RapidFeedback }) {
+  const isSuccess = feedback.status === "success";
+  return (
+    <div
+      className={`absolute inset-0 z-30 flex flex-col items-center justify-center gap-2 rounded-2xl text-white animate-in fade-in duration-150 ${
+        isSuccess ? "bg-green-500/90" : "bg-red-500/90"
+      }`}
+      data-testid={isSuccess ? "rapid-flash-success" : "rapid-flash-error"}
+    >
+      {isSuccess ? (
+        <CheckCircle2 className="w-20 h-20" strokeWidth={2.5} />
+      ) : (
+        <XCircle className="w-20 h-20" strokeWidth={2.5} />
+      )}
+      <p
+        className="text-xl font-bold text-center px-6 leading-tight"
+        data-testid="text-rapid-flash-name"
+      >
+        {feedback.name}
+      </p>
+      {feedback.detail && (
+        <p className="text-sm text-white/90 text-center px-6">{feedback.detail}</p>
       )}
     </div>
   );

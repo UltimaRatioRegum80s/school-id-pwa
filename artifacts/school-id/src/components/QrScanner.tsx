@@ -7,14 +7,36 @@ interface QrScannerProps {
   onError?: (error: string) => void;
   active: boolean;
   onStop?: () => void;
+  /**
+   * When true, the scanner keeps running after a successful decode instead of
+   * stopping. A short cooldown prevents the same code from firing repeatedly.
+   */
+  continuous?: boolean;
+  /** Cooldown (ms) before the scanner will accept another decode in continuous mode. */
+  cooldownMs?: number;
 }
 
-export function QrScanner({ onScan, onError, active, onStop }: QrScannerProps) {
+export function QrScanner({
+  onScan,
+  onError,
+  active,
+  onStop,
+  continuous = false,
+  cooldownMs = 1500,
+}: QrScannerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const [status, setStatus] = useState<"idle" | "starting" | "scanning" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState<string>("");
   const scannedRef = useRef(false);
+  const cooldownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const continuousRef = useRef(continuous);
+  const cooldownMsRef = useRef(cooldownMs);
+
+  useEffect(() => {
+    continuousRef.current = continuous;
+    cooldownMsRef.current = cooldownMs;
+  }, [continuous, cooldownMs]);
 
   useEffect(() => {
     if (!active) {
@@ -65,9 +87,17 @@ export function QrScanner({ onScan, onError, active, onStop }: QrScannerProps) {
         (decodedText) => {
           if (scannedRef.current) return;
           scannedRef.current = true;
-          stopScanner().then(() => {
+          if (continuousRef.current) {
             onScan(decodedText);
-          });
+            if (cooldownTimerRef.current) clearTimeout(cooldownTimerRef.current);
+            cooldownTimerRef.current = setTimeout(() => {
+              scannedRef.current = false;
+            }, cooldownMsRef.current);
+          } else {
+            stopScanner().then(() => {
+              onScan(decodedText);
+            });
+          }
         },
         () => {}
       );
@@ -87,6 +117,10 @@ export function QrScanner({ onScan, onError, active, onStop }: QrScannerProps) {
   }
 
   async function stopScanner() {
+    if (cooldownTimerRef.current) {
+      clearTimeout(cooldownTimerRef.current);
+      cooldownTimerRef.current = null;
+    }
     if (scannerRef.current) {
       try {
         const state = scannerRef.current.getState();
