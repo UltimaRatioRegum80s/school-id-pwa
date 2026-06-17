@@ -2,6 +2,58 @@ import { useEffect, useRef, useState } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
 import { Camera, X } from "lucide-react";
 
+// ---------------------------------------------------------------------------
+// BarcodeDetector type declarations (not yet in standard lib.dom.d.ts)
+// ---------------------------------------------------------------------------
+interface BarcodeDetectorResult {
+  rawValue: string;
+  format: string;
+  boundingBox: DOMRectReadOnly;
+  cornerPoints: Array<{ x: number; y: number }>;
+}
+
+interface NativeBarcodeDetector {
+  detect(
+    source:
+      | HTMLVideoElement
+      | HTMLCanvasElement
+      | ImageBitmap
+      | ImageData
+      | Blob
+  ): Promise<BarcodeDetectorResult[]>;
+}
+
+interface NativeBarcodeDetectorConstructor {
+  new (options?: { formats: string[] }): NativeBarcodeDetector;
+  getSupportedFormats(): Promise<string[]>;
+}
+
+/**
+ * Formats we want to detect. The student QR codes are plain QR codes
+ * (`SCID-{id}` strings), but we also accept common 1-D formats so that
+ * printed barcodes on existing ID cards keep working.
+ */
+const DESIRED_FORMATS = ["qr_code", "code_128", "code_39", "ean_13"];
+
+/** Returns a BarcodeDetector instance if the platform supports it, or null. */
+async function buildNativeDetector(): Promise<NativeBarcodeDetector | null> {
+  const BarcodeDetectorCtor = (
+    window as unknown as { BarcodeDetector?: NativeBarcodeDetectorConstructor }
+  ).BarcodeDetector;
+  if (!BarcodeDetectorCtor) return null;
+
+  try {
+    const supported = await BarcodeDetectorCtor.getSupportedFormats();
+    const formats = DESIRED_FORMATS.filter((f) => supported.includes(f));
+    if (formats.length === 0) return null;
+    return new BarcodeDetectorCtor({ formats });
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+
 interface QrScannerProps {
   onScan: (code: string) => void;
   onError?: (error: string) => void;
@@ -25,8 +77,15 @@ export function QrScanner({
   cooldownMs = 700,
 }: QrScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  // ZXing path
   const readerRef = useRef<BrowserMultiFormatReader | null>(null);
   const controlsRef = useRef<{ stop: () => void } | null>(null);
+
+  // Native BarcodeDetector path
+  const nativeStreamRef = useRef<MediaStream | null>(null);
+  const rafRef = useRef<number | null>(null);
+
   const [status, setStatus] = useState<"idle" | "starting" | "scanning" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState<string>("");
   const scannedRef = useRef(false);
@@ -34,6 +93,8 @@ export function QrScanner({
   const continuousRef = useRef(continuous);
   const cooldownMsRef = useRef(cooldownMs);
   const stoppedRef = useRef(false);
+  /** true when using the native BarcodeDetector path */
+  const usingNativeRef = useRef(false);
 
   useEffect(() => {
     continuousRef.current = continuous;
@@ -51,64 +112,153 @@ export function QrScanner({
     };
   }, [active]);
 
+  // -------------------------------------------------------------------------
+  // Shared callback — called by both native and ZXing paths
+  // -------------------------------------------------------------------------
+  function handleDecoded(decodedText: string) {
+    if (stoppedRef.current) return;
+    if (scannedRef.current) return;
+
+    scannedRef.current = true;
+
+    if (continuousRef.current) {
+      onScan(decodedText);
+      if (cooldownTimerRef.current) clearTimeout(cooldownTimerRef.current);
+      cooldownTimerRef.current = setTimeout(() => {
+        scannedRef.current = false;
+      }, cooldownMsRef.current);
+    } else {
+      stopScanner().then(() => {
+        onScan(decodedText);
+      });
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Native BarcodeDetector path
+  // -------------------------------------------------------------------------
+  async function startNativeScanner(detector: NativeBarcodeDetector) {
+    const video = videoRef.current;
+    if (!video) return;
+
+    // Pick the back camera the same way as the ZXing path.
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevices = devices.filter((d) => d.kind === "videoinput");
+    if (videoDevices.length === 0) throw new Error("No camera found on this device.");
+
+    const backCamera = videoDevices.find(
+      (d) =>
+        d.label.toLowerCase().includes("back") ||
+        d.label.toLowerCase().includes("rear") ||
+        d.label.toLowerCase().includes("environment")
+    );
+
+    const constraints: MediaStreamConstraints = {
+      video: backCamera
+        ? { deviceId: { exact: backCamera.deviceId } }
+        : { facingMode: { ideal: "environment" } },
+    };
+
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    if (stoppedRef.current) {
+      stream.getTracks().forEach((t) => t.stop());
+      return;
+    }
+
+    nativeStreamRef.current = stream;
+    video.srcObject = stream;
+    await video.play();
+
+    if (stoppedRef.current) return;
+    setStatus("scanning");
+
+    function tick() {
+      if (stoppedRef.current) return;
+      if (!video || video.readyState < video.HAVE_ENOUGH_DATA) {
+        rafRef.current = requestAnimationFrame(tick);
+        return;
+      }
+
+      detector
+        .detect(video)
+        .then((results) => {
+          if (results.length > 0) {
+            handleDecoded(results[0].rawValue);
+          }
+        })
+        .catch(() => {
+          // detection errors are transient — just skip this frame
+        })
+        .finally(() => {
+          if (!stoppedRef.current) {
+            rafRef.current = requestAnimationFrame(tick);
+          }
+        });
+    }
+
+    rafRef.current = requestAnimationFrame(tick);
+  }
+
+  // -------------------------------------------------------------------------
+  // ZXing path (unchanged logic, extracted for clarity)
+  // -------------------------------------------------------------------------
+  async function startZxingScanner() {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const devices = await BrowserMultiFormatReader.listVideoInputDevices();
+    if (!devices || devices.length === 0) {
+      throw new Error("No camera found on this device.");
+    }
+
+    const backCamera = devices.find(
+      (d) =>
+        d.label.toLowerCase().includes("back") ||
+        d.label.toLowerCase().includes("rear") ||
+        d.label.toLowerCase().includes("environment")
+    );
+    const deviceId = backCamera ? backCamera.deviceId : devices[devices.length - 1].deviceId;
+
+    const reader = new BrowserMultiFormatReader();
+    readerRef.current = reader;
+
+    const controls = await reader.decodeFromVideoDevice(
+      deviceId,
+      video,
+      (result, err) => {
+        if (stoppedRef.current) return;
+        if (err) return; // NotFoundException / transient errors — skip silently
+        if (!result) return;
+        handleDecoded(result.getText());
+      }
+    );
+
+    if (!stoppedRef.current) {
+      controlsRef.current = controls;
+      setStatus("scanning");
+    } else {
+      controls.stop();
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Main start / stop
+  // -------------------------------------------------------------------------
   async function startScanner() {
     if (!videoRef.current) return;
     setStatus("starting");
     scannedRef.current = false;
     stoppedRef.current = false;
+    usingNativeRef.current = false;
 
     try {
-      const devices = await BrowserMultiFormatReader.listVideoInputDevices();
-      if (!devices || devices.length === 0) {
-        throw new Error("No camera found on this device.");
-      }
+      const nativeDetector = await buildNativeDetector();
 
-      const backCamera = devices.find(
-        (d) =>
-          d.label.toLowerCase().includes("back") ||
-          d.label.toLowerCase().includes("rear") ||
-          d.label.toLowerCase().includes("environment")
-      );
-      const deviceId = backCamera ? backCamera.deviceId : devices[devices.length - 1].deviceId;
-
-      const reader = new BrowserMultiFormatReader();
-      readerRef.current = reader;
-
-      const controls = await reader.decodeFromVideoDevice(
-        deviceId,
-        videoRef.current,
-        (result, err) => {
-          if (stoppedRef.current) return;
-          if (err) {
-            // NotFoundException = no QR code visible yet; all other errors are
-            // transient and self-resolve, so silently skip them all.
-            return;
-          }
-          if (!result) return;
-          if (scannedRef.current) return;
-
-          const decodedText = result.getText();
-          scannedRef.current = true;
-
-          if (continuousRef.current) {
-            onScan(decodedText);
-            if (cooldownTimerRef.current) clearTimeout(cooldownTimerRef.current);
-            cooldownTimerRef.current = setTimeout(() => {
-              scannedRef.current = false;
-            }, cooldownMsRef.current);
-          } else {
-            stopScanner().then(() => {
-              onScan(decodedText);
-            });
-          }
-        }
-      );
-
-      if (!stoppedRef.current) {
-        controlsRef.current = controls;
-        setStatus("scanning");
+      if (nativeDetector) {
+        usingNativeRef.current = true;
+        await startNativeScanner(nativeDetector);
       } else {
-        controls.stop();
+        await startZxingScanner();
       }
     } catch (err: unknown) {
       if (stoppedRef.current) return;
@@ -126,10 +276,26 @@ export function QrScanner({
 
   async function stopScanner() {
     stoppedRef.current = true;
+
     if (cooldownTimerRef.current) {
       clearTimeout(cooldownTimerRef.current);
       cooldownTimerRef.current = null;
     }
+
+    // Native path cleanup
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    if (nativeStreamRef.current) {
+      nativeStreamRef.current.getTracks().forEach((t) => t.stop());
+      nativeStreamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+
+    // ZXing path cleanup
     if (controlsRef.current) {
       try {
         controlsRef.current.stop();
@@ -139,6 +305,7 @@ export function QrScanner({
       controlsRef.current = null;
     }
     readerRef.current = null;
+
     setStatus("idle");
   }
 
