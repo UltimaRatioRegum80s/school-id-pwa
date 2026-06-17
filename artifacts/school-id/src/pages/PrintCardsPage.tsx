@@ -621,8 +621,10 @@ export default function PrintCardsPage({ onBack }: { onBack: () => void }) {
           useCORS: true,
           backgroundColor: "#ffffff",
           logging: false,
-          scrollX: 0,
-          scrollY: 0,
+          scrollX: window.scrollX,
+          scrollY: window.scrollY,
+          windowWidth: document.documentElement.scrollWidth,
+          windowHeight: document.documentElement.scrollHeight,
           width: pageEl.offsetWidth,
           height: pageEl.offsetHeight,
         });
