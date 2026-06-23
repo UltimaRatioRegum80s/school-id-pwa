@@ -72,8 +72,10 @@ const CreateInviteBody = z.object({
   expiresInDays: z.number().int().positive().optional(),
 });
 
-const ChangePasswordBody = z.object({
-  newPassword: z.string().min(6),
+const ChangePinBody = z.object({
+  currentPin: z.string().length(4),
+  newPin: z.string().length(4),
+  confirmPin: z.string().length(4),
 });
 
 const AdminCreateUserBody = z.object({
@@ -82,13 +84,25 @@ const AdminCreateUserBody = z.object({
   role: z.string().min(1),
 });
 
+const DEFAULT_PIN = "1234";
+
 function generateUsername(firstName: string, lastName: string): string {
   const base = (firstName[0] + lastName).toLowerCase().replace(/[^a-z0-9]/g, "");
   return base;
 }
 
-function generateTempPassword(): string {
-  return crypto.randomBytes(6).toString("hex");
+function userResponse(u: typeof usersTable.$inferSelect) {
+  return {
+    id: u.id,
+    username: u.username,
+    firstName: u.firstName,
+    lastName: u.lastName,
+    role: u.role,
+    isActive: u.isActive,
+    schoolId: u.schoolId,
+    mustChangePin: u.mustChangePin,
+    createdAt: u.createdAt.toISOString(),
+  };
 }
 
 router.post("/auth/login", async (req, res): Promise<void> => {
@@ -98,7 +112,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     return;
   }
 
-  const { username, password } = parsed.data;
+  const { username, pin, remember } = parsed.data as { username: string; pin: string; remember?: boolean };
   const [user] = await db
     .select()
     .from(usersTable)
@@ -119,28 +133,21 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     return;
   }
 
-  const valid = await bcrypt.compare(password, user.passwordHash);
+  if (!user.pinHash) {
+    res.status(401).json({ error: "Invalid credentials" });
+    return;
+  }
+
+  const valid = await bcrypt.compare(pin, user.pinHash);
   if (!valid) {
     res.status(401).json({ error: "Invalid credentials" });
     return;
   }
 
-  const token = signToken({ userId: user.id, username: user.username, role: user.role, schoolId: user.schoolId });
+  const expiresIn = remember ? "30d" : "24h";
+  const token = signToken({ userId: user.id, username: user.username, role: user.role, schoolId: user.schoolId }, expiresIn);
 
-  res.json({
-    token,
-    user: {
-      id: user.id,
-      username: user.username,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      role: user.role,
-      isActive: user.isActive,
-      schoolId: user.schoolId,
-      mustChangePassword: user.mustChangePassword,
-      createdAt: user.createdAt.toISOString(),
-    },
-  });
+  res.json({ token, user: userResponse(user) });
 });
 
 router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
@@ -155,32 +162,44 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  res.json({
-    id: dbUser.id,
-    username: dbUser.username,
-    firstName: dbUser.firstName,
-    lastName: dbUser.lastName,
-    role: dbUser.role,
-    isActive: dbUser.isActive,
-    schoolId: dbUser.schoolId,
-    mustChangePassword: dbUser.mustChangePassword,
-    createdAt: dbUser.createdAt.toISOString(),
-  });
+  res.json(userResponse(dbUser));
 });
 
-router.post("/auth/change-password", requireAuth, async (req, res): Promise<void> => {
-  const parsed = ChangePasswordBody.safeParse(req.body);
+router.post("/auth/change-pin", requireAuth, async (req, res): Promise<void> => {
+  const parsed = ChangePinBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Password must be at least 6 characters" });
+    res.status(400).json({ error: "Invalid PIN format. Each PIN must be exactly 4 digits." });
+    return;
+  }
+
+  const { currentPin, newPin, confirmPin } = parsed.data;
+
+  if (newPin !== confirmPin) {
+    res.status(400).json({ error: "New PIN and confirm PIN do not match." });
     return;
   }
 
   const user = (req as Request & { user: JwtPayload }).user;
-  const passwordHash = await bcrypt.hash(parsed.data.newPassword, 10);
+  const [dbUser] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, user.userId));
 
+  if (!dbUser || !dbUser.pinHash) {
+    res.status(401).json({ error: "User not found" });
+    return;
+  }
+
+  const currentValid = await bcrypt.compare(currentPin, dbUser.pinHash);
+  if (!currentValid) {
+    res.status(400).json({ error: "Current PIN is incorrect." });
+    return;
+  }
+
+  const newPinHash = await bcrypt.hash(newPin, 10);
   await db
     .update(usersTable)
-    .set({ passwordHash, mustChangePassword: false })
+    .set({ pinHash: newPinHash, mustChangePin: false })
     .where(eq(usersTable.id, user.userId));
 
   res.json({ success: true });
@@ -226,6 +245,7 @@ router.post("/auth/register-school", async (req, res): Promise<void> => {
   }
 
   const passwordHash = await bcrypt.hash(adminPassword, 10);
+  const defaultPinHash = await bcrypt.hash(DEFAULT_PIN, 10);
 
   const { school, adminUser } = await db.transaction(async (tx) => {
     const [newSchool] = await tx.insert(schoolsTable).values({
@@ -250,10 +270,12 @@ router.post("/auth/register-school", async (req, res): Promise<void> => {
       schoolId: newSchool.id,
       username: adminUsername,
       passwordHash,
+      pinHash: defaultPinHash,
       firstName: adminFirstName,
       lastName: adminLastName,
       role: "admin",
       status: "active",
+      mustChangePin: true,
     }).returning();
 
     return { school: newSchool, adminUser: newAdmin };
@@ -261,20 +283,7 @@ router.post("/auth/register-school", async (req, res): Promise<void> => {
 
   const token = signToken({ userId: adminUser.id, username: adminUser.username, role: adminUser.role, schoolId: school.id });
 
-  res.status(201).json({
-    token,
-    user: {
-      id: adminUser.id,
-      username: adminUser.username,
-      firstName: adminUser.firstName,
-      lastName: adminUser.lastName,
-      role: adminUser.role,
-      isActive: adminUser.isActive,
-      schoolId: school.id,
-      mustChangePassword: adminUser.mustChangePassword,
-      createdAt: adminUser.createdAt.toISOString(),
-    },
-  });
+  res.status(201).json({ token, user: userResponse(adminUser) });
 });
 
 router.get("/schools/public", async (req, res): Promise<void> => {
@@ -315,15 +324,19 @@ router.post("/auth/self-register", async (req, res): Promise<void> => {
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
+  const defaultPinHash = await bcrypt.hash(DEFAULT_PIN, 10);
+
   const [newUser] = await db.insert(usersTable).values({
     schoolId,
     username,
     passwordHash,
+    pinHash: defaultPinHash,
     firstName,
     lastName,
     role: "staff",
     status: "pending",
     isActive: "true",
+    mustChangePin: true,
   }).returning();
 
   res.status(201).json({
@@ -354,6 +367,7 @@ router.post("/auth/invite-register", async (req, res): Promise<void> => {
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
+  const defaultPinHash = await bcrypt.hash(DEFAULT_PIN, 10);
 
   const { newUser, conflict } = await db.transaction(async (tx) => {
     const [invite] = await tx
@@ -396,11 +410,13 @@ router.post("/auth/invite-register", async (req, res): Promise<void> => {
       schoolId: invite.schoolId,
       username,
       passwordHash,
+      pinHash: defaultPinHash,
       firstName,
       lastName,
       role: "staff",
       status: "active",
       isActive: "true",
+      mustChangePin: true,
     }).returning();
 
     return { newUser: user, conflict: null };
@@ -418,20 +434,7 @@ router.post("/auth/invite-register", async (req, res): Promise<void> => {
 
   const jwtToken = signToken({ userId: newUser.id, username: newUser.username, role: newUser.role, schoolId: newUser.schoolId });
 
-  res.status(201).json({
-    token: jwtToken,
-    user: {
-      id: newUser.id,
-      username: newUser.username,
-      firstName: newUser.firstName,
-      lastName: newUser.lastName,
-      role: newUser.role,
-      isActive: newUser.isActive,
-      schoolId: newUser.schoolId,
-      mustChangePassword: newUser.mustChangePassword,
-      createdAt: newUser.createdAt.toISOString(),
-    },
-  });
+  res.status(201).json({ token: jwtToken, user: userResponse(newUser) });
 });
 
 router.get("/invites/:token/validate", async (req, res): Promise<void> => {
@@ -492,7 +495,7 @@ router.get("/users", requireAdmin, async (req, res): Promise<void> => {
       isActive: u.isActive,
       status: u.status,
       schoolId: u.schoolId,
-      mustChangePassword: u.mustChangePassword,
+      mustChangePin: u.mustChangePin,
       createdAt: u.createdAt.toISOString(),
     }))
   );
@@ -521,41 +524,40 @@ router.post("/users", requireAdmin, async (req, res): Promise<void> => {
     suffix++;
   }
 
-  const tempPassword = generateTempPassword();
-  const passwordHash = await bcrypt.hash(tempPassword, 10);
+  const defaultPinHash = await bcrypt.hash(DEFAULT_PIN, 10);
 
   const [newUser] = await db
     .insert(usersTable)
     .values({
       schoolId: user.schoolId,
       username,
-      passwordHash,
+      pinHash: defaultPinHash,
       firstName,
       lastName,
       role,
       status: "active",
-      mustChangePassword: true,
+      mustChangePin: true,
     })
     .returning();
 
   res.status(201).json({
     id: newUser.id,
     username: newUser.username,
-    tempPassword,
+    tempPin: DEFAULT_PIN,
     firstName: newUser.firstName,
     lastName: newUser.lastName,
     role: newUser.role,
     isActive: newUser.isActive,
     status: newUser.status,
     schoolId: newUser.schoolId,
-    mustChangePassword: newUser.mustChangePassword,
+    mustChangePin: newUser.mustChangePin,
     createdAt: newUser.createdAt.toISOString(),
   });
 });
 
 router.patch("/users/:id/status", requireAdmin, async (req, res): Promise<void> => {
   const adminUser = (req as Request & { user: JwtPayload }).user;
-  const userId = parseInt(req.params.id, 10);
+  const userId = parseInt(String(req.params.id), 10);
   const { status } = req.body;
 
   if (!["active", "pending", "rejected"].includes(status)) {
@@ -653,7 +655,7 @@ router.post("/invites", requireAdmin, async (req, res): Promise<void> => {
 
 router.delete("/invites/:id", requireAdmin, async (req, res): Promise<void> => {
   const user = (req as Request & { user: JwtPayload }).user;
-  const inviteId = parseInt(req.params.id, 10);
+  const inviteId = parseInt(String(req.params.id), 10);
 
   const [invite] = await db
     .select()

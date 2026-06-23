@@ -13,7 +13,7 @@ interface User {
   schoolId?: number;
   schoolCode?: string;
   schoolName?: string;
-  mustChangePassword?: boolean;
+  mustChangePin?: boolean;
 }
 
 export interface BrandingInfo {
@@ -29,21 +29,21 @@ interface AuthContextValue {
   user: User | null;
   token: string | null;
   branding: BrandingInfo | null;
-  login: (token: string, user: User) => void;
+  login: (token: string, user: User, remember?: boolean) => void;
   logout: () => void;
   refreshBranding: () => Promise<void>;
   isAuthenticated: boolean;
-  clearMustChangePassword: () => void;
+  clearMustChangePin: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(
-    () => localStorage.getItem("school-id-token")
+    () => localStorage.getItem("school-id-token") ?? sessionStorage.getItem("school-id-token")
   );
   const [user, setUser] = useState<User | null>(() => {
-    const stored = localStorage.getItem("school-id-user");
+    const stored = localStorage.getItem("school-id-user") ?? sessionStorage.getItem("school-id-user");
     return stored ? JSON.parse(stored) : null;
   });
   const [branding, setBranding] = useState<BrandingInfo | null>(() => {
@@ -99,6 +99,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem("school-id-token");
       localStorage.removeItem("school-id-user");
       localStorage.removeItem("school-id-branding");
+      sessionStorage.removeItem("school-id-token");
+      sessionStorage.removeItem("school-id-user");
       setToken(null);
       setUser(null);
       setBranding(null);
@@ -121,9 +123,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [token, brandingLoaded, fetchBranding]);
 
-  function login(newToken: string, newUser: User) {
-    localStorage.setItem("school-id-token", newToken);
-    localStorage.setItem("school-id-user", JSON.stringify(newUser));
+  function login(newToken: string, newUser: User, remember = true) {
+    if (remember) {
+      localStorage.setItem("school-id-token", newToken);
+      localStorage.setItem("school-id-user", JSON.stringify(newUser));
+      sessionStorage.removeItem("school-id-token");
+      sessionStorage.removeItem("school-id-user");
+    } else {
+      sessionStorage.setItem("school-id-token", newToken);
+      sessionStorage.setItem("school-id-user", JSON.stringify(newUser));
+      localStorage.removeItem("school-id-token");
+      localStorage.removeItem("school-id-user");
+    }
     setToken(newToken);
     setUser(newUser);
     setBrandingLoaded(false);
@@ -133,22 +144,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("school-id-token");
     localStorage.removeItem("school-id-user");
     localStorage.removeItem("school-id-branding");
+    sessionStorage.removeItem("school-id-token");
+    sessionStorage.removeItem("school-id-user");
     setToken(null);
     setUser(null);
     setBranding(null);
     setBrandingLoaded(false);
   }
 
-  function clearMustChangePassword() {
+  function clearMustChangePin() {
     if (!user) return;
-    const updated = { ...user, mustChangePassword: false };
-    localStorage.setItem("school-id-user", JSON.stringify(updated));
+    const updated = { ...user, mustChangePin: false };
+    const inLocal = !!localStorage.getItem("school-id-token");
+    if (inLocal) {
+      localStorage.setItem("school-id-user", JSON.stringify(updated));
+    } else {
+      sessionStorage.setItem("school-id-user", JSON.stringify(updated));
+    }
     setUser(updated);
   }
 
   return (
     <AuthContext.Provider
-      value={{ user, token, branding, login, logout, refreshBranding, isAuthenticated: !!token && !!user, clearMustChangePassword }}
+      value={{ user, token, branding, login, logout, refreshBranding, isAuthenticated: !!token && !!user, clearMustChangePin }}
     >
       {children}
     </AuthContext.Provider>

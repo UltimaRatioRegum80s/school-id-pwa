@@ -99,6 +99,29 @@ paths:
         "401":
           description: Unauthorized
 
+  /auth/change-pin:
+    post:
+      operationId: changePin
+      tags: [auth]
+      summary: Change logged-in staff member's PIN
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePinBody"
+      responses:
+        "200":
+          description: PIN changed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid current PIN or PINs do not match
+        "401":
+          description: Unauthorized
+
   /students:
     get:
       operationId: listStudents
@@ -1006,11 +1029,15 @@ components:
       properties:
         username:
           type: string
-        password:
+        pin:
           type: string
+          description: 4-digit PIN
+        remember:
+          type: boolean
+          description: When true, the session token lasts 30 days instead of 24 hours
       required:
         - username
-        - password
+        - pin
 
     LoginResponse:
       type: object
@@ -1042,7 +1069,7 @@ components:
           type: integer
         createdAt:
           type: string
-        mustChangePassword:
+        mustChangePin:
           type: boolean
       required:
         - id
@@ -1082,13 +1109,34 @@ components:
         - adminFirstName
         - adminLastName
 
+    ChangePinBody:
+      type: object
+      properties:
+        currentPin:
+          type: string
+          description: The staff member's current 4-digit PIN
+        newPin:
+          type: string
+          description: The new 4-digit PIN
+        confirmPin:
+          type: string
+          description: Confirmation of the new 4-digit PIN (must match newPin)
+      required:
+        - currentPin
+        - newPin
+        - confirmPin
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+      required:
+        - success
+
     CreateUserBody:
       type: object
       properties:
-        username:
-          type: string
-        password:
-          type: string
         firstName:
           type: string
         lastName:
@@ -1096,8 +1144,6 @@ components:
         role:
           type: string
       required:
-        - username
-        - password
         - firstName
         - lastName
         - role

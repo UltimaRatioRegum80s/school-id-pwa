@@ -19,6 +19,7 @@ import {
   useListRecognitionQualifiers,
   useAwardRecognition,
   useRemoveRecognitionAward,
+  useChangePin,
   useCreateStudent,
   useListActivities,
   useCreateActivity,
@@ -64,6 +65,9 @@ import {
   CheckCircle2,
   Undo2,
   GripVertical,
+  Delete,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import {
   DndContext,
@@ -95,7 +99,8 @@ type AdminView =
   | "activity-management"
   | "create-activity"
   | "edit-activity"
-  | "appearance";
+  | "appearance"
+  | "change-pin";
 
 export default function AdminPage() {
   const { user, logout } = useAuth();
@@ -133,6 +138,7 @@ export default function AdminPage() {
     <EditActivityView activity={editingActivity} onBack={() => setView("activity-management")} />
   );
   if (view === "appearance") return <AppearanceView onBack={() => setView("main")} />;
+  if (view === "change-pin") return <ChangePinView onBack={() => setView("main")} />;
 
   const schoolDisplayName = settings?.schoolName ?? user?.schoolName;
   const schoolCode = user?.schoolCode;
@@ -172,6 +178,13 @@ export default function AdminPage() {
                 </p>
                 <p className="text-xs text-muted-foreground">{user?.username} · {user?.role}</p>
               </div>
+              <button
+                onClick={() => setView("change-pin")}
+                className="text-xs text-primary font-semibold px-3 py-1.5 rounded-lg border border-primary/20 hover:bg-primary/5 transition-colors"
+                data-testid="button-change-pin"
+              >
+                Change PIN
+              </button>
             </div>
           </div>
         </div>
@@ -651,7 +664,7 @@ function UsersView({ onBack, onCreateUser }: { onBack: () => void; onCreateUser:
 interface CreatedUserResult {
   id: number;
   username: string;
-  tempPassword: string;
+  tempPin: string;
   firstName: string;
   lastName: string;
   role: string;
@@ -697,7 +710,7 @@ function CreateUserView({ onBack }: { onBack: () => void }) {
 
   function copyCredentials() {
     if (!created) return;
-    navigator.clipboard.writeText(`Username: ${created.username}\nPassword: ${created.tempPassword}`);
+    navigator.clipboard.writeText(`Username: ${created.username}\nPIN: ${created.tempPin}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
@@ -729,13 +742,13 @@ function CreateUserView({ onBack }: { onBack: () => void }) {
                 <p className="text-sm font-mono font-semibold text-foreground" data-testid="text-created-username">{created.username}</p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Temporary Password</p>
-                <p className="text-sm font-mono font-semibold text-foreground" data-testid="text-created-password">{created.tempPassword}</p>
+                <p className="text-xs text-muted-foreground">Default PIN</p>
+                <p className="text-sm font-mono font-semibold text-foreground" data-testid="text-created-password">{created.tempPin}</p>
               </div>
             </div>
 
             <p className="text-xs text-amber-600 mt-3">
-              Share these credentials with {created.firstName}. They will be asked to change their password on first login.
+              Share these credentials with {created.firstName}. They will be asked to change their PIN on first login.
             </p>
 
             <button
@@ -3066,6 +3079,220 @@ function AppearanceView({ onBack }: { onBack: () => void }) {
             {saving ? "Saving..." : "Save Palette"}
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ChangePinView({ onBack }: { onBack: () => void }) {
+  const [currentPin, setCurrentPin] = useState("");
+  const [newPin, setNewPin] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
+  const [step, setStep] = useState<"current" | "new" | "confirm">("current");
+  const [showPin, setShowPin] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
+
+  const changePinMutation = useChangePin({
+    mutation: {
+      onSuccess: () => {
+        setSuccess(true);
+      },
+      onError: async (err: unknown) => {
+        try {
+          const response = (err as { response?: { json?: () => Promise<{ error?: string }> } }).response;
+          if (response?.json) {
+            const body = await response.json();
+            setError(body.error ?? "Failed to change PIN.");
+            if (body.error?.includes("Current PIN") || body.error?.includes("current")) {
+              setStep("current");
+              setCurrentPin("");
+            }
+            return;
+          }
+        } catch {}
+        setError("Failed to change PIN. Please try again.");
+      },
+    },
+  });
+
+  function handleCurrentPin(pin: string) {
+    setCurrentPin(pin);
+    if (pin.length === 4) setTimeout(() => setStep("new"), 120);
+  }
+
+  function handleNewPin(pin: string) {
+    setNewPin(pin);
+    if (pin.length === 4) setTimeout(() => setStep("confirm"), 120);
+  }
+
+  function handleConfirmPin(pin: string) {
+    setConfirmPin(pin);
+  }
+
+  function handleSubmit() {
+    if (newPin !== confirmPin) {
+      setError("PINs do not match. Please try again.");
+      setNewPin("");
+      setConfirmPin("");
+      setStep("new");
+      return;
+    }
+    setError("");
+    changePinMutation.mutate({ data: { currentPin, newPin, confirmPin } });
+  }
+
+  const PinDots = ({ value }: { value: string }) => (
+    <div className="flex items-center justify-center gap-3 py-3">
+      {Array.from({ length: 4 }, (_, i) => (
+        <div
+          key={i}
+          className={`w-3.5 h-3.5 rounded-full border-2 transition-all ${
+            i < value.length ? "bg-primary border-primary" : "bg-transparent border-muted-foreground/40"
+          }`}
+        />
+      ))}
+    </div>
+  );
+
+  const digits = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0"];
+
+  function handleDigit(d: string) {
+    const current = step === "current" ? currentPin : step === "new" ? newPin : confirmPin;
+    if (current.length >= 4) return;
+    const next = current + d;
+    if (step === "current") handleCurrentPin(next);
+    else if (step === "new") handleNewPin(next);
+    else handleConfirmPin(next);
+  }
+
+  function handleBackspace() {
+    if (step === "current") setCurrentPin((p) => p.slice(0, -1));
+    else if (step === "new") setNewPin((p) => p.slice(0, -1));
+    else setConfirmPin((p) => p.slice(0, -1));
+  }
+
+  const currentValue = step === "current" ? currentPin : step === "new" ? newPin : confirmPin;
+  const allComplete = currentPin.length === 4 && newPin.length === 4 && confirmPin.length === 4;
+
+  return (
+    <div className="flex flex-col min-h-screen bg-background pb-20">
+      <div className="bg-card border-b border-border px-4 pt-4 pb-3 sticky top-7 z-40">
+        <div className="max-w-lg mx-auto flex items-center gap-3">
+          <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-muted transition-colors" data-testid="button-change-pin-back">
+            <X className="w-4 h-4" />
+          </button>
+          <h1 className="text-base font-bold text-foreground flex-1">Change PIN</h1>
+          {success && (
+            <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+              <Check className="w-3.5 h-3.5" /> Changed
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="max-w-sm mx-auto w-full px-4 py-6 space-y-6">
+        {success ? (
+          <div className="text-center py-8 space-y-3">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+              <Check className="w-8 h-8 text-green-600" />
+            </div>
+            <p className="font-semibold text-foreground">PIN changed successfully</p>
+            <p className="text-sm text-muted-foreground">Your new PIN is active.</p>
+            <button
+              onClick={onBack}
+              className="mt-4 bg-primary text-primary-foreground font-semibold py-2.5 px-6 rounded-xl"
+              data-testid="button-change-pin-done"
+            >
+              Done
+            </button>
+          </div>
+        ) : (
+          <>
+            {error && (
+              <div className="bg-destructive/10 border border-destructive/20 text-destructive text-sm px-3 py-2 rounded-lg flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                {error}
+              </div>
+            )}
+
+            <div className="text-center">
+              <p className="text-sm font-medium text-foreground mb-1">
+                {step === "current" ? "Enter current PIN" : step === "new" ? "Enter new PIN" : "Confirm new PIN"}
+              </p>
+              <p className="text-xs text-muted-foreground">Step {step === "current" ? 1 : step === "new" ? 2 : 3} of 3</p>
+              <div className="flex items-center justify-center gap-3 py-4">
+                {showPin ? (
+                  <div className="text-3xl font-mono tracking-[0.5em] text-foreground min-w-[7rem] text-center select-none">
+                    {currentValue.padEnd(4, "·")}
+                  </div>
+                ) : (
+                  <PinDots value={currentValue} />
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPin(!showPin)}
+                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 mx-auto"
+              >
+                {showPin ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                {showPin ? "Hide" : "Show"} digits
+              </button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              {digits.map((d, i) => {
+                if (d === "") return <div key={i} />;
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => handleDigit(d)}
+                    disabled={changePinMutation.isPending || currentValue.length >= 4}
+                    className="h-14 rounded-xl text-xl font-semibold bg-card border border-border text-foreground hover:bg-muted/50 active:bg-muted transition-colors disabled:opacity-40 select-none"
+                    data-testid={`change-pin-digit-${d}`}
+                  >
+                    {d}
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                onClick={handleBackspace}
+                disabled={changePinMutation.isPending || currentValue.length === 0}
+                className="h-14 rounded-xl flex items-center justify-center bg-card border border-border text-muted-foreground hover:bg-muted/50 active:bg-muted transition-colors disabled:opacity-40"
+                data-testid="change-pin-backspace"
+              >
+                <Delete className="w-5 h-5" />
+              </button>
+            </div>
+
+            {step !== "current" && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (step === "new") { setStep("current"); setCurrentPin(""); }
+                  if (step === "confirm") { setStep("new"); setNewPin(""); }
+                }}
+                className="w-full text-sm text-muted-foreground hover:text-foreground py-2"
+              >
+                ← Back
+              </button>
+            )}
+
+            {allComplete && (
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={changePinMutation.isPending}
+                className="w-full bg-primary text-primary-foreground font-semibold py-3 rounded-xl disabled:opacity-60"
+                data-testid="button-change-pin-submit"
+              >
+                {changePinMutation.isPending ? "Changing..." : "Change PIN"}
+              </button>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

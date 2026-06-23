@@ -13,8 +13,9 @@ export interface JwtPayload {
   schoolId: number;
 }
 
-export function signToken(payload: JwtPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: "24h" });
+export function signToken(payload: JwtPayload, expiresIn: string | number = "24h"): string {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return jwt.sign(payload as object, JWT_SECRET, { expiresIn: expiresIn as any }) as string;
 }
 
 export function verifyToken(token: string): JwtPayload | null {

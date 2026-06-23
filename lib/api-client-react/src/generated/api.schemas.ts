@@ -11,7 +11,10 @@ export interface HealthStatus {
 
 export interface LoginBody {
   username: string;
-  password: string;
+  /** 4-digit PIN */
+  pin: string;
+  /** When true, the session token lasts 30 days instead of 24 hours */
+  remember?: boolean;
 }
 
 export interface UserProfile {
@@ -23,7 +26,7 @@ export interface UserProfile {
   isActive: string;
   schoolId: number;
   createdAt: string;
-  mustChangePassword?: boolean;
+  mustChangePin?: boolean;
 }
 
 export interface LoginResponse {
@@ -42,9 +45,20 @@ export interface RegisterSchoolBody {
   contactEmail?: string;
 }
 
+export interface ChangePinBody {
+  /** The staff member's current 4-digit PIN */
+  currentPin: string;
+  /** The new 4-digit PIN */
+  newPin: string;
+  /** Confirmation of the new 4-digit PIN (must match newPin) */
+  confirmPin: string;
+}
+
+export interface SuccessResponse {
+  success: boolean;
+}
+
 export interface CreateUserBody {
-  username: string;
-  password: string;
   firstName: string;
   lastName: string;
   role: string;

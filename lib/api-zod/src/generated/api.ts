@@ -20,7 +20,11 @@ export const HealthCheckResponse = zod.object({
  */
 export const LoginBody = zod.object({
   username: zod.string(),
-  password: zod.string(),
+  pin: zod.string().describe("4-digit PIN"),
+  remember: zod
+    .boolean()
+    .optional()
+    .describe("When true, the session token lasts 30 days instead of 24 hours"),
 });
 
 export const LoginResponse = zod.object({
@@ -34,7 +38,7 @@ export const LoginResponse = zod.object({
     isActive: zod.string(),
     schoolId: zod.number(),
     createdAt: zod.string(),
-    mustChangePassword: zod.boolean().optional(),
+    mustChangePin: zod.boolean().optional(),
   }),
 });
 
@@ -64,7 +68,22 @@ export const GetMeResponse = zod.object({
   isActive: zod.string(),
   schoolId: zod.number(),
   createdAt: zod.string(),
-  mustChangePassword: zod.boolean().optional(),
+  mustChangePin: zod.boolean().optional(),
+});
+
+/**
+ * @summary Change logged-in staff member's PIN
+ */
+export const ChangePinBody = zod.object({
+  currentPin: zod.string().describe("The staff member's current 4-digit PIN"),
+  newPin: zod.string().describe("The new 4-digit PIN"),
+  confirmPin: zod
+    .string()
+    .describe("Confirmation of the new 4-digit PIN (must match newPin)"),
+});
+
+export const ChangePinResponse = zod.object({
+  success: zod.boolean(),
 });
 
 /**
@@ -1251,7 +1270,7 @@ export const ListUsersResponseItem = zod.object({
   isActive: zod.string(),
   schoolId: zod.number(),
   createdAt: zod.string(),
-  mustChangePassword: zod.boolean().optional(),
+  mustChangePin: zod.boolean().optional(),
 });
 export const ListUsersResponse = zod.array(ListUsersResponseItem);
 
@@ -1259,8 +1278,6 @@ export const ListUsersResponse = zod.array(ListUsersResponseItem);
  * @summary Create a staff/admin user
  */
 export const CreateUserBody = zod.object({
-  username: zod.string(),
-  password: zod.string(),
   firstName: zod.string(),
   lastName: zod.string(),
   role: zod.string(),

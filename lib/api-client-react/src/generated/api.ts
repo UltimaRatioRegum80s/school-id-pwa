@@ -24,6 +24,7 @@ import type {
   AwardRecognitionBody,
   BehaviorCategory,
   BehaviorLog,
+  ChangePinBody,
   CreateActivityBody,
   CreateBehaviorCategoryBody,
   CreateBehaviorLogBody,
@@ -63,6 +64,7 @@ import type {
   StudentProfile,
   StudentQrCode,
   StudentWithState,
+  SuccessResponse,
   UpdateActivityBody,
   UpdateAttendanceBody,
   UpdateBehaviorLogBody,
@@ -392,6 +394,92 @@ export function useGetMe<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Change logged-in staff member's PIN
+ */
+export const getChangePinUrl = () => {
+  return `/api/auth/change-pin`;
+};
+
+export const changePin = async (
+  changePinBody: ChangePinBody,
+  options?: RequestInit,
+): Promise<SuccessResponse> => {
+  return customFetch<SuccessResponse>(getChangePinUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(changePinBody),
+  });
+};
+
+export const getChangePinMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof changePin>>,
+    TError,
+    { data: BodyType<ChangePinBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof changePin>>,
+  TError,
+  { data: BodyType<ChangePinBody> },
+  TContext
+> => {
+  const mutationKey = ["changePin"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof changePin>>,
+    { data: BodyType<ChangePinBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return changePin(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ChangePinMutationResult = NonNullable<
+  Awaited<ReturnType<typeof changePin>>
+>;
+export type ChangePinMutationBody = BodyType<ChangePinBody>;
+export type ChangePinMutationError = ErrorType<void>;
+
+/**
+ * @summary Change logged-in staff member's PIN
+ */
+export const useChangePin = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof changePin>>,
+    TError,
+    { data: BodyType<ChangePinBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof changePin>>,
+  TError,
+  { data: BodyType<ChangePinBody> },
+  TContext
+> => {
+  return useMutation(getChangePinMutationOptions(options));
+};
 
 /**
  * @summary List students

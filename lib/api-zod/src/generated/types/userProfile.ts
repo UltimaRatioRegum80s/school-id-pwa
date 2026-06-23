@@ -15,5 +15,5 @@ export interface UserProfile {
   isActive: string;
   schoolId: number;
   createdAt: string;
-  mustChangePassword?: boolean;
+  mustChangePin?: boolean;
 }

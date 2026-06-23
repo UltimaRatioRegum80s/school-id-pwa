@@ -8,5 +8,8 @@
 
 export interface LoginBody {
   username: string;
-  password: string;
+  /** 4-digit PIN */
+  pin: string;
+  /** When true, the session token lasts 30 days instead of 24 hours */
+  remember?: boolean;
 }

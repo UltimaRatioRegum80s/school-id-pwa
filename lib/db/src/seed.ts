@@ -52,14 +52,13 @@ async function seed() {
 
   console.log(`School created: ${demoSchool.name} (code: ${demoSchool.code})`);
 
-  const adminHash = await bcrypt.hash("admin123", 10);
-  const staffHash = await bcrypt.hash("staff123", 10);
+  const defaultPinHash = await bcrypt.hash("1234", 10);
 
   const [admin] = await db.insert(usersTable).values([
     {
       schoolId: demoSchool.id,
       username: "admin",
-      passwordHash: adminHash,
+      pinHash: defaultPinHash,
       firstName: "Principal",
       lastName: "Adams",
       role: "admin",
@@ -67,7 +66,7 @@ async function seed() {
     {
       schoolId: demoSchool.id,
       username: "staff1",
-      passwordHash: staffHash,
+      pinHash: defaultPinHash,
       firstName: "Sarah",
       lastName: "Johnson",
       role: "staff",
@@ -75,7 +74,7 @@ async function seed() {
     {
       schoolId: demoSchool.id,
       username: "staff2",
-      passwordHash: staffHash,
+      pinHash: defaultPinHash,
       firstName: "Mike",
       lastName: "Williams",
       role: "staff",
@@ -168,10 +167,10 @@ async function seed() {
   });
   console.log(`Created ${scanEvents} scan events and ${activities} activities (relative to today)`);
   console.log("Seed completed!");
-  console.log("\nDemo credentials:");
-  console.log("  Admin: admin / admin123");
-  console.log("  Staff: staff1 / staff123");
-  console.log("  Staff: staff2 / staff123");
+  console.log("\nDemo credentials (PIN auth — default PIN: 1234):");
+  console.log("  Admin: admin / PIN 1234");
+  console.log("  Staff: staff1 / PIN 1234");
+  console.log("  Staff: staff2 / PIN 1234");
   console.log(`\nDemo school code: ${demoSchool.code}`);
   console.log(`Demo QR format: SCID-STU####`);
 

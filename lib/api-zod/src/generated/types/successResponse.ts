@@ -6,8 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface CreateUserBody {
-  firstName: string;
-  lastName: string;
-  role: string;
+export interface SuccessResponse {
+  success: boolean;
 }
