@@ -15,6 +15,7 @@
     "migrate:recognition-tiers": "node --import tsx/esm src/migrate-recognition-tiers.ts",
     "apply:pss-categories": "node --import tsx/esm src/apply-pss-categories.ts",
     "migrate:pin": "node --import tsx/esm src/migrate-to-pin.ts",
+    "seed:pss-staff": "node --import tsx/esm src/seed-pss-staff.ts",
     "seed": "node --import tsx/esm src/seed.ts",
     "seed:pss": "node --import tsx/esm src/seed-pss.ts",
     "refresh": "node --import tsx/esm src/refresh.ts"

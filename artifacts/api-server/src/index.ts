@@ -2,6 +2,7 @@ import http from "http";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { initSocketIO } from "./lib/socket";
+import { runStartupMigrations } from "./lib/startup-migrations";
 
 const rawPort = process.env["PORT"];
 
@@ -23,6 +24,7 @@ initSocketIO(httpServer);
 
 httpServer.listen(port, () => {
   logger.info({ port }, "Server listening");
+  runStartupMigrations();
 });
 
 httpServer.on("error", (err) => {
