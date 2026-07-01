@@ -2,6 +2,7 @@ import { useState, useRef, useMemo, lazy, Suspense } from "react";
 const PrintCardsPage = lazy(() => import("./PrintCardsPage"));
 import { useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAuth } from "@/contexts/AuthContext";
 import { PALETTES, applyPalette, applyCustomPalette } from "@/lib/palettes";
 import { getApiUrl } from "@/lib/api";
@@ -187,6 +188,17 @@ export default function AdminPage() {
               </button>
             </div>
           </div>
+        </div>
+
+        {/* Theme (available to all staff, primary control for mobile) */}
+        <div className="bg-card border border-border rounded-xl p-4" data-testid="panel-theme">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-foreground">Theme</p>
+              <p className="text-xs text-muted-foreground">Light, Dim, or Dark — saved on this device</p>
+            </div>
+          </div>
+          <ThemeToggle showLabels className="w-full mt-3" />
         </div>
 
         {/* Admin-only section */}

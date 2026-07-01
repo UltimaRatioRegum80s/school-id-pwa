@@ -1,5 +1,6 @@
 import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { QrCode, LayoutDashboard, CalendarDays, Users, Settings, School } from "lucide-react";
 
 const tabs = [
@@ -53,6 +54,10 @@ export function DesktopSidebar() {
           );
         })}
       </nav>
+
+      <div className="px-3 py-3 border-t border-border">
+        <ThemeToggle className="w-full" />
+      </div>
 
       <div className="px-4 py-3 border-t border-border">
         <p className="text-[10px] text-muted-foreground text-center">School ID v1.0</p>
