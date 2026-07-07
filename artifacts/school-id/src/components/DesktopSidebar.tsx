@@ -19,7 +19,7 @@ export function DesktopSidebar() {
     <aside className="hidden md:flex fixed left-0 top-0 h-full w-56 flex-col bg-card border-r border-border z-40">
       <div className="px-4 py-5 border-b border-border">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
+          <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden ${branding?.logoUrl ? "bg-white p-1" : "bg-primary"}`}>
             {branding?.logoUrl ? (
               <img src={branding.logoUrl} alt="" className="w-full h-full object-contain" />
             ) : (

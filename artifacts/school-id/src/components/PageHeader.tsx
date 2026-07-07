@@ -35,7 +35,7 @@ export function PageHeader({ title, subtitle, action, onBack, showLogo = false }
             </button>
           )}
           {showLogo && (
-            <div className="w-8 h-8 bg-white/15 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden ${branding?.logoUrl ? "bg-white p-1" : "bg-white/15"}`}>
               {branding?.logoUrl ? (
                 <img
                   src={branding.logoUrl}

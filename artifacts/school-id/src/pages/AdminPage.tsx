@@ -2971,7 +2971,7 @@ function AppearanceView({ onBack }: { onBack: () => void }) {
         <div className="bg-card border border-border rounded-xl p-4 space-y-3">
           <h2 className="text-sm font-semibold text-foreground">School Logo</h2>
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-primary rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0">
+            <div className={`w-16 h-16 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0 ${branding?.logoUrl ? "bg-white p-2" : "bg-primary"}`}>
               {branding?.logoUrl ? (
                 <img src={branding.logoUrl} alt="School logo" className="w-full h-full object-contain" />
               ) : (

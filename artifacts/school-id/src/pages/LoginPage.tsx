@@ -342,7 +342,7 @@ export default function LoginPage() {
       <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4">
         <div className="w-full max-w-sm">
           <div className="text-center mb-6">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-primary rounded-2xl mb-4 shadow-md overflow-hidden">
+            <div className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 shadow-md overflow-hidden ${branding?.logoUrl ? "bg-white p-2" : "bg-primary"}`}>
               {branding?.logoUrl ? (
                 <img src={branding.logoUrl} alt={branding.schoolName} className="w-full h-full object-contain" />
               ) : schoolInitials ? (
@@ -379,7 +379,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary rounded-2xl mb-4 shadow-md overflow-hidden">
+          <div className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 shadow-md overflow-hidden ${branding?.logoUrl ? "bg-white p-2" : "bg-primary"}`}>
             {branding?.logoUrl ? (
               <img
                 src={branding.logoUrl}
