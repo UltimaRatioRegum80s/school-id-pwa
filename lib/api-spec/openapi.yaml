@@ -1224,6 +1224,8 @@ components:
         - $ref: "#/components/schemas/StudentWithState"
         - type: object
           properties:
+            attendanceSummary:
+              $ref: "#/components/schemas/AttendanceSummary"
             todayTimeline:
               type: array
               items:
@@ -1231,8 +1233,26 @@ components:
             behaviorSummary:
               $ref: "#/components/schemas/BehaviorSummary"
           required:
+            - attendanceSummary
             - todayTimeline
             - behaviorSummary
+
+    AttendanceSummary:
+      type: object
+      properties:
+        totalDays:
+          type: integer
+        presentDays:
+          type: integer
+        absentDays:
+          type: integer
+        attendancePercent:
+          type: integer
+      required:
+        - totalDays
+        - presentDays
+        - absentDays
+        - attendancePercent
 
     BehaviorSummary:
       type: object

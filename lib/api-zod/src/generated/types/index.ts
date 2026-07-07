@@ -11,6 +11,7 @@ export * from "./activityDetail";
 export * from "./activityWithCounts";
 export * from "./attendanceRecord";
 export * from "./attendanceStatus";
+export * from "./attendanceSummary";
 export * from "./awardRecognitionBody";
 export * from "./behaviorCategory";
 export * from "./behaviorLog";

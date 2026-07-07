@@ -410,8 +410,28 @@ router.get("/students/:id", requireAuth, async (req, res): Promise<void> => {
   const nextTierRow = tiers.find((t) => totalMerits < t.thresholdPoints) ?? null;
   const nextTier = nextTierRow ? formatTier(nextTierRow) : null;
 
+  // Attendance summary: count distinct calendar days where the student had at least one scan
+  const attendanceDaysResult = await db.execute(
+    sql`SELECT COUNT(DISTINCT DATE(created_at AT TIME ZONE 'UTC')) AS present_days FROM scan_events WHERE student_id = ${id} AND school_id = ${user.schoolId} AND scan_type IN ('gate_in', 'class', 'event', 'assembly', 'activity', 'club', 'detention')`
+  );
+  const presentDays = Number((attendanceDaysResult.rows[0] as Record<string, unknown>)?.present_days ?? 0);
+  // Use days since the start of this calendar year as a proxy for total school days
+  const now = new Date();
+  const yearStart = new Date(now.getFullYear(), 0, 1);
+  const daysSinceYearStart = Math.floor((now.getTime() - yearStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  // Approximate school days (Mon-Fri, ~5/7 of days)
+  const totalDays = Math.max(presentDays, Math.round(daysSinceYearStart * (5 / 7)));
+  const absentDays = Math.max(0, totalDays - presentDays);
+  const attendancePercent = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0;
+
   res.json({
     ...formatStudent(student, todayEvents),
+    attendanceSummary: {
+      totalDays,
+      presentDays,
+      absentDays,
+      attendancePercent,
+    },
     todayTimeline: todayEvents.map((e) => ({
       id: e.id,
       studentId: e.studentId,

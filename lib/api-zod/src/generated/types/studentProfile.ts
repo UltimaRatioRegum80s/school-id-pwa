@@ -5,11 +5,13 @@
  * School ID App API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { AttendanceSummary } from "./attendanceSummary";
 import type { BehaviorSummary } from "./behaviorSummary";
 import type { ScanEvent } from "./scanEvent";
 import type { StudentWithState } from "./studentWithState";
 
 export type StudentProfile = StudentWithState & {
+  attendanceSummary: AttendanceSummary;
   todayTimeline: ScanEvent[];
   behaviorSummary: BehaviorSummary;
 };

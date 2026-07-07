@@ -6,6 +6,8 @@ import { formatRelativeTime, getScanTypeLabel, formatTime } from "@/lib/status";
 import {
   useListStudents,
   useGetStudent,
+  useUpdateStudent,
+  useDeleteStudent,
   useListStudentQrCodes,
   useRegenerateStudentQrCode,
   getListStudentsQueryKey,
@@ -14,6 +16,7 @@ import {
 } from "@workspace/api-client-react";
 import type { StudentProfile, StudentWithState } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Search,
   ChevronRight,
@@ -30,6 +33,11 @@ import {
   Users,
   Award,
   ThumbsDown,
+  Pencil,
+  Trash2,
+  Check,
+  AlertCircle,
+  CalendarDays,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 
@@ -506,7 +514,7 @@ export default function StudentsPage() {
             </div>
             {selectedId && (
               <div className="w-[400px] flex-none border-l border-border overflow-y-auto bg-background">
-                <StudentProfilePanel id={selectedId} />
+                <StudentProfilePanel id={selectedId} onDeleted={() => setSelectedId(null)} />
               </div>
             )}
           </div>
@@ -523,7 +531,7 @@ export default function StudentsPage() {
             </div>
             <div className="flex flex-col flex-1 overflow-y-auto bg-background">
               {selectedId ? (
-                <StudentProfilePanel id={selectedId} />
+                <StudentProfilePanel id={selectedId} onDeleted={() => setSelectedId(null)} />
               ) : (
                 <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-2">
                   <User className="w-12 h-12 opacity-20" />
@@ -1038,7 +1046,7 @@ function RosterColumn({
   );
 }
 
-function StudentProfilePanel({ id }: { id: number }) {
+function StudentProfilePanel({ id, onDeleted }: { id: number; onDeleted?: () => void }) {
   const { data, isLoading } = useGetStudent(id, {
     query: { queryKey: getGetStudentQueryKey(id), refetchInterval: 15000 },
   });
@@ -1051,7 +1059,7 @@ function StudentProfilePanel({ id }: { id: number }) {
     );
   }
 
-  return <StudentProfileContent data={data} id={id} />;
+  return <StudentProfileContent data={data} id={id} onDeleted={onDeleted} />;
 }
 
 function StudentProfileView({ id, onBack }: { id: number; onBack: () => void }) {
@@ -1088,26 +1096,87 @@ function StudentProfileView({ id, onBack }: { id: number; onBack: () => void }) 
         </div>
       </div>
       <div className="max-w-lg mx-auto w-full pb-4">
-        <StudentProfileContent data={data} id={id} />
+        <StudentProfileContent data={data} id={id} onDeleted={onBack} />
       </div>
     </div>
   );
 }
 
+const GRADE_OPTIONS = ["8", "9", "10", "11", "12", "AS Level", "A2 Level"];
+
 function StudentProfileContent({
   data: s,
   id,
+  onDeleted,
 }: {
   data: StudentProfile;
   id: number;
+  onDeleted?: () => void;
 }) {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const isAdmin = user?.role === "admin";
+
   const [behaviorOpen, setBehaviorOpen] = useState(false);
   const [behaviorType, setBehaviorType] = useState<"merit" | "demerit">("merit");
+
+  // Edit state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({ firstName: s.firstName, lastName: s.lastName, grade: s.grade, className: s.className });
+  const [editError, setEditError] = useState("");
+
+  // Delete state
+  const [deleteConfirming, setDeleteConfirming] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
+  const updateMutation = useUpdateStudent({
+    mutation: {
+      onSuccess: async () => {
+        await queryClient.invalidateQueries({ queryKey: getGetStudentQueryKey(id) });
+        await queryClient.invalidateQueries({ queryKey: getListStudentsQueryKey() });
+        setIsEditing(false);
+        setEditError("");
+      },
+      onError: () => setEditError("Failed to save changes. Please try again."),
+    },
+  });
+
+  const deleteMutation = useDeleteStudent({
+    mutation: {
+      onSuccess: async () => {
+        await queryClient.invalidateQueries({ queryKey: getListStudentsQueryKey() });
+        onDeleted?.();
+      },
+      onError: () => {
+        setDeleteError("Failed to delete student. Please try again.");
+        setDeleteConfirming(false);
+      },
+    },
+  });
 
   function openBehavior(type: "merit" | "demerit") {
     setBehaviorType(type);
     setBehaviorOpen(true);
   }
+
+  function handleEditOpen() {
+    setEditForm({ firstName: s.firstName, lastName: s.lastName, grade: s.grade, className: s.className });
+    setEditError("");
+    setIsEditing(true);
+  }
+
+  function handleEditSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editForm.firstName.trim() || !editForm.lastName.trim() || !editForm.grade.trim() || !editForm.className.trim()) {
+      setEditError("All fields are required.");
+      return;
+    }
+    updateMutation.mutate({ id, data: editForm });
+  }
+
+  const attendancePct = s.attendanceSummary.attendancePercent;
+  const attendanceBarColor = attendancePct >= 80 ? "bg-green-500" : attendancePct >= 60 ? "bg-amber-500" : "bg-red-500";
+  const attendancePctColor = attendancePct >= 80 ? "text-green-600" : attendancePct >= 60 ? "text-amber-600" : "text-red-600";
 
   return (
     <div className="px-4 py-4 space-y-4">
@@ -1123,43 +1192,148 @@ function StudentProfileContent({
         }}
         initialType={behaviorType}
       />
-      <div className="bg-card border border-border rounded-xl p-4" data-testid="panel-student-profile">
-        <div className="flex items-start gap-4">
-          <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
-            {s.photoUrl ? (
-              <img src={s.photoUrl} alt="" className="w-16 h-16 rounded-full object-cover" />
-            ) : (
-              <span className="text-xl font-bold text-primary">
-                {s.firstName[0]}{s.lastName[0]}
-              </span>
-            )}
-          </div>
-          <div className="min-w-0 flex-1">
-            <h2 className="text-lg font-bold text-foreground" data-testid="text-profile-name">
-              {s.firstName} {s.lastName}
-            </h2>
-            <p className="text-sm text-muted-foreground">{s.studentId}</p>
-            <div className="flex flex-wrap gap-2 mt-2">
-              <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">Grade {s.grade}</span>
-              <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">{s.className}</span>
-            </div>
-            <div className="mt-2" data-testid="status-profile">
-              <StatusBadge state={s.currentState} />
-            </div>
-          </div>
-        </div>
 
-        {(s.lastSeenAt || s.lastSeenLocation) && (
-          <div className="mt-3 pt-3 border-t border-border flex items-center gap-4 text-xs text-muted-foreground">
-            {s.lastSeenAt && (
-              <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{formatRelativeTime(s.lastSeenAt)}</span>
-            )}
-            {s.lastSeenLocation && (
-              <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{s.lastSeenLocation}</span>
-            )}
+      {isEditing ? (
+        <div className="bg-card border border-border rounded-xl p-4" data-testid="panel-student-edit">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-base font-bold text-foreground">Edit Student</h2>
+            <button
+              onClick={() => { setIsEditing(false); setEditError(""); }}
+              className="p-1.5 rounded-lg hover:bg-muted transition-colors"
+              data-testid="button-edit-cancel"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
-        )}
-      </div>
+          {editError && (
+            <div className="mb-3 bg-destructive/10 border border-destructive/20 text-destructive text-xs px-3 py-2 rounded-lg flex items-center gap-2" data-testid="text-edit-error">
+              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+              {editError}
+            </div>
+          )}
+          <form onSubmit={handleEditSave} className="space-y-3" data-testid="form-student-edit">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">First Name</label>
+                <input
+                  type="text"
+                  value={editForm.firstName}
+                  onChange={(e) => setEditForm((f) => ({ ...f, firstName: e.target.value }))}
+                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  data-testid="input-edit-first-name"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Last Name</label>
+                <input
+                  type="text"
+                  value={editForm.lastName}
+                  onChange={(e) => setEditForm((f) => ({ ...f, lastName: e.target.value }))}
+                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  data-testid="input-edit-last-name"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Grade</label>
+              <select
+                value={editForm.grade}
+                onChange={(e) => setEditForm((f) => ({ ...f, grade: e.target.value }))}
+                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                data-testid="select-edit-grade"
+              >
+                {GRADE_OPTIONS.map((g) => (
+                  <option key={g} value={g}>{/^\d+$/.test(g) ? `Grade ${g}` : g}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Class / Homeroom</label>
+              <input
+                type="text"
+                value={editForm.className}
+                onChange={(e) => setEditForm((f) => ({ ...f, className: e.target.value }))}
+                placeholder="e.g. 10A"
+                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                data-testid="input-edit-class"
+              />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                type="submit"
+                disabled={updateMutation.isPending}
+                className="flex-1 bg-primary text-primary-foreground font-semibold py-2 rounded-lg text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+                data-testid="button-edit-save"
+              >
+                {updateMutation.isPending ? (
+                  <span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                ) : (
+                  <Check className="w-4 h-4" />
+                )}
+                {updateMutation.isPending ? "Saving..." : "Save"}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setIsEditing(false); setEditError(""); }}
+                className="px-4 py-2 rounded-lg text-sm font-medium border border-border hover:bg-muted transition-colors"
+                data-testid="button-edit-cancel-footer"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : (
+        <div className="bg-card border border-border rounded-xl p-4" data-testid="panel-student-profile">
+          <div className="flex items-start gap-4">
+            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+              {s.photoUrl ? (
+                <img src={s.photoUrl} alt="" className="w-16 h-16 rounded-full object-cover" />
+              ) : (
+                <span className="text-xl font-bold text-primary">
+                  {s.firstName[0]}{s.lastName[0]}
+                </span>
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-start justify-between gap-2">
+                <h2 className="text-lg font-bold text-foreground" data-testid="text-profile-name">
+                  {s.firstName} {s.lastName}
+                </h2>
+                {isAdmin && (
+                  <button
+                    onClick={handleEditOpen}
+                    className="p-1.5 rounded-lg hover:bg-muted transition-colors flex-shrink-0"
+                    title="Edit student"
+                    data-testid="button-profile-edit"
+                  >
+                    <Pencil className="w-4 h-4 text-muted-foreground" />
+                  </button>
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground">{s.studentId}</p>
+              <div className="flex flex-wrap gap-2 mt-2">
+                <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">Grade {s.grade}</span>
+                <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">{s.className}</span>
+              </div>
+              <div className="mt-2" data-testid="status-profile">
+                <StatusBadge state={s.currentState} />
+              </div>
+            </div>
+          </div>
+
+          {(s.lastSeenAt || s.lastSeenLocation) && (
+            <div className="mt-3 pt-3 border-t border-border flex items-center gap-4 text-xs text-muted-foreground">
+              {s.lastSeenAt && (
+                <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{formatRelativeTime(s.lastSeenAt)}</span>
+              )}
+              {s.lastSeenLocation && (
+                <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{s.lastSeenLocation}</span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* One-tap behavior logging — mirrors the Scan result quick-action pattern */}
       <div className="grid grid-cols-2 gap-3" data-testid="panel-profile-quick-actions">
@@ -1240,6 +1414,37 @@ function StudentProfileContent({
         </div>
       )}
 
+      {/* Attendance Stats — above Today's Timeline */}
+      <div className="bg-card border border-border rounded-xl p-4" data-testid="panel-attendance-stats">
+        <div className="flex items-center gap-2 mb-3">
+          <CalendarDays className="w-4 h-4 text-primary" />
+          <h3 className="text-sm font-semibold text-foreground">Attendance Stats</h3>
+          <span className={`ml-auto text-lg font-bold ${attendancePctColor}`} data-testid="text-attendance-percent">
+            {attendancePct}%
+          </span>
+        </div>
+        <div className="h-2 w-full bg-muted rounded-full overflow-hidden mb-3" data-testid="bar-attendance">
+          <div
+            className={`h-full rounded-full transition-all ${attendanceBarColor}`}
+            style={{ width: `${attendancePct}%` }}
+          />
+        </div>
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div data-testid="stat-attendance-total">
+            <p className="text-base font-bold text-foreground">{s.attendanceSummary.totalDays}</p>
+            <p className="text-xs text-muted-foreground">School Days</p>
+          </div>
+          <div data-testid="stat-attendance-present">
+            <p className="text-base font-bold text-green-600">{s.attendanceSummary.presentDays}</p>
+            <p className="text-xs text-muted-foreground">Present</p>
+          </div>
+          <div data-testid="stat-attendance-absent">
+            <p className="text-base font-bold text-slate-500">{s.attendanceSummary.absentDays}</p>
+            <p className="text-xs text-muted-foreground">Absent</p>
+          </div>
+        </div>
+      </div>
+
       <div className="bg-card border border-border rounded-xl overflow-hidden" data-testid="panel-timeline">
         <div className="px-4 py-2.5 border-b border-border">
           <h3 className="text-sm font-semibold text-foreground">Today's Timeline</h3>
@@ -1290,6 +1495,52 @@ function StudentProfileContent({
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Delete — admin only, tap-to-confirm inline */}
+      {isAdmin && (
+        <div className="pt-2" data-testid="panel-delete-student">
+          {deleteError && (
+            <div className="mb-2 bg-destructive/10 border border-destructive/20 text-destructive text-xs px-3 py-2 rounded-lg flex items-center gap-2" data-testid="text-delete-error">
+              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+              {deleteError}
+            </div>
+          )}
+          {deleteConfirming ? (
+            <div className="flex gap-2 items-center" data-testid="panel-delete-confirm">
+              <p className="text-sm text-destructive font-medium flex-1">Are you sure? This cannot be undone.</p>
+              <button
+                onClick={() => deleteMutation.mutate({ id })}
+                disabled={deleteMutation.isPending}
+                className="px-3 py-1.5 rounded-lg bg-destructive text-destructive-foreground text-sm font-semibold disabled:opacity-50 flex items-center gap-1.5"
+                data-testid="button-delete-confirm"
+              >
+                {deleteMutation.isPending ? (
+                  <span className="w-3.5 h-3.5 border-2 border-destructive-foreground/30 border-t-destructive-foreground rounded-full animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5" />
+                )}
+                Delete
+              </button>
+              <button
+                onClick={() => setDeleteConfirming(false)}
+                className="px-3 py-1.5 rounded-lg border border-border text-sm font-medium hover:bg-muted transition-colors"
+                data-testid="button-delete-cancel"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => { setDeleteError(""); setDeleteConfirming(true); }}
+              className="w-full py-2.5 rounded-xl border border-destructive/30 text-destructive text-sm font-semibold hover:bg-destructive/5 transition-colors flex items-center justify-center gap-2"
+              data-testid="button-profile-delete"
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete Student
+            </button>
+          )}
         </div>
       )}
     </div>

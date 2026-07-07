@@ -195,6 +195,12 @@ export const GetStudentResponse = zod
   )
   .and(
     zod.object({
+      attendanceSummary: zod.object({
+        totalDays: zod.number(),
+        presentDays: zod.number(),
+        absentDays: zod.number(),
+        attendancePercent: zod.number(),
+      }),
       todayTimeline: zod.array(
         zod.object({
           id: zod.number(),

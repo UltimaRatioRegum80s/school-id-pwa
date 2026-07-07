@@ -95,6 +95,13 @@ export type StudentWithState = Student & {
   lastSeenLocation?: string | null;
 };
 
+export interface AttendanceSummary {
+  totalDays: number;
+  presentDays: number;
+  absentDays: number;
+  attendancePercent: number;
+}
+
 export type ScanType = (typeof ScanType)[keyof typeof ScanType];
 
 export const ScanType = {
@@ -161,6 +168,7 @@ export interface BehaviorSummary {
 }
 
 export type StudentProfile = StudentWithState & {
+  attendanceSummary: AttendanceSummary;
   todayTimeline: ScanEvent[];
   behaviorSummary: BehaviorSummary;
 };
