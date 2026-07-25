@@ -209,7 +209,14 @@ function drawLogoMark(
   pdf.setFillColor(255, 255, 255);
   pdf.circle(cx, cy, size / 2, "F");
   if (ctx.logoDataUrl) {
-    const s = size * 0.86;
+    // A square image whose side is s fits inside a circle of diameter `size`
+    // only when s <= size / sqrt(2) ≈ 0.707 × size.  The previous value of
+    // 0.86 caused the four corners of the image to protrude beyond the white
+    // circle onto the coloured header, producing a "square in a round frame"
+    // artefact in the PDF.  0.62 keeps the image well inside the inscribed-
+    // square limit and adds intentional padding so the logo breathes inside
+    // its white disc — matching what the web card preview already shows.
+    const s = size * 0.62;
     try {
       pdf.addImage(ctx.logoDataUrl, "PNG", cx - s / 2, cy - s / 2, s, s);
       return;
